@@ -1,15 +1,15 @@
+import { defaultTheme } from "@isonia/theme-default";
 import type { PropsWithChildren } from "react";
 import { useEffect } from "react";
-import { defaultTheme } from "./default-theme";
 
 export function ThemeProvider({ children }: PropsWithChildren): JSX.Element {
   useEffect(() => {
     const root = document.documentElement;
-    for (const [name, value] of Object.entries(defaultTheme.tokens)) {
-      root.style.setProperty(`--${name}`, value);
+    root.dataset.isoniaTheme = defaultTheme.id;
+    for (const [name, value] of Object.entries(defaultTheme.cssVariables)) {
+      root.style.setProperty(name, value);
     }
   }, []);
 
   return <>{children}</>;
 }
-

@@ -1,4 +1,4 @@
 onlyBuiltDependencies:
   - "@isonia/sdk"
+  - "@isonia/theme-default"
   - "@isonia/types"
-

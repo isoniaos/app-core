@@ -1,7 +1,7 @@
 :root {
-  color: var(--color-fg);
-  background: var(--color-bg);
-  font-family: var(--font-sans);
+  color: var(--iso-color-foreground);
+  background: var(--iso-color-background);
+  font-family: var(--iso-font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -14,7 +14,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--color-bg);
+  background: var(--iso-color-background);
 }
 
 a {
@@ -37,13 +37,13 @@ table {
 th,
 td {
   padding: 0.85rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--iso-color-border);
   text-align: left;
   vertical-align: middle;
 }
 
 th {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -57,7 +57,7 @@ td {
   max-width: 640px;
   margin: 12vh auto;
   padding: 2rem;
-  color: #17202a;
+  color: var(--iso-color-foreground);
 }
 
 .app-shell {
@@ -74,8 +74,8 @@ td {
   gap: 1rem;
   min-height: 64px;
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border-bottom: 1px solid var(--iso-color-border);
+  background: color-mix(in srgb, var(--iso-color-surface) 92%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -92,9 +92,9 @@ td {
   width: 32px;
   height: 32px;
   place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-primary);
+  color: var(--iso-color-primary-foreground);
   font-weight: 800;
 }
 
@@ -105,8 +105,8 @@ td {
 }
 
 .sidebar {
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border-right: 1px solid var(--iso-color-border);
+  background: var(--iso-color-surface);
   padding: 1rem;
 }
 
@@ -117,7 +117,7 @@ td {
 
 .nav-group-label {
   margin: 1rem 0 0.35rem;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -127,16 +127,16 @@ td {
   display: flex;
   min-height: 38px;
   align-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--iso-radius-md);
   padding: 0 0.75rem;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-weight: 650;
 }
 
 .nav-link:hover,
 .nav-link-active {
-  background: var(--color-surface-subtle);
-  color: var(--color-fg);
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-foreground);
 }
 
 .content-shell {
@@ -167,11 +167,11 @@ td {
 
 .section-header p:not(.eyebrow) {
   max-width: 720px;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
 }
 
 .eyebrow {
-  color: var(--color-primary);
+  color: var(--iso-color-primary);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -182,9 +182,9 @@ td {
 .entity-card,
 .metric,
 .state-panel {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-lg);
+  background: var(--iso-color-surface);
 }
 
 .panel {
@@ -197,7 +197,7 @@ td {
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--iso-color-border);
 }
 
 .panel-header h2,
@@ -219,7 +219,7 @@ td {
 }
 
 .metric span {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.82rem;
   font-weight: 650;
 }
@@ -235,7 +235,7 @@ td {
 .table-subtext {
   display: block;
   margin-top: 0.18rem;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.78rem;
 }
 
@@ -248,18 +248,18 @@ td {
   min-height: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
   padding: 0 0.8rem;
-  background: var(--color-surface);
-  color: var(--color-fg);
+  background: var(--iso-color-surface);
+  color: var(--iso-color-foreground);
   cursor: pointer;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .button:hover {
-  border-color: var(--color-primary);
+  border-color: var(--iso-color-primary);
 }
 
 .button:disabled {
@@ -268,9 +268,9 @@ td {
 }
 
 .button-primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
+  border-color: var(--iso-color-primary);
+  background: var(--iso-color-primary);
+  color: var(--iso-color-primary-foreground);
 }
 
 .button-small {
@@ -294,7 +294,7 @@ td {
 
 .wallet-address,
 .wallet-chain {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -304,7 +304,7 @@ td {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--iso-radius-sm);
   padding: 0.12rem 0.5rem;
   font-size: 0.76rem;
   font-weight: 800;
@@ -312,29 +312,29 @@ td {
 }
 
 .badge-default {
-  background: #dcebef;
-  color: var(--color-primary-strong);
+  background: var(--iso-color-info-surface);
+  color: var(--iso-color-primary-strong);
 }
 
 .badge-success {
-  background: #ddf1e6;
-  color: var(--color-success);
+  background: var(--iso-color-success-surface);
+  color: var(--iso-color-success);
 }
 
 .badge-warning {
-  background: #f6ead5;
-  color: var(--color-warning);
+  background: var(--iso-color-warning-surface);
+  color: var(--iso-color-warning);
 }
 
 .badge-danger {
-  background: #f5dde1;
-  color: var(--color-danger);
+  background: var(--iso-color-danger-surface);
+  color: var(--iso-color-danger);
 }
 
 .badge-muted,
 .chip {
-  background: var(--color-surface-subtle);
-  color: var(--color-muted);
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-muted);
 }
 
 .card-grid {
@@ -363,7 +363,7 @@ td {
 }
 
 .entity-card p {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
 }
 
 .detail-list {
@@ -383,7 +383,7 @@ td {
 }
 
 .detail-list dt {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -396,7 +396,7 @@ td {
 }
 
 .mono-value {
-  font-family: ui-monospace, SFMono-Regular, Consolas, Liberation Mono, monospace;
+  font-family: var(--iso-font-mono);
   font-size: 0.86rem;
 }
 
@@ -410,7 +410,7 @@ td {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--iso-color-border);
 }
 
 .list-row:last-child {
@@ -424,12 +424,12 @@ td {
 
 .list-row span {
   margin-top: 0.2rem;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
   font-size: 0.82rem;
 }
 
 .list-row-link:hover {
-  background: var(--color-surface-subtle);
+  background: var(--iso-color-surface-subtle);
 }
 
 .two-column-grid,
@@ -452,20 +452,20 @@ td {
   display: grid;
   gap: 0.6rem;
   padding: 1rem;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--iso-color-border);
 }
 
 .callout {
   display: grid;
   gap: 0.18rem;
-  border-left: 3px solid var(--color-warning);
+  border-left: 3px solid var(--iso-color-warning);
   padding: 0.6rem 0.75rem;
-  background: #fff8eb;
+  background: var(--iso-color-warning-surface);
 }
 
 .callout span,
 .empty-copy {
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
 }
 
 .empty-copy {
@@ -478,19 +478,19 @@ td {
   min-height: 120px;
   place-items: center;
   padding: 1.5rem;
-  color: var(--color-muted);
+  color: var(--iso-color-muted);
 }
 
 .state-panel-error {
-  color: var(--color-danger);
+  color: var(--iso-color-danger);
 }
 
 .loading-bar {
   width: min(220px, 70vw);
   height: 8px;
   overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-subtle);
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface-subtle);
 }
 
 .loading-bar::after {
@@ -498,7 +498,7 @@ td {
   width: 45%;
   height: 100%;
   border-radius: inherit;
-  background: var(--color-primary);
+  background: var(--iso-color-primary);
   animation: loading-slide 1.1s infinite ease-in-out;
   content: "";
 }
@@ -523,7 +523,7 @@ td {
     z-index: 8;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--iso-color-border);
   }
 
   .nav-stack {

@@ -4,6 +4,7 @@ import { App } from "./app/App";
 import { AppProviders } from "./app/AppProviders";
 import { createWalletSetup } from "./chain/wallet-setup";
 import { loadRuntimeConfig } from "./config/runtime-config";
+import "@isonia/theme-default/theme.css";
 import "./styles/global.css";
 
 async function bootstrap(): Promise<void> {

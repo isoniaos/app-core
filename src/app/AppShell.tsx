@@ -1,3 +1,4 @@
+import { defaultThemeBrand } from "@isonia/theme-default";
 import type { PropsWithChildren } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useRuntimeConfig } from "../config/runtime-config";
@@ -11,9 +12,13 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <NavLink to="/" className="brand-link" aria-label="IsoniaOS home">
+        <NavLink
+          to="/"
+          className="brand-link"
+          aria-label={`${defaultThemeBrand.productName} home`}
+        >
           <span className="brand-mark" aria-hidden="true">
-            I
+            {defaultThemeBrand.mark}
           </span>
           <span>{runtimeConfig.appName}</span>
         </NavLink>
@@ -65,4 +70,3 @@ function getOrgIdFromPath(pathname: string): string | undefined {
   const match = /^\/orgs\/([^/]+)/.exec(pathname);
   return match?.[1];
 }
-

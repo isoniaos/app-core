@@ -13,7 +13,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Proposal details with route explanation
 - Governance graph data view
 - Runtime config from `/isonia.config.json`
-- Default CSS variable theme provider
+- Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
 Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, or proposal creation transactions.
@@ -96,8 +96,11 @@ Deployable app-core builds depend on pinned GitHub tags:
 ```json
 {
   "@isonia/types": "github:isoniaos/types#v0.1.0",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.1.0"
+  "@isonia/sdk": "github:isoniaos/sdk#v0.1.0",
+  "@isonia/theme-default": "github:isoniaos/theme-default#v0.1.0"
 }
 ```
 
 Do not duplicate shared DTOs locally. Add shared domain types to `@isonia/types` first.
+
+For local workspace development, `@isonia/theme-default` is linked from `../theme-default`.

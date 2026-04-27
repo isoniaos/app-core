@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@isonia/sdk": "github:isoniaos/sdk#v0.1.0",
+    "@isonia/theme-default": "link:../theme-default",
     "@isonia/types": "github:isoniaos/types#v0.1.0",
     "@reown/appkit": "1.8.19",
     "@reown/appkit-adapter-wagmi": "1.8.19",
