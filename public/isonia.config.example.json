@@ -1,10 +1,11 @@
 {
   "appName": "IsoniaOS",
   "mode": "self-hosted",
-  "apiBaseUrl": "http://localhost:3000",
+  "apiBaseUrl": "https://control-plane.example.org",
   "chainId": 31337,
   "chainName": "Hardhat Local",
   "rpcUrl": "http://127.0.0.1:8545",
+  "blockExplorerUrl": "https://explorer.example.org",
   "nativeCurrencyName": "Ether",
   "nativeCurrencySymbol": "ETH",
   "contracts": {
@@ -25,7 +26,7 @@
   },
   "wallet": {
     "reownProjectId": "",
-    "appUrl": "http://localhost:5173",
-    "icons": []
+    "appUrl": "https://app.example.org",
+    "icons": ["https://app.example.org/icon.png"]
   }
 }

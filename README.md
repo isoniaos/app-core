@@ -40,6 +40,20 @@ pnpm build
 
 The build output is written to `dist/` and can be served by any static web server. Configure the server to return `index.html` for application routes such as `/orgs/1/proposals/2`.
 
+## Self-Hosted Deployment
+
+1. Build the static app:
+
+   ```sh
+   pnpm build
+   ```
+
+2. Copy or template `public/isonia.config.example.json` to `dist/isonia.config.json`.
+3. Set the deployment values in `dist/isonia.config.json`: `apiBaseUrl`, chain metadata, `rpcUrl`, contract addresses, theme source, and wallet fields.
+4. Serve `dist/` from a static host or CDN, with SPA fallback to `index.html`.
+
+Runtime config is intentionally separate from the bundle. Operators can move the same build across environments by replacing only `isonia.config.json`.
+
 ## Runtime Config
 
 At startup the app fetches:
@@ -48,7 +62,7 @@ At startup the app fetches:
 /isonia.config.json
 ```
 
-For local development, edit `public/isonia.config.json`. For self-hosted deployment, place the file next to the built assets so operators can change API, chain, contract, and wallet settings without rebuilding the app.
+For local development, edit `public/isonia.config.json`. For deployment, use `public/isonia.config.example.json` as the complete operator-facing template and place the final file next to the built assets.
 
 Example:
 
@@ -82,12 +96,27 @@ Example:
   "wallet": {
     "reownProjectId": "",
     "appUrl": "https://app.example.org",
-    "icons": []
+    "icons": ["https://app.example.org/icon.png"]
   }
 }
 ```
 
 `billing` and `saasAdmin` are ignored by the public app core.
+
+The wallet config controls the connection UX:
+
+- `reownProjectId`: when set, app-core initializes Reown AppKit for multi-wallet UX.
+- Empty `reownProjectId`: app-core stays usable in self-hosted mode and falls back to wagmi's injected connector, suitable for browser wallets such as MetaMask or Rabby.
+- `appUrl`: public URL shown in Reown wallet metadata.
+- `icons`: public icon URLs used in Reown wallet metadata.
+
+wagmi and viem remain the core EVM interaction layer in both modes. Reown AppKit is only the optional multi-wallet UX layer.
+
+At runtime the app surfaces wallet setup diagnostics for:
+
+- invalid chain or RPC config, which blocks startup and reports the exact bad field;
+- Reown initialization failure, which falls back to injected wallet mode;
+- missing Reown project ID, which explains that injected wallet fallback is active.
 
 ## Shared Packages
 
@@ -103,4 +132,4 @@ Deployable app-core builds depend on pinned GitHub tags:
 
 Do not duplicate shared DTOs locally. Add shared domain types to `@isonia/types` first.
 
-For local workspace development, `@isonia/theme-default` is linked from `../theme-default`.
+For local workspace development, `@isonia/theme-default` can be linked from `../theme-default`. Switch the dependency to `github:isoniaos/theme-default#v0.1.0` only after that tag exists in the public theme repository.

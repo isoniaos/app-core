@@ -134,15 +134,21 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
       object.apiBaseUrl,
       DEFAULT_RUNTIME_CONFIG.apiBaseUrl,
     ),
-    chainId: readNumber(object.chainId, DEFAULT_RUNTIME_CONFIG.chainId),
-    chainName: readString(object.chainName, DEFAULT_RUNTIME_CONFIG.chainName),
-    rpcUrl: readString(object.rpcUrl, DEFAULT_RUNTIME_CONFIG.rpcUrl),
+    chainId: readRequiredNumber(
+      object.chainId,
+      DEFAULT_RUNTIME_CONFIG.chainId,
+    ),
+    chainName: readRequiredString(
+      object.chainName,
+      DEFAULT_RUNTIME_CONFIG.chainName,
+    ),
+    rpcUrl: readRequiredString(object.rpcUrl, DEFAULT_RUNTIME_CONFIG.rpcUrl),
     blockExplorerUrl: readOptionalString(object.blockExplorerUrl),
-    nativeCurrencyName: readString(
+    nativeCurrencyName: readRequiredString(
       object.nativeCurrencyName,
       DEFAULT_RUNTIME_CONFIG.nativeCurrencyName,
     ),
-    nativeCurrencySymbol: readString(
+    nativeCurrencySymbol: readRequiredString(
       object.nativeCurrencySymbol,
       DEFAULT_RUNTIME_CONFIG.nativeCurrencySymbol,
     ),
@@ -208,6 +214,13 @@ function readString(value: unknown, fallback: string): string {
     : fallback;
 }
 
+function readRequiredString(value: unknown, fallback: string): string {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function readOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
@@ -221,15 +234,18 @@ function readStringArray(value: unknown): readonly string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-function readNumber(value: unknown, fallback: number): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
+function readRequiredNumber(value: unknown, fallback: number): number {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (typeof value === "number") {
     return value;
   }
-  if (typeof value === "string") {
+  if (typeof value === "string" && value.trim().length > 0) {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
   }
-  return fallback;
+  return Number.NaN;
 }
 
 function readBoolean(value: unknown, fallback: boolean): boolean {
@@ -268,4 +284,3 @@ function readOptionalAddress(
 function isAddress(value: unknown): value is Address {
   return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value);
 }
-

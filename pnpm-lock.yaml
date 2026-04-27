@@ -12,8 +12,8 @@ importers:
         specifier: github:isoniaos/sdk#v0.1.0
         version: https://codeload.github.com/isoniaos/sdk/tar.gz/db35001bf5d1ccaa0ede93bb5900e1878736057e
       '@isonia/theme-default':
-        specifier: link:../theme-default
-        version: link:../theme-default
+        specifier: github:isoniaos/theme-default#v0.1.0
+        version: https://codeload.github.com/isoniaos/theme-default/tar.gz/87a226c85415a9206e06de1d458f2957934dad91
       '@isonia/types':
         specifier: github:isoniaos/types#v0.1.0
         version: https://codeload.github.com/isoniaos/types/tar.gz/0c65ea23a209b0945876b63ccabc71a40c49ac32
@@ -80,6 +80,11 @@ packages:
 
   '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/db35001bf5d1ccaa0ede93bb5900e1878736057e':
     resolution: {tarball: https://codeload.github.com/isoniaos/sdk/tar.gz/db35001bf5d1ccaa0ede93bb5900e1878736057e}
+    version: 0.1.0
+    engines: {node: '>=18'}
+
+  '@isonia/theme-default@https://codeload.github.com/isoniaos/theme-default/tar.gz/87a226c85415a9206e06de1d458f2957934dad91':
+    resolution: {tarball: https://codeload.github.com/isoniaos/theme-default/tar.gz/87a226c85415a9206e06de1d458f2957934dad91}
     version: 0.1.0
     engines: {node: '>=18'}
 
@@ -1794,6 +1799,8 @@ snapshots:
   '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/db35001bf5d1ccaa0ede93bb5900e1878736057e':
     dependencies:
       '@isonia/types': https://codeload.github.com/isoniaos/types/tar.gz/0c65ea23a209b0945876b63ccabc71a40c49ac32
+
+  '@isonia/theme-default@https://codeload.github.com/isoniaos/theme-default/tar.gz/87a226c85415a9206e06de1d458f2957934dad91': {}
 
   '@isonia/types@https://codeload.github.com/isoniaos/types/tar.gz/0c65ea23a209b0945876b63ccabc71a40c49ac32': {}
 
