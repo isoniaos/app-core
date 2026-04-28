@@ -27,3 +27,14 @@ export function formatChainTime(value?: string): string {
   }).format(new Date(seconds * 1000));
 }
 
+export function formatNumericString(value?: string): string {
+  if (!value) {
+    return "Not set";
+  }
+
+  try {
+    return BigInt(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}

@@ -228,6 +228,13 @@ td {
   font-size: 1rem;
 }
 
+.panel-subtitle {
+  margin: 0.25rem 0 0;
+  max-width: 680px;
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -752,6 +759,136 @@ td {
   margin: 1rem;
 }
 
+.power-map {
+  display: grid;
+}
+
+.power-body {
+  display: grid;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.power-body:last-child {
+  border-bottom: 0;
+}
+
+.power-body-header,
+.power-role-header,
+.power-holder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.power-body-header {
+  padding: 1rem;
+}
+
+.power-title {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+}
+
+.power-title h3,
+.power-title h4,
+.power-title h5 {
+  margin: 0;
+}
+
+.power-title h3 {
+  font-size: 1.05rem;
+}
+
+.power-title h4 {
+  font-size: 0.98rem;
+}
+
+.power-title h5 {
+  font-size: 0.94rem;
+}
+
+.power-title span {
+  overflow-wrap: anywhere;
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.power-detail-list,
+.power-role-details,
+.power-mandate-details {
+  padding: 0 1rem 1rem;
+}
+
+.power-role-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+.power-role {
+  overflow: hidden;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface-subtle);
+}
+
+.power-role-header {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.power-role-details {
+  padding: 0.85rem;
+}
+
+.power-holder-list {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0 0.85rem 0.85rem;
+}
+
+.power-holder {
+  overflow: hidden;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface);
+}
+
+.power-holder-header {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.power-mandate-details {
+  padding: 0.85rem;
+}
+
+.power-empty-state {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px dashed var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.power-empty-state span {
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
+.power-map-panel > .power-empty-state {
+  margin: 1rem;
+}
+
+.power-role > .power-empty-state {
+  margin: 0 0.85rem 0.85rem;
+  background: var(--iso-color-surface);
+}
+
 .state-panel {
   display: grid;
   gap: 0.75rem;
@@ -844,7 +981,10 @@ td {
   .route-list-row,
   .route-status-hero,
   .execution-state,
-  .entity-card-header {
+  .entity-card-header,
+  .power-body-header,
+  .power-role-header,
+  .power-holder-header {
     align-items: flex-start;
     flex-direction: column;
   }
