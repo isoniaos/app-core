@@ -27,6 +27,12 @@ export interface RuntimeThemeConfig {
   readonly packageName?: string;
 }
 
+export interface RuntimeMetadataConfig {
+  readonly enabled: boolean;
+  readonly ipfsGatewayUrl: string;
+  readonly timeoutMs: number;
+}
+
 export interface RuntimeWalletConfig {
   readonly reownProjectId: string;
   readonly appUrl: string;
@@ -46,6 +52,7 @@ export interface RuntimeConfig {
   readonly contracts: RuntimeContracts;
   readonly features: RuntimeFeatureFlags;
   readonly theme: RuntimeThemeConfig;
+  readonly metadata: RuntimeMetadataConfig;
   readonly wallet: RuntimeWalletConfig;
 }
 
@@ -73,6 +80,11 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   },
   theme: {
     source: "default",
+  },
+  metadata: {
+    enabled: true,
+    ipfsGatewayUrl: "https://ipfs.io/ipfs/",
+    timeoutMs: 1_500,
   },
   wallet: {
     reownProjectId: "",
@@ -125,6 +137,7 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
   const contracts = asRecord(object.contracts);
   const features = asRecord(object.features);
   const theme = asRecord(object.theme);
+  const metadata = asRecord(object.metadata);
   const wallet = asRecord(object.wallet);
 
   return {
@@ -190,6 +203,20 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
       source: readThemeSource(theme.source, DEFAULT_RUNTIME_CONFIG.theme.source),
       packageName: readOptionalString(theme.packageName),
     },
+    metadata: {
+      enabled: readBoolean(
+        metadata.enabled,
+        DEFAULT_RUNTIME_CONFIG.metadata.enabled,
+      ),
+      ipfsGatewayUrl: readString(
+        metadata.ipfsGatewayUrl,
+        DEFAULT_RUNTIME_CONFIG.metadata.ipfsGatewayUrl,
+      ),
+      timeoutMs: readPositiveInteger(
+        metadata.timeoutMs,
+        DEFAULT_RUNTIME_CONFIG.metadata.timeoutMs,
+      ),
+    },
     wallet: {
       reownProjectId: readString(
         wallet.reownProjectId,
@@ -246,6 +273,11 @@ function readRequiredNumber(value: unknown, fallback: number): number {
     return Number.isFinite(parsed) ? parsed : Number.NaN;
   }
   return Number.NaN;
+}
+
+function readPositiveInteger(value: unknown, fallback: number): number {
+  const parsed = readRequiredNumber(value, fallback);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function readBoolean(value: unknown, fallback: boolean): boolean {

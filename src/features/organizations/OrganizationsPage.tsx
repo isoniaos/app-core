@@ -1,9 +1,12 @@
+import type { OrganizationDto } from "@isonia/types";
 import { Link } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
+import { useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
+import { organizationDisplay } from "../../utils/display-labels";
 import { formatAddress, formatLabel } from "../../utils/format";
 
 export function OrganizationsPage(): JSX.Element {
@@ -22,6 +25,11 @@ export function OrganizationsPage(): JSX.Element {
       <AsyncContent
         state={organizations}
         isEmpty={(data) => data.length === 0}
+        loadingTitle="Loading organizations"
+        loadingMessage="Reading organizations from the control-plane index."
+        emptyTitle="No organizations indexed"
+        emptyMessage="Seed or create an organization, then run the indexer and projection worker."
+        errorTitle="Unable to load organizations"
       >
         {(data) => (
           <section className="panel">
@@ -39,32 +47,10 @@ export function OrganizationsPage(): JSX.Element {
                 </thead>
                 <tbody>
                   {data.map((organization) => (
-                    <tr key={organization.orgId}>
-                      <td>
-                        <strong>{organization.name}</strong>
-                        <span className="table-subtext">
-                          Org #{organization.orgId}
-                        </span>
-                      </td>
-                      <td>
-                        <StatusBadge>
-                          {formatLabel(organization.status)}
-                        </StatusBadge>
-                      </td>
-                      <td>{formatAddress(organization.adminAddress)}</td>
-                      <td>{organization.chainId}</td>
-                      <td>
-                        <DataStatusBadge status={organization.dataStatus} />
-                      </td>
-                      <td className="table-action">
-                        <Link
-                          className="button button-small"
-                          to={`/orgs/${organization.orgId}`}
-                        >
-                          Open
-                        </Link>
-                      </td>
-                    </tr>
+                    <OrganizationRow
+                      key={organization.orgId}
+                      organization={organization}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -76,3 +62,36 @@ export function OrganizationsPage(): JSX.Element {
   );
 }
 
+function OrganizationRow({
+  organization,
+}: {
+  readonly organization: OrganizationDto;
+}): JSX.Element {
+  const metadata = useMetadata(organization.metadataUri);
+  const display = organizationDisplay(organization, metadata.record);
+
+  return (
+    <tr>
+      <td>
+        <strong>{display.title}</strong>
+        <span className="table-subtext">
+          {display.subtitle}
+          {display.description ? ` - ${display.description}` : ""}
+        </span>
+      </td>
+      <td>
+        <StatusBadge>{formatLabel(organization.status)}</StatusBadge>
+      </td>
+      <td>{formatAddress(organization.adminAddress)}</td>
+      <td>{organization.chainId}</td>
+      <td>
+        <DataStatusBadge status={organization.dataStatus} />
+      </td>
+      <td className="table-action">
+        <Link className="button button-small" to={`/orgs/${organization.orgId}`}>
+          Open
+        </Link>
+      </td>
+    </tr>
+  );
+}

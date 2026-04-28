@@ -3,11 +3,16 @@ import { PROPOSAL_TYPE_CHAIN_MAP } from "@isonia/types";
 import { useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
+import { useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
 import {
-  formatAddress,
+  bodyDisplay,
+  mandateDisplay,
+  roleDisplay,
+} from "../../utils/display-labels";
+import {
   formatChainTime,
   formatLabel,
   formatNumericString,
@@ -67,7 +72,14 @@ export function GovernancePage(): JSX.Element {
         title="Governance Structure"
         description="A read-only power map of bodies, roles, mandate holders, scopes, and current authority state."
       />
-      <AsyncContent state={governance}>
+      <AsyncContent
+        state={governance}
+        loadingTitle="Loading governance structure"
+        loadingMessage="Reading bodies, roles, and mandate holders from the index."
+        emptyTitle="Governance structure unavailable"
+        emptyMessage="No governance read model was returned for this organization."
+        errorTitle="Unable to load governance structure"
+      >
         {(data) => {
           const nowSeconds = Math.floor(Date.now() / 1_000);
           const powerMap = buildPowerMap(data);
@@ -138,14 +150,16 @@ function BodyPowerSection({
   readonly bodyGroup: PowerMapBody;
   readonly nowSeconds: number;
 }): JSX.Element {
-  const bodyName = getBodyName(bodyGroup.body, bodyGroup.bodyId);
+  const metadata = useMetadata(bodyGroup.body?.metadataUri);
+  const display = bodyDisplay(bodyGroup.body, bodyGroup.bodyId, metadata.record);
+  const bodyName = display.title;
 
   return (
     <article className="power-body">
       <div className="power-body-header">
         <div className="power-title">
           <h3>{bodyName}</h3>
-          <span>Body #{bodyGroup.bodyId}</span>
+          <span>{display.subtitle}</span>
         </div>
         <div className="chip-row">
           {bodyGroup.body ? (
@@ -169,7 +183,11 @@ function BodyPowerSection({
         />
         <Detail
           label="Metadata"
-          value={bodyGroup.body?.metadataUri ?? "No metadata URI indexed"}
+          value={
+            display.description ??
+            bodyGroup.body?.metadataUri ??
+            "No metadata URI indexed"
+          }
         />
       </dl>
 
@@ -200,14 +218,16 @@ function RolePowerSection({
   readonly roleGroup: PowerMapRole;
   readonly nowSeconds: number;
 }): JSX.Element {
-  const roleName = getRoleName(roleGroup.role, roleGroup.roleId);
+  const metadata = useMetadata(roleGroup.role?.metadataUri);
+  const display = roleDisplay(roleGroup.role, roleGroup.roleId, metadata.record);
+  const roleName = display.title;
 
   return (
     <section className="power-role">
       <div className="power-role-header">
         <div className="power-title">
           <h4>{roleName}</h4>
-          <span>Role #{roleGroup.roleId}</span>
+          <span>{display.subtitle}</span>
         </div>
         <div className="chip-row">
           {roleGroup.role ? (
@@ -237,7 +257,11 @@ function RolePowerSection({
         />
         <Detail
           label="Metadata"
-          value={roleGroup.role?.metadataUri ?? "No metadata URI indexed"}
+          value={
+            display.description ??
+            roleGroup.role?.metadataUri ??
+            "No metadata URI indexed"
+          }
         />
       </dl>
 
@@ -269,14 +293,14 @@ function MandateHolderRow({
   readonly nowSeconds: number;
 }): JSX.Element {
   const mandateState = getMandateState(mandate, nowSeconds);
-  const holderLabel = getHolderLabel(mandate.holderAddress);
+  const display = mandateDisplay(mandate);
 
   return (
     <article className="power-holder">
       <div className="power-holder-header">
         <div className="power-title">
-          <h5>{holderLabel}</h5>
-          <span>Mandate #{mandate.mandateId}</span>
+          <h5>{display.title}</h5>
+          <span>{display.subtitle}</span>
         </div>
         <div className="chip-row">
           <StatusBadge tone={mandateState.tone}>{mandateState.label}</StatusBadge>
@@ -436,23 +460,8 @@ function getGovernanceSummary(
   };
 }
 
-function getBodyName(body: BodyDto | undefined, bodyId: string): string {
-  const name = body?.name.trim();
-  return name && name.length > 0 ? name : `Body #${bodyId}`;
-}
-
-function getRoleName(role: RoleDto | undefined, roleId: string): string {
-  const name = role?.name.trim();
-  return name && name.length > 0 ? name : `Role #${roleId}`;
-}
-
 function getBodyKindLabel(body: BodyDto | undefined): string {
   return body ? formatLabel(body.kind) : "Body kind unavailable";
-}
-
-function getHolderLabel(holderAddress: string): string {
-  const trimmed = holderAddress.trim();
-  return trimmed.length > 0 ? formatAddress(trimmed) : "Holder address";
 }
 
 function getMandateState(

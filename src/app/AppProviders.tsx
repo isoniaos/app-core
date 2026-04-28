@@ -5,6 +5,7 @@ import {
   RuntimeConfigProvider,
   type RuntimeConfig,
 } from "../config/runtime-config";
+import { MetadataProvider } from "../metadata/MetadataProvider";
 import { ThemeProvider } from "../theme/ThemeProvider";
 import { WalletProvider } from "../wallet/WalletProvider";
 
@@ -21,11 +22,12 @@ export function AppProviders({
   return (
     <RuntimeConfigProvider config={runtimeConfig}>
       <ThemeProvider>
-        <IsoniaClientProvider apiBaseUrl={runtimeConfig.apiBaseUrl}>
-          <WalletProvider setup={walletSetup}>{children}</WalletProvider>
-        </IsoniaClientProvider>
+        <MetadataProvider config={runtimeConfig.metadata}>
+          <IsoniaClientProvider apiBaseUrl={runtimeConfig.apiBaseUrl}>
+            <WalletProvider setup={walletSetup}>{children}</WalletProvider>
+          </IsoniaClientProvider>
+        </MetadataProvider>
       </ThemeProvider>
     </RuntimeConfigProvider>
   );
 }
-

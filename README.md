@@ -93,6 +93,11 @@ Example:
   "theme": {
     "source": "default"
   },
+  "metadata": {
+    "enabled": true,
+    "ipfsGatewayUrl": "https://ipfs.io/ipfs/",
+    "timeoutMs": 1500
+  },
   "wallet": {
     "reownProjectId": "",
     "appUrl": "https://app.example.org",
@@ -102,6 +107,14 @@ Example:
 ```
 
 `billing` and `saasAdmin` are ignored by the public app core.
+
+The metadata config controls optional read-only metadata resolution:
+
+- `enabled`: when false, app-core never fetches metadata and uses deterministic fallback labels.
+- `ipfsGatewayUrl`: HTTP gateway prefix used to normalize `ipfs://` URIs, for example `https://ipfs.io/ipfs/`.
+- `timeoutMs`: fetch timeout for metadata lookups. Metadata failures never block or break governance screens.
+
+The local demo includes lightweight built-in metadata for known seed URIs such as `ipfs://simple-general-council` and `ipfs://role-1`; unknown URIs fall back safely to labels such as `Body #id`, `Role #id`, and `Proposal #id`.
 
 The wallet config controls the connection UX:
 

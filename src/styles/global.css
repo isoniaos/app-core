@@ -898,6 +898,15 @@ td {
   color: var(--iso-color-muted);
 }
 
+.state-panel strong,
+.state-panel p {
+  margin: 0;
+}
+
+.state-panel strong {
+  color: var(--iso-color-foreground);
+}
+
 .state-panel-error {
   color: var(--iso-color-danger);
 }

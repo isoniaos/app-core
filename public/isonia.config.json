@@ -23,6 +23,11 @@
   "theme": {
     "source": "default"
   },
+  "metadata": {
+    "enabled": true,
+    "ipfsGatewayUrl": "https://ipfs.io/ipfs/",
+    "timeoutMs": 1500
+  },
   "wallet": {
     "reownProjectId": "",
     "appUrl": "http://localhost:5173",

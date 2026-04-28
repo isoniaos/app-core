@@ -6,9 +6,11 @@ import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
+import { useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
+import { proposalDisplay } from "../../utils/display-labels";
 import {
   formatAddress,
   formatChainTime,
@@ -46,12 +48,20 @@ export function ProposalDetailsPage(): JSX.Element {
     },
     [client, orgId, proposalId],
   );
+  const metadata = useMetadata(details.data?.proposal.descriptionUri);
 
   return (
     <section className="page-stack">
-      <AsyncContent state={details}>
+      <AsyncContent
+        state={details}
+        loadingTitle="Loading proposal"
+        loadingMessage="Reading proposal details and route explanation."
+        emptyTitle="Proposal not found"
+        emptyMessage={`No indexed proposal #${proposalId} was found for org #${orgId}.`}
+        errorTitle="Unable to load proposal"
+      >
         {({ proposal, route, routeError }) => {
-          const proposalTitle = getProposalTitle(proposal);
+          const proposalText = proposalDisplay(proposal, metadata.record);
           const hasMetadataUri = hasDisplayValue(proposal.descriptionUri);
           const routeFallback: RouteFallbackContext = {
             chainId: proposal.chainId,
@@ -66,10 +76,13 @@ export function ProposalDetailsPage(): JSX.Element {
             <>
               <PageHeader
                 eyebrow={`Proposal #${proposal.proposalId}`}
-                title={proposalTitle}
-                description={`${formatLabel(
-                  proposal.proposalType,
-                )} proposal - policy snapshot v${proposal.policyVersion}`}
+                title={proposalText.title}
+                description={
+                  proposalText.description ??
+                  `${formatLabel(
+                    proposal.proposalType,
+                  )} proposal - policy snapshot v${proposal.policyVersion}`
+                }
               />
 
               <div className="action-row">
@@ -152,6 +165,14 @@ export function ProposalDetailsPage(): JSX.Element {
                       showing chain-derived fallback fields.
                     </span>
                   </div>
+                ) : !metadata.loading && !metadata.record ? (
+                  <div className="inline-state inline-state-muted">
+                    <strong>Metadata unavailable</strong>
+                    <span>
+                      The metadata URI could not be resolved, so this screen is
+                      using proposal type and chain-derived identifiers.
+                    </span>
+                  </div>
                 ) : null}
               </section>
 
@@ -184,11 +205,6 @@ async function loadProposalRoute(
       routeError: toError(error),
     };
   }
-}
-
-function getProposalTitle(proposal: ProposalDto): string {
-  const trimmed = proposal.title.trim();
-  return trimmed.length > 0 ? trimmed : `Proposal #${proposal.proposalId}`;
 }
 
 function hasDisplayValue(value?: string): boolean {

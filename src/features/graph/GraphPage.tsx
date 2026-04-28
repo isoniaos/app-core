@@ -1,9 +1,15 @@
+import type {
+  GovernanceGraphEdgeDto,
+  GovernanceGraphNodeDto,
+} from "@isonia/types";
 import { useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { PageHeader } from "../../ui/PageHeader";
 import { Badge } from "../../ui/StatusBadge";
+import { graphNodeDisplay } from "../../utils/display-labels";
+import { formatLabel } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
 
 export function GraphPage(): JSX.Element {
@@ -18,7 +24,15 @@ export function GraphPage(): JSX.Element {
         title="Governance Graph"
         description="Bodies, holders, roles, proposals, and governance relationships."
       />
-      <AsyncContent state={graph} isEmpty={(data) => data.nodes.length === 0}>
+      <AsyncContent
+        state={graph}
+        isEmpty={(data) => data.nodes.length === 0}
+        loadingTitle="Loading governance graph"
+        loadingMessage="Reading graph nodes and relationships from projections."
+        emptyTitle="No graph data indexed"
+        emptyMessage="This organization has no graph nodes in the current read model."
+        errorTitle="Unable to load governance graph"
+      >
         {(data) => (
           <div className="two-column-grid">
             <section className="panel">
@@ -28,13 +42,7 @@ export function GraphPage(): JSX.Element {
               </div>
               <div className="list-stack">
                 {data.nodes.map((node) => (
-                  <div className="list-row" key={node.id}>
-                    <div>
-                      <strong>{node.label}</strong>
-                      <span>{node.id}</span>
-                    </div>
-                    <Badge>{node.type}</Badge>
-                  </div>
+                  <GraphNodeRow key={node.id} node={node} />
                 ))}
               </div>
             </section>
@@ -46,15 +54,7 @@ export function GraphPage(): JSX.Element {
               </div>
               <div className="list-stack">
                 {data.edges.map((edge) => (
-                  <div className="list-row" key={edge.id}>
-                    <div>
-                      <strong>{edge.label || edge.type}</strong>
-                      <span>
-                        {edge.sourceId} to {edge.targetId}
-                      </span>
-                    </div>
-                    <Badge>{edge.type}</Badge>
-                  </div>
+                  <GraphEdgeRow edge={edge} key={edge.id} />
                 ))}
               </div>
             </section>
@@ -65,3 +65,38 @@ export function GraphPage(): JSX.Element {
   );
 }
 
+function GraphNodeRow({
+  node,
+}: {
+  readonly node: GovernanceGraphNodeDto;
+}): JSX.Element {
+  const display = graphNodeDisplay(node);
+
+  return (
+    <div className="list-row">
+      <div>
+        <strong>{display.title}</strong>
+        <span>{display.subtitle}</span>
+      </div>
+      <Badge>{formatLabel(node.type)}</Badge>
+    </div>
+  );
+}
+
+function GraphEdgeRow({
+  edge,
+}: {
+  readonly edge: GovernanceGraphEdgeDto;
+}): JSX.Element {
+  return (
+    <div className="list-row">
+      <div>
+        <strong>{formatLabel(edge.label || edge.type)}</strong>
+        <span>
+          {edge.sourceId} to {edge.targetId}
+        </span>
+      </div>
+      <Badge>{formatLabel(edge.type)}</Badge>
+    </div>
+  );
+}
