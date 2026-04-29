@@ -6,3 +6,10 @@ dist
 *.log
 .vite-dev.*.log
 *.tsbuildinfo
+public/isonia.config.local.json
+public/isonia.config.stage.json
+public/isonia.config.prod.json
+public/isonia.config.dev.json
+public/isonia.config.staging.json
+public/isonia.config.production.json
+public/isonia.config.development.json
