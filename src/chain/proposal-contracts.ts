@@ -25,6 +25,59 @@ export const GOV_PROPOSALS_ABI = [
     outputs: [{ name: "proposalId", type: "uint64" }],
   },
   {
+    type: "function",
+    name: "approveProposal",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalId", type: "uint64" },
+      { name: "bodyId", type: "uint64" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "vetoProposal",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalId", type: "uint64" },
+      { name: "bodyId", type: "uint64" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "queueProposal",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalId", type: "uint64" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "executeProposal",
+    stateMutability: "payable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalId", type: "uint64" },
+      { name: "actionData", type: "bytes" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "cancelProposal",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalId", type: "uint64" },
+    ],
+    outputs: [],
+  },
+  {
     type: "event",
     name: "ProposalCreated",
     inputs: [

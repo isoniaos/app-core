@@ -400,6 +400,88 @@ td {
   margin: 0;
 }
 
+.proposal-actions-panel {
+  overflow: hidden;
+}
+
+.proposal-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.proposal-action-card,
+.proposal-action-empty {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.proposal-action-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.proposal-action-card-header h3,
+.proposal-action-card-header p,
+.proposal-action-empty strong,
+.proposal-action-empty span {
+  margin: 0;
+}
+
+.proposal-action-card-header h3 {
+  font-size: 0.96rem;
+}
+
+.proposal-action-card-header p,
+.proposal-action-empty span,
+.proposal-action-note span,
+.proposal-action-body-fixed span {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+}
+
+.proposal-action-card-body {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.proposal-action-field {
+  gap: 0.35rem;
+}
+
+.proposal-action-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.proposal-action-note span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-action-body-fixed {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.proposal-action-lifecycle {
+  border-top: 1px solid var(--iso-color-border);
+}
+
+.proposal-action-lifecycle-header {
+  border-bottom: 0;
+}
+
 .transaction-panel {
   overflow: hidden;
 }
@@ -1104,6 +1186,7 @@ td {
   .card-grid,
   .two-column-grid,
   .form-grid,
+  .proposal-action-grid,
   .route-summary-grid,
   .route-technical-grid,
   .detail-list,
@@ -1131,6 +1214,8 @@ td {
   .route-status-hero,
   .execution-state,
   .entity-card-header,
+  .proposal-action-card-header,
+  .proposal-action-note,
   .power-body-header,
   .power-role-header,
   .power-holder-header {

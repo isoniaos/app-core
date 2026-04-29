@@ -21,6 +21,7 @@ import {
   RouteExplanationPanel,
   type RouteFallbackContext,
 } from "./RouteExplanationPanel";
+import { ProposalActionsPanel } from "./ProposalActionsPanel";
 
 interface ProposalDetailsData {
   readonly proposal: ProposalDto;
@@ -175,6 +176,14 @@ export function ProposalDetailsPage(): JSX.Element {
                   </div>
                 ) : null}
               </section>
+
+              <ProposalActionsPanel
+                metadata={metadata.record}
+                proposal={proposal}
+                route={route}
+                routeError={routeError}
+                onIndexed={() => details.reload()}
+              />
 
               <RouteExplanationPanel
                 fallback={routeFallback}

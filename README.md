@@ -12,12 +12,13 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Proposals list
 - Proposal details with route explanation
 - Create proposal transaction flow gated by runtime config
+- Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Governance graph data view
 - Runtime config from `/isonia.config.json`
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
-Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, approve/veto/queue/execute flows, arbitrary calldata builders, or real IPFS publishing.
+Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, arbitrary calldata builders, Safe integration, or real IPFS publishing.
 
 ## Install
 
@@ -108,7 +109,11 @@ Example:
 }
 ```
 
-`writeActions` is a broad public app-core write gate. `createProposal` enables only the create proposal flow. Both must be true before the Create proposal button appears.
+`writeActions` is the broad public app-core write gate for proposal actions. `createProposal` enables only the create proposal flow. Both must be true before the Create proposal button appears.
+
+The proposal details screen shows approve, veto, queue, execute, and cancel controls when `writeActions` is enabled and the proposal or route state makes the action relevant. These controls are UI hints only; the GovProposals contract decides authority and final validity. After a transaction receipt is confirmed, app-core polls Control Plane until proposal details or the route explanation reflect the indexed event.
+
+Execution remains intentionally narrow in v0.1. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
 `billing` and `saasAdmin` are ignored by the public app core.
 
