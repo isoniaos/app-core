@@ -100,7 +100,9 @@ export function ProposalActionsPanel({
     isApprovableStatus(proposal.status) && pendingApprovalBodies.length > 0;
   const showVeto =
     isVetoableStatus(proposal.status) && availableVetoBodies.length > 0;
-  const showQueue = proposal.status === ProposalStatus.Approved;
+  const showQueue =
+    proposal.status === ProposalStatus.Approved &&
+    route?.timelock.required === true;
   const showExecute =
     isExecutableStatus(proposal.status) && route?.execution.executable === true;
   const showCancel = isCancellableStatus(proposal.status);
@@ -256,7 +258,7 @@ export function ProposalActionsPanel({
 
         {showCancel ? (
           <ActionCard
-            description="Cancel a proposal if the connected wallet is authorized."
+            description="Request cancellation. Contract authority is final: org admin can cancel, and the creator can cancel only before required approvals."
             tone="muted"
             title="Cancel"
           >
