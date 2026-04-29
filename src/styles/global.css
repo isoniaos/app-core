@@ -1120,6 +1120,114 @@ td {
   margin: 1rem;
 }
 
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.template-card {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 1rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.template-card-selected {
+  border-color: var(--iso-color-primary);
+  background: var(--iso-color-info-surface);
+}
+
+.template-card h3,
+.template-card p {
+  margin: 0;
+}
+
+.template-card p {
+  color: var(--iso-color-muted);
+  font-size: 0.88rem;
+}
+
+.setup-summary-grid {
+  padding: 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-draft-details {
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-warning-list {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-action-list {
+  display: grid;
+}
+
+.setup-action-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-action-row:last-child {
+  border-bottom: 0;
+}
+
+.setup-action-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.setup-action-main div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.setup-action-main strong,
+.setup-action-main span {
+  overflow-wrap: anywhere;
+}
+
+.setup-action-main span {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+}
+
+.setup-action-index {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.setup-action-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .power-map {
   display: grid;
 }
@@ -1324,6 +1432,7 @@ td {
 
   .metric-grid,
   .card-grid,
+  .template-grid,
   .two-column-grid,
   .form-grid,
   .proposal-action-grid,
@@ -1366,11 +1475,12 @@ td {
   .execution-state,
   .entity-card-header,
   .proposal-action-card-header,
-    .proposal-action-note,
-    .power-body-header,
-    .power-role-header,
-    .power-holder-header,
-    .diagnostics-indicator-header {
+  .setup-action-row,
+  .proposal-action-note,
+  .power-body-header,
+  .power-role-header,
+  .power-holder-header,
+  .diagnostics-indicator-header {
     align-items: flex-start;
     flex-direction: column;
   }

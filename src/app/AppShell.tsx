@@ -35,6 +35,9 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
             <NavLink to="/orgs" className={navClassName}>
               Organizations
             </NavLink>
+            <NavLink to="/orgs/new" className={navClassName}>
+              New Organization
+            </NavLink>
             <NavLink to="/diagnostics" className={navClassName}>
               Diagnostics
             </NavLink>
@@ -43,6 +46,9 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
                 <div className="nav-group-label">Org #{orgId}</div>
                 <NavLink to={`/orgs/${orgId}`} end className={navClassName}>
                   Overview
+                </NavLink>
+                <NavLink to={`/orgs/${orgId}/setup`} className={navClassName}>
+                  Setup
                 </NavLink>
                 <NavLink
                   to={`/orgs/${orgId}/governance`}
@@ -75,5 +81,6 @@ function navClassName({ isActive }: { readonly isActive: boolean }): string {
 
 function getOrgIdFromPath(pathname: string): string | undefined {
   const match = /^\/orgs\/([^/]+)/.exec(pathname);
-  return match?.[1];
+  const orgId = match?.[1];
+  return orgId && orgId !== "new" ? orgId : undefined;
 }

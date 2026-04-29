@@ -114,6 +114,9 @@ function OrganizationOverviewContent({
       </section>
 
       <div className="action-row">
+        <Link className="button" to={`/orgs/${orgId}/setup`}>
+          Setup
+        </Link>
         <Link className="button" to={`/orgs/${orgId}/governance`}>
           Governance
         </Link>

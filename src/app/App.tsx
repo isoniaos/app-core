@@ -8,6 +8,8 @@ import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
 import { CreateProposalPage } from "../features/proposals/CreateProposalPage";
 import { ProposalDetailsPage } from "../features/proposals/ProposalDetailsPage";
 import { ProposalsPage } from "../features/proposals/ProposalsPage";
+import { NewOrganizationSetupPage } from "../features/setup/NewOrganizationSetupPage";
+import { OrganizationSetupPage } from "../features/setup/OrganizationSetupPage";
 import { AppShell } from "./AppShell";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -18,8 +20,10 @@ export function App(): JSX.Element {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/orgs" element={<OrganizationsPage />} />
+          <Route path="/orgs/new" element={<NewOrganizationSetupPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/orgs/:orgId" element={<OrganizationOverviewPage />} />
+          <Route path="/orgs/:orgId/setup" element={<OrganizationSetupPage />} />
           <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
           <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
           <Route

@@ -22,6 +22,11 @@ export function OrganizationsPage(): JSX.Element {
         title="Organizations"
         description="Governance organizations indexed from the shared protocol."
       />
+      <div className="action-row">
+        <Link className="button button-primary" to="/orgs/new">
+          New organization
+        </Link>
+      </div>
       <AsyncContent
         state={organizations}
         isEmpty={(data) => data.length === 0}

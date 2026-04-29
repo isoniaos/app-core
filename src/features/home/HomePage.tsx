@@ -42,6 +42,9 @@ export function HomePage(): JSX.Element {
         <Link className="button button-primary" to="/orgs">
           View organizations
         </Link>
+        <Link className="button" to="/orgs/new">
+          New organization
+        </Link>
       </div>
 
       <section className="panel">
@@ -76,4 +79,3 @@ export function HomePage(): JSX.Element {
     </section>
   );
 }
-
