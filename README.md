@@ -15,7 +15,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Governance graph data view
 - Control Plane diagnostics at `/diagnostics`
-- Runtime config from `/isonia.config.json`
+- Runtime config from `/isonia.config.local.json` with fallback to `/isonia.config.json`
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
@@ -59,13 +59,23 @@ Runtime config is intentionally separate from the bundle. Operators can move the
 
 ## Runtime Config
 
-At startup the app fetches:
+At startup the app first fetches the optional local override:
+
+```txt
+/isonia.config.local.json
+```
+
+If that request returns 404, the app falls back to the committed/default runtime config path:
 
 ```txt
 /isonia.config.json
 ```
 
-For local development, edit `public/isonia.config.json`. For deployment, use `public/isonia.config.example.json` as the complete operator-facing template and place the final file next to the built assets.
+For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values.
+
+Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` in committed defaults and examples so app-core falls back to injected wallet mode when no local or deployment-specific project ID is provided.
+
+For deployment, use `public/isonia.config.example.json` as the complete operator-facing template and place the final file next to the built assets as `isonia.config.json`.
 
 Example:
 

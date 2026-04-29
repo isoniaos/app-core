@@ -9,6 +9,7 @@ All notable changes to `@isonia/app-core` are documented here.
 ### Added
 
 - Added this changelog for release tracking and future release notes.
+- Runtime config now supports an ignored `isonia.config.local.json` override before falling back to `isonia.config.json`.
 
 ## [0.5.0-alpha.2]
 
