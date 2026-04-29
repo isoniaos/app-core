@@ -2,6 +2,7 @@ import { defaultThemeBrand } from "@isonia/theme-default";
 import type { PropsWithChildren } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useRuntimeConfig } from "../config/runtime-config";
+import { DiagnosticsStatusIndicator } from "../features/diagnostics/DiagnosticsStatusIndicator";
 import { WalletStatus } from "../wallet/WalletStatus";
 
 export function AppShell({ children }: PropsWithChildren): JSX.Element {
@@ -22,7 +23,10 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
           </span>
           <span>{runtimeConfig.appName}</span>
         </NavLink>
-        <WalletStatus />
+        <div className="topbar-actions">
+          <DiagnosticsStatusIndicator />
+          <WalletStatus />
+        </div>
       </header>
 
       <div className="shell-body">
@@ -30,6 +34,9 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
           <nav className="nav-stack">
             <NavLink to="/orgs" className={navClassName}>
               Organizations
+            </NavLink>
+            <NavLink to="/diagnostics" className={navClassName}>
+              Diagnostics
             </NavLink>
             {orgId ? (
               <>

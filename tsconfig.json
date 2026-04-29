@@ -11,6 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@isonia/sdk": ["../sdk/src/index.ts"],
+      "@isonia/types": ["../types/src/index.ts"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",

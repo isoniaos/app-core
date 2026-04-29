@@ -101,6 +101,15 @@ td {
   backdrop-filter: blur(12px);
 }
 
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
 .brand-link {
   display: inline-flex;
   align-items: center;
@@ -582,6 +591,63 @@ td {
   font-weight: 700;
 }
 
+.system-status {
+  display: inline-flex;
+  min-height: 32px;
+  max-width: min(380px, 42vw);
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0 0.65rem;
+  background: var(--iso-color-surface);
+  color: var(--iso-color-foreground);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.system-status:hover {
+  border-color: var(--iso-color-primary);
+}
+
+.system-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--iso-color-muted);
+}
+
+.system-status-label,
+.system-status-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-status-detail {
+  color: var(--iso-color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.system-status-healthy .system-status-dot {
+  background: var(--iso-color-success);
+}
+
+.system-status-indexing .system-status-dot {
+  background: var(--iso-color-primary);
+}
+
+.system-status-warning .system-status-dot,
+.system-status-unknown .system-status-dot {
+  background: var(--iso-color-warning);
+}
+
+.system-status-error .system-status-dot {
+  background: var(--iso-color-danger);
+}
+
 .badge,
 .chip {
   display: inline-flex;
@@ -741,6 +807,80 @@ td {
 
 .inline-state-muted {
   background: var(--iso-color-surface-subtle);
+}
+
+.diagnostics-panel {
+  min-width: 0;
+}
+
+.diagnostics-panel-body {
+  padding: 1rem;
+}
+
+.diagnostics-detail-list {
+  padding: 0;
+}
+
+.diagnostics-indicator-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.diagnostics-indicator {
+  display: grid;
+  gap: 0.85rem;
+  border-left: 4px solid var(--iso-color-primary);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-info-surface);
+}
+
+.diagnostics-indicator-warning {
+  border-left-color: var(--iso-color-warning);
+  background: var(--iso-color-warning-surface);
+}
+
+.diagnostics-indicator-error {
+  border-left-color: var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
+}
+
+.diagnostics-indicator-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.diagnostics-indicator-header div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.diagnostics-indicator-header span,
+.diagnostics-inline-state span,
+.diagnostics-error-summary small {
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
+.diagnostics-indicator-details {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.diagnostics-inline-state {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px dashed var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.diagnostics-error-summary {
+  display: grid;
+  gap: 1rem;
 }
 
 .route-panel .panel-header {
@@ -1190,7 +1330,8 @@ td {
   .route-summary-grid,
   .route-technical-grid,
   .detail-list,
-  .detail-list-wide {
+  .detail-list-wide,
+  .diagnostics-indicator-details {
     grid-template-columns: 1fr;
   }
 }
@@ -1199,6 +1340,16 @@ td {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-actions,
+  .wallet-status,
+  .wallet-diagnostics {
+    justify-content: flex-start;
+  }
+
+  .system-status {
+    max-width: 100%;
   }
 
   .content-shell {
@@ -1215,10 +1366,11 @@ td {
   .execution-state,
   .entity-card-header,
   .proposal-action-card-header,
-  .proposal-action-note,
-  .power-body-header,
-  .power-role-header,
-  .power-holder-header {
+    .proposal-action-note,
+    .power-body-header,
+    .power-role-header,
+    .power-holder-header,
+    .diagnostics-indicator-header {
     align-items: flex-start;
     flex-direction: column;
   }

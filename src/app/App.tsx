@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
 import { GraphPage } from "../features/graph/GraphPage";
 import { GovernancePage } from "../features/governance/GovernancePage";
 import { HomePage } from "../features/home/HomePage";
@@ -17,6 +18,7 @@ export function App(): JSX.Element {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/orgs" element={<OrganizationsPage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/orgs/:orgId" element={<OrganizationOverviewPage />} />
           <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
           <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />

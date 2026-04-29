@@ -14,6 +14,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Create proposal transaction flow gated by runtime config
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Governance graph data view
+- Control Plane diagnostics at `/diagnostics`
 - Runtime config from `/isonia.config.json`
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
@@ -115,6 +116,8 @@ The proposal details screen shows approve, veto, queue, execute, and cancel cont
 
 Execution remains intentionally narrow in v0.1. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
+The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator.
+
 `billing` and `saasAdmin` are ignored by the public app core.
 
 The metadata config controls optional read-only metadata resolution:
@@ -146,12 +149,14 @@ Deployable app-core builds depend on pinned GitHub tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.1.0",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.1.0",
+  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.1",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.1",
   "@isonia/theme-default": "github:isoniaos/theme-default#v0.1.0"
 }
 ```
 
 Do not duplicate shared DTOs locally. Add shared domain types to `@isonia/types` first.
+
+For v0.5 workspace development, TypeScript and Vite resolve `@isonia/types` and `@isonia/sdk` to the adjacent `../types/src` and `../sdk/src` sources so app-core can consume current shared DTOs and SDK clients while alpha package tags are being prepared.
 
 For local workspace development, `@isonia/theme-default` can be linked from `../theme-default`. Switch the dependency to `github:isoniaos/theme-default#v0.1.0` only after that tag exists in the public theme repository.
