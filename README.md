@@ -11,12 +11,13 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Governance structure
 - Proposals list
 - Proposal details with route explanation
+- Create proposal transaction flow gated by runtime config
 - Governance graph data view
 - Runtime config from `/isonia.config.json`
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
-Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, or proposal creation transactions.
+Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, approve/veto/queue/execute flows, arbitrary calldata builders, or real IPFS publishing.
 
 ## Install
 
@@ -78,12 +79,13 @@ Example:
   "nativeCurrencyName": "Ether",
   "nativeCurrencySymbol": "ETH",
   "contracts": {
-    "govCore": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-    "govProposals": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    "demoTarget": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    "govCoreAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "govProposalsAddress": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "demoTargetAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
   },
   "features": {
     "createProposal": false,
+    "writeActions": false,
     "manageOrg": false,
     "advancedAnalytics": false,
     "billing": false,
@@ -105,6 +107,8 @@ Example:
   }
 }
 ```
+
+`writeActions` is a broad public app-core write gate. `createProposal` enables only the create proposal flow. Both must be true before the Create proposal button appears.
 
 `billing` and `saasAdmin` are ignored by the public app core.
 

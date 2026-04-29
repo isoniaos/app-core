@@ -2,6 +2,7 @@ import type { ProposalSummaryDto } from "@isonia/types";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
+import { useRuntimeConfig } from "../../config/runtime-config";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
@@ -14,12 +15,16 @@ import {
 import { requireParam } from "../../utils/route-params";
 
 export function ProposalsPage(): JSX.Element {
+  const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
   const orgId = requireParam(useParams().orgId, "orgId");
   const proposals = useIsoniaQuery(() => client.getProposals(orgId), [
     client,
     orgId,
   ]);
+  const canCreateProposal =
+    runtimeConfig.features.writeActions &&
+    runtimeConfig.features.createProposal;
 
   return (
     <section className="page-stack">
@@ -28,6 +33,16 @@ export function ProposalsPage(): JSX.Element {
         title="Proposals"
         description="Proposal lifecycle state and policy snapshots."
       />
+      {canCreateProposal ? (
+        <div className="action-row">
+          <Link
+            className="button button-primary"
+            to={`/orgs/${orgId}/proposals/new`}
+          >
+            Create proposal
+          </Link>
+        </div>
+      ) : null}
       <AsyncContent
         state={proposals}
         isEmpty={(data) => data.length === 0}

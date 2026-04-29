@@ -308,6 +308,145 @@ td {
   font-size: 0.86rem;
 }
 
+.proposal-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
+.form-field > span,
+.form-muted {
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0 0.75rem;
+  background: var(--iso-color-background);
+  color: var(--iso-color-foreground);
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: 2px solid var(--iso-color-primary);
+  outline-offset: 1px;
+}
+
+.form-field input[readonly] {
+  color: var(--iso-color-muted);
+}
+
+.mono-input {
+  font-family: var(--iso-font-mono);
+  font-size: 0.84rem;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  width: min(360px, 100%);
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-background);
+}
+
+.segment {
+  min-height: 38px;
+  border: 0;
+  border-right: 1px solid var(--iso-color-border);
+  background: transparent;
+  color: var(--iso-color-muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.segment:last-child {
+  border-right: 0;
+}
+
+.segment-active {
+  background: var(--iso-color-primary);
+  color: var(--iso-color-primary-foreground);
+}
+
+.proposal-form-actions {
+  justify-content: flex-start;
+}
+
+.write-flow-alert {
+  margin: 0;
+}
+
+.transaction-panel {
+  overflow: hidden;
+}
+
+.transaction-steps {
+  display: grid;
+}
+
+.transaction-step {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--iso-color-border);
+}
+
+.transaction-step:first-child {
+  border-top: 0;
+}
+
+.transaction-step strong {
+  color: var(--iso-color-muted);
+}
+
+.transaction-step span {
+  overflow-wrap: anywhere;
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
+.transaction-step-active {
+  border-left: 4px solid var(--iso-color-warning);
+  background: var(--iso-color-warning-surface);
+}
+
+.transaction-step-active strong {
+  color: var(--iso-color-foreground);
+}
+
+.transaction-step-complete {
+  border-left: 4px solid var(--iso-color-success);
+}
+
+.transaction-step-danger {
+  border-left: 4px solid var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
+}
+
 .action-row,
 .chip-row,
 .wallet-status {
@@ -964,6 +1103,7 @@ td {
   .metric-grid,
   .card-grid,
   .two-column-grid,
+  .form-grid,
   .route-summary-grid,
   .route-technical-grid,
   .detail-list,

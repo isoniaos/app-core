@@ -4,6 +4,7 @@ import { GovernancePage } from "../features/governance/GovernancePage";
 import { HomePage } from "../features/home/HomePage";
 import { OrganizationOverviewPage } from "../features/organizations/OrganizationOverviewPage";
 import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
+import { CreateProposalPage } from "../features/proposals/CreateProposalPage";
 import { ProposalDetailsPage } from "../features/proposals/ProposalDetailsPage";
 import { ProposalsPage } from "../features/proposals/ProposalsPage";
 import { AppShell } from "./AppShell";
@@ -20,6 +21,10 @@ export function App(): JSX.Element {
           <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
           <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
           <Route
+            path="/orgs/:orgId/proposals/new"
+            element={<CreateProposalPage />}
+          />
+          <Route
             path="/orgs/:orgId/proposals/:proposalId"
             element={<ProposalDetailsPage />}
           />
@@ -31,4 +36,3 @@ export function App(): JSX.Element {
     </BrowserRouter>
   );
 }
-

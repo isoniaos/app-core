@@ -9,6 +9,7 @@ export type RuntimeMode = "self-hosted" | "hosted-free" | "saas";
 
 export interface RuntimeFeatureFlags {
   readonly createProposal: boolean;
+  readonly writeActions: boolean;
   readonly manageOrg: boolean;
   readonly advancedAnalytics: boolean;
   readonly billing: boolean;
@@ -17,9 +18,9 @@ export interface RuntimeFeatureFlags {
 }
 
 export interface RuntimeContracts {
-  readonly govCore: Address;
-  readonly govProposals: Address;
-  readonly demoTarget?: Address;
+  readonly govCoreAddress: Address;
+  readonly govProposalsAddress: Address;
+  readonly demoTargetAddress?: Address;
 }
 
 export interface RuntimeThemeConfig {
@@ -66,12 +67,13 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   nativeCurrencyName: "Ether",
   nativeCurrencySymbol: "ETH",
   contracts: {
-    govCore: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-    govProposals: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    demoTarget: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    govCoreAddress: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    govProposalsAddress: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    demoTargetAddress: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   },
   features: {
     createProposal: false,
+    writeActions: false,
     manageOrg: false,
     advancedAnalytics: false,
     billing: false,
@@ -166,23 +168,39 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
       DEFAULT_RUNTIME_CONFIG.nativeCurrencySymbol,
     ),
     contracts: {
-      govCore: readAddress(
-        contracts.govCore,
-        DEFAULT_RUNTIME_CONFIG.contracts.govCore,
+      govCoreAddress: readAddress(
+        firstDefined(
+          contracts.govCoreAddress,
+          object.govCoreAddress,
+          contracts.govCore,
+        ),
+        DEFAULT_RUNTIME_CONFIG.contracts.govCoreAddress,
       ),
-      govProposals: readAddress(
-        contracts.govProposals,
-        DEFAULT_RUNTIME_CONFIG.contracts.govProposals,
+      govProposalsAddress: readAddress(
+        firstDefined(
+          contracts.govProposalsAddress,
+          object.govProposalsAddress,
+          contracts.govProposals,
+        ),
+        DEFAULT_RUNTIME_CONFIG.contracts.govProposalsAddress,
       ),
-      demoTarget: readOptionalAddress(
-        contracts.demoTarget,
-        DEFAULT_RUNTIME_CONFIG.contracts.demoTarget,
+      demoTargetAddress: readOptionalAddress(
+        firstDefined(
+          contracts.demoTargetAddress,
+          object.demoTargetAddress,
+          contracts.demoTarget,
+        ),
+        DEFAULT_RUNTIME_CONFIG.contracts.demoTargetAddress,
       ),
     },
     features: {
       createProposal: readBoolean(
         features.createProposal,
         DEFAULT_RUNTIME_CONFIG.features.createProposal,
+      ),
+      writeActions: readBoolean(
+        features.writeActions,
+        DEFAULT_RUNTIME_CONFIG.features.writeActions,
       ),
       manageOrg: readBoolean(
         features.manageOrg,
@@ -233,6 +251,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
   }
   return {};
+}
+
+function firstDefined(...values: readonly unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null);
 }
 
 function readString(value: unknown, fallback: string): string {
