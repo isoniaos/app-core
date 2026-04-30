@@ -119,8 +119,8 @@ export function SetupDraftPreview({
         <div>
           <h2>Setup Draft</h2>
           <p className="panel-subtitle">
-            Browser-side draft state for the selected template. It is not
-            submitted, indexed, or authoritative.
+            Browser-side draft state for the selected template. Only indexed
+            action results shown in the execution panel are authoritative.
           </p>
         </div>
         <StatusBadge tone={readiness.tone}>{readiness.label}</StatusBadge>

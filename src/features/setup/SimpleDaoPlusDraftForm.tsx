@@ -4,11 +4,13 @@ import type {
 } from "./setup-templates";
 
 interface SimpleDaoPlusDraftFormProps {
+  readonly disabled?: boolean;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
 }
 
 export function SimpleDaoPlusDraftForm({
+  disabled = false,
   inputs,
   onChange,
 }: SimpleDaoPlusDraftFormProps): JSX.Element {
@@ -26,7 +28,7 @@ export function SimpleDaoPlusDraftForm({
           <h2>Simple DAO+ Inputs</h2>
           <p className="panel-subtitle">
             These values only shape the browser draft. They do not create
-            authority until explicit contract transactions are added later.
+            authority until explicit contract transactions are signed.
           </p>
         </div>
       </div>
@@ -36,6 +38,7 @@ export function SimpleDaoPlusDraftForm({
           <span>Organization name</span>
           <input
             autoComplete="organization"
+            disabled={disabled}
             placeholder="Acme Governance"
             type="text"
             value={inputs.organizationName}
@@ -49,6 +52,7 @@ export function SimpleDaoPlusDraftForm({
           <span>Organization metadata URI</span>
           <input
             autoComplete="off"
+            disabled={disabled}
             placeholder="ipfs://organization-metadata"
             type="text"
             value={inputs.organizationMetadataUri}
@@ -63,6 +67,7 @@ export function SimpleDaoPlusDraftForm({
           <input
             autoComplete="off"
             className="mono-input"
+            disabled={disabled}
             placeholder="0x..."
             type="text"
             value={inputs.organizationAdminAddress}
@@ -73,12 +78,14 @@ export function SimpleDaoPlusDraftForm({
         </label>
 
         <AddressListField
+          disabled={disabled}
           label="General Council holder addresses"
           value={inputs.generalCouncilHolderAddresses}
           onChange={(value) => update("generalCouncilHolderAddresses", value)}
         />
 
         <AddressListField
+          disabled={disabled}
           label="Treasury Committee holder addresses"
           value={inputs.treasuryCommitteeHolderAddresses}
           onChange={(value) =>
@@ -87,6 +94,7 @@ export function SimpleDaoPlusDraftForm({
         />
 
         <AddressListField
+          disabled={disabled}
           label="Security Council holder addresses"
           value={inputs.securityCouncilHolderAddresses}
           onChange={(value) => update("securityCouncilHolderAddresses", value)}
@@ -97,6 +105,7 @@ export function SimpleDaoPlusDraftForm({
           <input
             autoComplete="off"
             className="mono-input"
+            disabled={disabled}
             placeholder="0x..."
             type="text"
             value={inputs.executorHolderAddress}
@@ -109,6 +118,7 @@ export function SimpleDaoPlusDraftForm({
         <label className="form-field">
           <span>Standard and upgrade executor body</span>
           <select
+            disabled={disabled}
             value={inputs.executorBodyChoice}
             onChange={(event) =>
               update(
@@ -123,24 +133,28 @@ export function SimpleDaoPlusDraftForm({
         </label>
 
         <TimelockField
+          disabled={disabled}
           label="Standard timelock"
           value={inputs.standardTimelockSeconds}
           onChange={(value) => update("standardTimelockSeconds", value)}
         />
 
         <TimelockField
+          disabled={disabled}
           label="Treasury timelock"
           value={inputs.treasuryTimelockSeconds}
           onChange={(value) => update("treasuryTimelockSeconds", value)}
         />
 
         <TimelockField
+          disabled={disabled}
           label="Upgrade timelock"
           value={inputs.upgradeTimelockSeconds}
           onChange={(value) => update("upgradeTimelockSeconds", value)}
         />
 
         <TimelockField
+          disabled={disabled}
           label="Emergency timelock"
           value={inputs.emergencyTimelockSeconds}
           onChange={(value) => update("emergencyTimelockSeconds", value)}
@@ -151,10 +165,12 @@ export function SimpleDaoPlusDraftForm({
 }
 
 function AddressListField({
+  disabled,
   label,
   onChange,
   value,
 }: {
+  readonly disabled: boolean;
   readonly label: string;
   readonly onChange: (value: readonly string[]) => void;
   readonly value: readonly string[];
@@ -165,6 +181,7 @@ function AddressListField({
       <textarea
         autoComplete="off"
         className="mono-input"
+        disabled={disabled}
         placeholder={"0x...\n0x..."}
         rows={3}
         value={value.join("\n")}
@@ -175,10 +192,12 @@ function AddressListField({
 }
 
 function TimelockField({
+  disabled,
   label,
   onChange,
   value,
 }: {
+  readonly disabled: boolean;
   readonly label: string;
   readonly onChange: (value: string) => void;
   readonly value: string;
@@ -188,6 +207,7 @@ function TimelockField({
       <span>{label}</span>
       <input
         inputMode="numeric"
+        disabled={disabled}
         min="0"
         step="1"
         type="number"

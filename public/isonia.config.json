@@ -15,7 +15,7 @@
   "features": {
     "createProposal": true,
     "writeActions": true,
-    "manageOrg": false,
+    "manageOrg": true,
     "advancedAnalytics": false,
     "billing": false,
     "customTheme": false,
