@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false && tsc -p tsconfig.node.json --noEmit --pretty false"
   },
   "dependencies": {
-    "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.3",
+    "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.4",
     "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.1",
     "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.3",
     "@reown/appkit": "1.8.19",
