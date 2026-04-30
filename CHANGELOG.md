@@ -11,6 +11,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Added this changelog for release tracking and future release notes.
 - Runtime config now supports an ignored `isonia.config.local.json` override before falling back to `isonia.config.json`.
 - Simple DAO+ setup draft inputs now generate editable browser-only setup actions with validation warnings before any transaction execution exists.
+- Hardened Simple DAO+ setup draft validation with blocking readiness status, severity summaries, action-level warnings, and dependency checks.
 
 ## [0.5.0-alpha.2]
 

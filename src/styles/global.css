@@ -1129,6 +1129,11 @@ td {
   background: var(--iso-color-danger-surface);
 }
 
+.blocked-reason-info {
+  border-left-color: var(--iso-color-primary);
+  background: var(--iso-color-info-surface);
+}
+
 .empty-copy {
   margin: 1rem;
 }
@@ -1168,6 +1173,88 @@ td {
 .setup-summary-grid {
   padding: 1rem;
   border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-validation-summary {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-validation-state {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-left: 4px solid var(--iso-color-warning);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-warning-surface);
+}
+
+.setup-validation-state-success {
+  border-left-color: var(--iso-color-success);
+  background: var(--iso-color-success-surface);
+}
+
+.setup-validation-state-danger {
+  border-left-color: var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
+}
+
+.setup-validation-state div {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+}
+
+.setup-validation-state div > span,
+.setup-validation-note {
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
+.setup-validation-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.setup-validation-count {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.75rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.setup-validation-count span {
+  color: var(--iso-color-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.setup-validation-count strong {
+  font-size: 1.2rem;
+}
+
+.setup-validation-count-error strong {
+  color: var(--iso-color-danger);
+}
+
+.setup-validation-count-warning strong {
+  color: var(--iso-color-warning);
+}
+
+.setup-validation-count-info strong {
+  color: var(--iso-color-primary-strong);
+}
+
+.setup-validation-note {
+  margin: 0;
 }
 
 .setup-draft-details {
@@ -1294,14 +1381,21 @@ td {
 }
 
 .setup-action-warning {
-  color: var(--iso-color-warning);
   font-size: 0.82rem;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.setup-action-warning-danger {
+.setup-action-warning-error {
   color: var(--iso-color-danger);
+}
+
+.setup-action-warning-warning {
+  color: var(--iso-color-warning);
+}
+
+.setup-action-warning-info {
+  color: var(--iso-color-primary-strong);
 }
 
 .power-map {
@@ -1509,6 +1603,7 @@ td {
   .metric-grid,
   .card-grid,
   .template-grid,
+  .setup-validation-counts,
   .two-column-grid,
   .form-grid,
   .proposal-action-grid,
@@ -1552,6 +1647,7 @@ td {
   .entity-card-header,
   .proposal-action-card-header,
   .setup-action-row-top,
+  .setup-validation-state,
   .setup-action-group-header,
   .proposal-action-note,
   .power-body-header,

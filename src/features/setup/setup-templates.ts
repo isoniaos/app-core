@@ -11,7 +11,6 @@ import type {
   SetupAction,
   SetupDraft,
   SetupEntityReference,
-  SetupValidationWarning,
   TemplateDescriptor,
 } from "@isonia/types";
 import {
@@ -21,8 +20,8 @@ import {
   SetupActionExecutionStatus,
   SetupActionKind,
   SetupDraftStatus,
-  SetupValidationWarningCode,
 } from "@isonia/types";
+import { applySetupValidation } from "./setup-validation";
 
 export const SIMPLE_DAO_PLUS_TEMPLATE_ID = "simple-dao-plus";
 
@@ -47,7 +46,6 @@ export interface SimpleDaoPlusDraftInputs {
 
 const SIMPLE_DAO_PLUS_VERSION = "0.5.0-alpha";
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
-const MAX_UINT64 = 18_446_744_073_709_551_615n;
 
 const DEFAULT_STANDARD_TIMELOCK_SECONDS = "3600";
 const DEFAULT_TREASURY_TIMELOCK_SECONDS = "86400";
@@ -92,8 +90,6 @@ interface DraftRoleDefinition {
   readonly fallbackName: string;
   readonly proposalTypes: readonly ProposalType[];
 }
-
-type SetupResponsibility = "approver" | "vetoer" | "executor";
 
 const ORGANIZATION_DRAFT_ID = "simple-dao-plus-organization";
 const CREATE_ORGANIZATION_ACTION_ID = "create-organization";
@@ -354,14 +350,8 @@ export function createSimpleDaoPlusDraft({
       organizationRef,
     }),
   ];
-  const warnings = validateDraft({
+  return applySetupValidation({
     actions: baseActions,
-    inputs: normalizedInputs,
-    roleDefinitions,
-  });
-
-  return {
-    actions: withActionWarnings(baseActions, warnings),
     chainId,
     createdAt,
     draftId: orgId
@@ -374,14 +364,12 @@ export function createSimpleDaoPlusDraft({
       metadataUri: optionalString(normalizedInputs.organizationMetadataUri),
       orgId,
     },
-    status: warnings.some((warning) => warning.severity === "error")
-      ? SetupDraftStatus.Blocked
-      : SetupDraftStatus.Editing,
+    status: SetupDraftStatus.Editing,
     templateId: SIMPLE_DAO_PLUS_TEMPLATE.templateId,
     templateVersion: SIMPLE_DAO_PLUS_TEMPLATE.version,
     updatedAt: createdAt,
-    warnings,
-  };
+    warnings: [],
+  });
 }
 
 function normalizeSimpleDaoPlusInputs(
@@ -779,284 +767,6 @@ function createPolicyActions({
   ];
 }
 
-function validateDraft({
-  actions,
-  inputs,
-  roleDefinitions,
-}: {
-  readonly actions: readonly SetupAction[];
-  readonly inputs: SimpleDaoPlusDraftInputs;
-  readonly roleDefinitions: readonly DraftRoleDefinition[];
-}): readonly SetupValidationWarning[] {
-  const warnings: SetupValidationWarning[] = [];
-  const adminAction = actions.find(
-    (action) => action.kind === SetupActionKind.CreateOrganization,
-  );
-
-  validateAddress({
-    actionId: adminAction?.actionId,
-    label: "Organization admin address",
-    relatedRoleId: undefined,
-    value: inputs.organizationAdminAddress,
-    warnings,
-  });
-
-  const mandates = actions.filter(isMandateAction);
-  const policies = actions.filter(isPolicyAction);
-
-  mandates.forEach((mandate) => {
-    validateAddress({
-      actionId: mandate.actionId,
-      label: "Mandate holder address",
-      relatedMandateId: mandate.mandateDraftId,
-      relatedRoleId: mandate.roleRef.draftId,
-      value: mandate.holderAddress,
-      warnings,
-    });
-  });
-
-  policies.forEach((policy) => {
-    validateTimelock(policy, warnings);
-
-    if (!policy.enabled) {
-      return;
-    }
-
-    let routeHasMissingEligibleHolder = false;
-
-    if (policy.requiredApprovalBodies.length === 0) {
-      routeHasMissingEligibleHolder = true;
-      warnings.push({
-        actionId: policy.actionId,
-        code: SetupValidationWarningCode.EmptyRequiredApprovals,
-        message: `${formatProposalType(policy.proposalType)} policy has no required approval body.`,
-        proposalType: policy.proposalType,
-        severity: "error",
-      });
-    }
-
-    policy.requiredApprovalBodies.forEach((body) => {
-      routeHasMissingEligibleHolder =
-        validateBodyResponsibility({
-          body,
-          missingCode: SetupValidationWarningCode.MissingApproverMandate,
-          missingMessage: `${formatBodyRef(body)} has no eligible approver mandate for ${formatProposalType(policy.proposalType)} proposals.`,
-          policy,
-          responsibility: "approver",
-          roleDefinitions,
-          roleTypes: [RoleType.Approver],
-          mandates,
-          warnings,
-        }) || routeHasMissingEligibleHolder;
-    });
-
-    policy.vetoBodies.forEach((body) => {
-      routeHasMissingEligibleHolder =
-        validateBodyResponsibility({
-          body,
-          missingCode: SetupValidationWarningCode.MissingVetoMandate,
-          missingMessage: `${formatBodyRef(body)} has no eligible veto mandate for ${formatProposalType(policy.proposalType)} proposals.`,
-          policy,
-          responsibility: "vetoer",
-          roleDefinitions,
-          roleTypes: [RoleType.Vetoer],
-          mandates,
-          warnings,
-        }) || routeHasMissingEligibleHolder;
-    });
-
-    if (!policy.executorBody) {
-      routeHasMissingEligibleHolder = true;
-      warnings.push({
-        actionId: policy.actionId,
-        code: SetupValidationWarningCode.MissingExecutorMandate,
-        message: `${formatProposalType(policy.proposalType)} policy has no executor body.`,
-        proposalType: policy.proposalType,
-        severity: "warning",
-      });
-    } else {
-      routeHasMissingEligibleHolder =
-        validateBodyResponsibility({
-          body: policy.executorBody,
-          missingCode: SetupValidationWarningCode.MissingExecutorMandate,
-          missingMessage: `${formatBodyRef(policy.executorBody)} has no eligible executor mandate for ${formatProposalType(policy.proposalType)} proposals.`,
-          policy,
-          responsibility: "executor",
-          roleDefinitions,
-          roleTypes: [RoleType.Executor],
-          mandates,
-          warnings,
-        }) || routeHasMissingEligibleHolder;
-    }
-
-    if (routeHasMissingEligibleHolder) {
-      warnings.push({
-        actionId: policy.actionId,
-        code: SetupValidationWarningCode.PolicyRouteWithoutEligibleHolder,
-        message: `${formatProposalType(policy.proposalType)} policy route is not ready because at least one responsibility has no eligible holder.`,
-        proposalType: policy.proposalType,
-        severity: "warning",
-      });
-    }
-  });
-
-  return warnings;
-}
-
-function validateBodyResponsibility({
-  body,
-  mandates,
-  missingCode,
-  missingMessage,
-  policy,
-  responsibility,
-  roleDefinitions,
-  roleTypes,
-  warnings,
-}: {
-  readonly body: SetupEntityReference;
-  readonly mandates: readonly AssignMandateSetupAction[];
-  readonly missingCode: SetupValidationWarningCode;
-  readonly missingMessage: string;
-  readonly policy: SetPolicyRuleSetupAction;
-  readonly responsibility: SetupResponsibility;
-  readonly roleDefinitions: readonly DraftRoleDefinition[];
-  readonly roleTypes: readonly RoleType[];
-  readonly warnings: SetupValidationWarning[];
-}): boolean {
-  const bodyRoles = roleDefinitions.filter(
-    (role) =>
-      matchesBodyRef(role.bodyDraftId, body) && roleTypes.includes(role.roleType),
-  );
-  const candidateMandates = mandates.filter((mandate) =>
-    bodyRoles.some((role) => mandate.roleRef.draftId === role.roleDraftId),
-  );
-  const validHolderMandates = candidateMandates.filter((mandate) =>
-    isUsableAddress(mandate.holderAddress),
-  );
-
-  if (validHolderMandates.length === 0) {
-    warnings.push({
-      actionId: policy.actionId,
-      code: missingCode,
-      message: missingMessage,
-      proposalType: policy.proposalType,
-      relatedBodyId: body.draftId ?? body.indexedId,
-      severity: "warning",
-    });
-    return true;
-  }
-
-  const scopedMandates = validHolderMandates.filter((mandate) =>
-    mandate.proposalTypes?.includes(policy.proposalType),
-  );
-
-  if (scopedMandates.length === 0) {
-    warnings.push({
-      actionId: policy.actionId,
-      code: SetupValidationWarningCode.ProposalTypeScopeMismatch,
-      message: `${formatBodyRef(body)} has ${responsibility} holder mandates, but none cover ${formatProposalType(policy.proposalType)} proposals.`,
-      proposalType: policy.proposalType,
-      relatedBodyId: body.draftId ?? body.indexedId,
-      severity: "warning",
-    });
-    return true;
-  }
-
-  return false;
-}
-
-function validateAddress({
-  actionId,
-  label,
-  relatedMandateId,
-  relatedRoleId,
-  value,
-  warnings,
-}: {
-  readonly actionId?: string;
-  readonly label: string;
-  readonly relatedMandateId?: string;
-  readonly relatedRoleId?: string;
-  readonly value: string;
-  readonly warnings: SetupValidationWarning[];
-}): void {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    warnings.push({
-      actionId,
-      code: SetupValidationWarningCode.InvalidAddress,
-      message: `${label} is required before setup transactions can be prepared.`,
-      relatedMandateId,
-      relatedRoleId,
-      severity: "error",
-    });
-    return;
-  }
-
-  if (isZeroAddress(trimmed)) {
-    warnings.push({
-      actionId,
-      code: SetupValidationWarningCode.ZeroAddressAuthority,
-      message: `${label} is the zero address and cannot be treated as final setup authority.`,
-      relatedMandateId,
-      relatedRoleId,
-      severity: "error",
-    });
-    return;
-  }
-
-  if (!isAddress(trimmed)) {
-    warnings.push({
-      actionId,
-      code: SetupValidationWarningCode.InvalidAddress,
-      message: `${label} must be a 20-byte EVM address.`,
-      relatedMandateId,
-      relatedRoleId,
-      severity: "error",
-    });
-  }
-}
-
-function validateTimelock(
-  policy: SetPolicyRuleSetupAction,
-  warnings: SetupValidationWarning[],
-): void {
-  if (!isValidTimelock(policy.timelockSeconds)) {
-    warnings.push({
-      actionId: policy.actionId,
-      code: SetupValidationWarningCode.InvalidTimelock,
-      message: `${formatProposalType(policy.proposalType)} timelock must be a non-negative uint64 integer in seconds.`,
-      proposalType: policy.proposalType,
-      severity: "error",
-    });
-  }
-}
-
-function withActionWarnings(
-  actions: readonly SetupAction[],
-  warnings: readonly SetupValidationWarning[],
-): readonly SetupAction[] {
-  return actions.map((action) => {
-    const actionWarnings = warnings.filter(
-      (warning) => warning.actionId === action.actionId,
-    );
-
-    switch (action.kind) {
-      case SetupActionKind.CreateOrganization:
-        return { ...action, warnings: actionWarnings };
-      case SetupActionKind.CreateBody:
-        return { ...action, warnings: actionWarnings };
-      case SetupActionKind.CreateRole:
-        return { ...action, warnings: actionWarnings };
-      case SetupActionKind.AssignMandate:
-        return { ...action, warnings: actionWarnings };
-      case SetupActionKind.SetPolicyRule:
-        return { ...action, warnings: actionWarnings };
-    }
-  });
-}
-
 function getHolderAddressesForRole(
   role: DraftRoleDefinition,
   inputs: SimpleDaoPlusDraftInputs,
@@ -1140,75 +850,11 @@ function maybeAddress(value: string): Address | undefined {
   return trimmed.length > 0 ? (trimmed as Address) : undefined;
 }
 
-function isUsableAddress(value: string): boolean {
-  return isAddress(value) && !isZeroAddress(value);
-}
-
-function isAddress(value: string): value is Address {
-  return /^0x[a-fA-F0-9]{40}$/.test(value);
-}
-
-function isZeroAddress(value: string): boolean {
-  return value.toLowerCase() === ZERO_ADDRESS;
-}
-
-function isValidTimelock(value: string): boolean {
-  const trimmed = value.trim();
-  if (!/^\d+$/.test(trimmed)) {
-    return false;
-  }
-
-  try {
-    const parsed = BigInt(trimmed);
-    return parsed >= 0n && parsed <= MAX_UINT64;
-  } catch {
-    return false;
-  }
-}
-
-function matchesBodyRef(
-  bodyDraftId: string,
-  reference: SetupEntityReference,
-): boolean {
-  return reference.draftId === bodyDraftId;
-}
-
 function bodyRef(draftId: string): SetupEntityReference {
   return { draftId };
-}
-
-function isMandateAction(
-  action: SetupAction,
-): action is AssignMandateSetupAction {
-  return action.kind === SetupActionKind.AssignMandate;
-}
-
-function isPolicyAction(
-  action: SetupAction,
-): action is SetPolicyRuleSetupAction {
-  return action.kind === SetupActionKind.SetPolicyRule;
 }
 
 function sanitizeActionId(value: string): string {
   const sanitized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return sanitized.replace(/^-+|-+$/g, "") || "holder";
-}
-
-function formatBodyRef(reference: SetupEntityReference): string {
-  if (reference.draftId === BODY_DRAFT_IDS.general) {
-    return "General Council";
-  }
-  if (reference.draftId === BODY_DRAFT_IDS.treasury) {
-    return "Treasury Committee";
-  }
-  if (reference.draftId === BODY_DRAFT_IDS.security) {
-    return "Security Council";
-  }
-  return reference.indexedId ? `Body #${reference.indexedId}` : "Unresolved body";
-}
-
-function formatProposalType(proposalType: ProposalType): string {
-  return proposalType
-    .replace(/[_-]/g, " ")
-    .replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
 }

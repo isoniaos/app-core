@@ -8,15 +8,18 @@ import type {
   SetupDraft,
   SetupEntityReference,
   SetupValidationWarning,
+  SetupValidationWarningSeverity,
   TemplateDescriptor,
 } from "@isonia/types";
-import { SetupActionKind } from "@isonia/types";
+import { SetupActionKind, SetupDraftStatus } from "@isonia/types";
 import { StatusBadge } from "../../ui/StatusBadge";
 import {
   formatAddress,
   formatLabel,
   formatNumericString,
 } from "../../utils/format";
+import type { SetupValidationSummary } from "./setup-validation";
+import { summarizeSetupValidationWarnings } from "./setup-validation";
 
 interface SetupActionGroup {
   readonly key: string;
@@ -106,7 +109,9 @@ export function SetupDraftPreview({
 }: {
   readonly draft: SetupDraft;
 }): JSX.Element {
-  const summary = summarizeDraft(draft);
+  const draftSummary = summarizeDraft(draft);
+  const validationSummary = summarizeSetupValidationWarnings(draft.warnings);
+  const readiness = getDraftReadiness(draft, validationSummary);
 
   return (
     <section className="panel">
@@ -118,7 +123,7 @@ export function SetupDraftPreview({
             submitted, indexed, or authoritative.
           </p>
         </div>
-        <StatusBadge tone="warning">{formatLabel(draft.status)}</StatusBadge>
+        <StatusBadge tone={readiness.tone}>{readiness.label}</StatusBadge>
       </div>
 
       <div className="metric-grid setup-summary-grid">
@@ -128,21 +133,26 @@ export function SetupDraftPreview({
         </div>
         <div className="metric">
           <span>Bodies</span>
-          <strong>{summary.bodies}</strong>
+          <strong>{draftSummary.bodies}</strong>
         </div>
         <div className="metric">
           <span>Roles</span>
-          <strong>{summary.roles}</strong>
+          <strong>{draftSummary.roles}</strong>
         </div>
         <div className="metric">
           <span>Mandates</span>
-          <strong>{summary.mandates}</strong>
+          <strong>{draftSummary.mandates}</strong>
         </div>
         <div className="metric">
           <span>Policy routes</span>
-          <strong>{summary.policies}</strong>
+          <strong>{draftSummary.policies}</strong>
         </div>
       </div>
+
+      <ValidationSummaryPanel
+        readiness={readiness}
+        summary={validationSummary}
+      />
 
       <dl className="detail-list detail-list-wide setup-draft-details">
         <div>
@@ -262,16 +272,70 @@ function ActionWarnings({
 
   return (
     <div className="setup-action-warning-list">
-      {warnings.map((warning) => (
+      {warnings.map((warning, index) => (
         <span
-          className={`setup-action-warning${
-            warning.severity === "error" ? " setup-action-warning-danger" : ""
-          }`}
-          key={`${warning.code}:${warning.message}`}
+          className={`setup-action-warning setup-action-warning-${warning.severity}`}
+          key={`${warning.code}:${warning.message}:${index}`}
         >
-          {formatLabel(warning.code)}: {warning.message}
+          {formatLabel(warning.severity)} - {formatLabel(warning.code)}:{" "}
+          {warning.message}
         </span>
       ))}
+    </div>
+  );
+}
+
+function ValidationSummaryPanel({
+  readiness,
+  summary,
+}: {
+  readonly readiness: DraftReadiness;
+  readonly summary: SetupValidationSummary;
+}): JSX.Element {
+  return (
+    <div className="setup-validation-summary">
+      <div className={`setup-validation-state ${readiness.className}`}>
+        <div>
+          <strong>{readiness.label}</strong>
+          <span>{readiness.description}</span>
+        </div>
+        <StatusBadge tone={readiness.tone}>{formatLabel(readiness.status)}</StatusBadge>
+      </div>
+      <div className="setup-validation-counts">
+        <ValidationCount
+          label="Errors"
+          severity="error"
+          value={summary.errors}
+        />
+        <ValidationCount
+          label="Warnings"
+          severity="warning"
+          value={summary.warnings}
+        />
+        <ValidationCount label="Info" severity="info" value={summary.info} />
+      </div>
+      <p className="setup-validation-note">
+        Errors block future execution readiness. Warnings are advisory where
+        protocol transactions could still be valid. Info explains draft
+        assumptions.
+      </p>
+    </div>
+  );
+}
+
+function ValidationCount({
+  label,
+  severity,
+  value,
+}: {
+  readonly label: string;
+  readonly severity: SetupValidationWarningSeverity;
+  readonly value: number;
+}): JSX.Element {
+  return (
+    <div className={`setup-validation-count setup-validation-count-${severity}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -287,18 +351,16 @@ function WarningsList({
 
   return (
     <div className="setup-warning-list">
-      {warnings.map((warning) => (
+      {warnings.map((warning, index) => (
         <div
-          className={`blocked-reason${
-            warning.severity === "error" ? " blocked-reason-danger" : ""
-          }`}
-          key={`${warning.code}:${warning.message}`}
+          className={`blocked-reason ${getWarningReasonClass(
+            warning.severity,
+          )}`}
+          key={`${warning.code}:${warning.message}:${index}`}
         >
           <div className="blocked-reason-header">
             <strong>{formatLabel(warning.code)}</strong>
-            <StatusBadge
-              tone={warning.severity === "error" ? "danger" : "warning"}
-            >
+            <StatusBadge tone={getWarningTone(warning.severity)}>
               {formatLabel(warning.severity)}
             </StatusBadge>
           </div>
@@ -329,6 +391,76 @@ function summarizeDraft(draft: SetupDraft): {
       (action) => action.kind === SetupActionKind.CreateRole,
     ).length,
   };
+}
+
+interface DraftReadiness {
+  readonly className: string;
+  readonly description: string;
+  readonly label: string;
+  readonly status: SetupDraftStatus;
+  readonly tone: "default" | "success" | "warning" | "danger" | "muted";
+}
+
+function getDraftReadiness(
+  draft: SetupDraft,
+  summary: SetupValidationSummary,
+): DraftReadiness {
+  if (summary.blocked || draft.status === SetupDraftStatus.Blocked) {
+    return {
+      className: "setup-validation-state-danger",
+      description:
+        "Error-level validation warnings must be resolved before this draft is ready for setup transaction execution.",
+      label: "Blocked",
+      status: SetupDraftStatus.Blocked,
+      tone: "danger",
+    };
+  }
+
+  if (draft.status === SetupDraftStatus.ReadyForReview) {
+    return {
+      className: "setup-validation-state-success",
+      description:
+        "No blocking validation errors were found. The draft remains editable and no transaction is sent from this preview.",
+      label: "Ready for review",
+      status: draft.status,
+      tone: "success",
+    };
+  }
+
+  return {
+    className: "setup-validation-state-warning",
+    description:
+      "The draft is still editable. Review validation output before any future setup execution step.",
+    label: "Editable draft",
+    status: draft.status,
+    tone: "warning",
+  };
+}
+
+function getWarningTone(
+  severity: SetupValidationWarningSeverity,
+): "default" | "warning" | "danger" | "muted" {
+  switch (severity) {
+    case "error":
+      return "danger";
+    case "warning":
+      return "warning";
+    case "info":
+      return "default";
+  }
+}
+
+function getWarningReasonClass(
+  severity: SetupValidationWarningSeverity,
+): string {
+  switch (severity) {
+    case "error":
+      return "blocked-reason-danger";
+    case "warning":
+      return "blocked-reason-warning";
+    case "info":
+      return "blocked-reason-info";
+  }
 }
 
 function getActionSummary(action: SetupAction): string {
