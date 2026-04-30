@@ -18,6 +18,40 @@ import {
   formatNumericString,
 } from "../../utils/format";
 
+interface SetupActionGroup {
+  readonly key: string;
+  readonly label: string;
+  readonly kinds: readonly SetupActionKind[];
+}
+
+const SETUP_ACTION_GROUPS: readonly SetupActionGroup[] = [
+  {
+    key: "organization",
+    kinds: [SetupActionKind.CreateOrganization],
+    label: "Organization",
+  },
+  {
+    key: "bodies",
+    kinds: [SetupActionKind.CreateBody],
+    label: "Bodies",
+  },
+  {
+    key: "roles",
+    kinds: [SetupActionKind.CreateRole],
+    label: "Roles",
+  },
+  {
+    key: "mandates",
+    kinds: [SetupActionKind.AssignMandate],
+    label: "Mandates",
+  },
+  {
+    key: "policy-rules",
+    kinds: [SetupActionKind.SetPolicyRule],
+    label: "Policy Rules",
+  },
+];
+
 interface TemplateSelectionProps {
   readonly selectedTemplateId: string;
   readonly templates: readonly TemplateDescriptor[];
@@ -80,7 +114,7 @@ export function SetupDraftPreview({
         <div>
           <h2>Setup Draft</h2>
           <p className="panel-subtitle">
-            Browser-side placeholder state for the selected template. It is not
+            Browser-side draft state for the selected template. It is not
             submitted, indexed, or authoritative.
           </p>
         </div>
@@ -101,6 +135,10 @@ export function SetupDraftPreview({
           <strong>{summary.roles}</strong>
         </div>
         <div className="metric">
+          <span>Mandates</span>
+          <strong>{summary.mandates}</strong>
+        </div>
+        <div className="metric">
           <span>Policy routes</span>
           <strong>{summary.policies}</strong>
         </div>
@@ -119,19 +157,67 @@ export function SetupDraftPreview({
           <dt>Chain</dt>
           <dd>{draft.chainId}</dd>
         </div>
+        {draft.organization ? (
+          <>
+            <div>
+              <dt>Organization</dt>
+              <dd>{draft.organization.fallbackName}</dd>
+            </div>
+            <div>
+              <dt>Admin</dt>
+              <dd className="mono-value">
+                {draft.organization.adminAddress
+                  ? formatDraftAddress(draft.organization.adminAddress)
+                  : "Not set"}
+              </dd>
+            </div>
+          </>
+        ) : null}
       </dl>
 
       <WarningsList warnings={draft.warnings} />
 
-      <div className="setup-action-list">
-        {draft.actions.map((action, index) => (
-          <SetupActionRow
-            action={action}
-            index={index + 1}
-            key={action.actionId}
+      <div className="setup-action-groups">
+        {SETUP_ACTION_GROUPS.map((group) => (
+          <SetupActionGroupPanel
+            actions={draft.actions.filter((action) =>
+              group.kinds.includes(action.kind),
+            )}
+            group={group}
+            key={group.key}
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+function SetupActionGroupPanel({
+  actions,
+  group,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly group: SetupActionGroup;
+}): JSX.Element {
+  return (
+    <section className="setup-action-group">
+      <div className="setup-action-group-header">
+        <h3>{group.label}</h3>
+        <span>{actions.length} actions</span>
+      </div>
+      {actions.length === 0 ? (
+        <div className="setup-action-empty">No draft actions in this group.</div>
+      ) : (
+        <div className="setup-action-list">
+          {actions.map((action, index) => (
+            <SetupActionRow
+              action={action}
+              index={index + 1}
+              key={action.actionId}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -145,20 +231,48 @@ function SetupActionRow({
 }): JSX.Element {
   return (
     <article className="setup-action-row">
-      <div className="setup-action-main">
-        <span className="setup-action-index">{index}</span>
-        <div>
-          <strong>{action.label}</strong>
-          <span>{getActionSummary(action)}</span>
+      <div className="setup-action-row-top">
+        <div className="setup-action-main">
+          <span className="setup-action-index">{index}</span>
+          <div>
+            <strong>{action.label}</strong>
+            <span>{getActionSummary(action)}</span>
+          </div>
+        </div>
+        <div className="setup-action-meta">
+          <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+          <StatusBadge tone="warning">
+            {formatLabel(action.executionStatus)}
+          </StatusBadge>
         </div>
       </div>
-      <div className="setup-action-meta">
-        <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
-        <StatusBadge tone="warning">
-          {formatLabel(action.executionStatus)}
-        </StatusBadge>
-      </div>
+      <ActionWarnings warnings={action.warnings} />
     </article>
+  );
+}
+
+function ActionWarnings({
+  warnings,
+}: {
+  readonly warnings: readonly SetupValidationWarning[];
+}): JSX.Element | null {
+  if (warnings.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="setup-action-warning-list">
+      {warnings.map((warning) => (
+        <span
+          className={`setup-action-warning${
+            warning.severity === "error" ? " setup-action-warning-danger" : ""
+          }`}
+          key={`${warning.code}:${warning.message}`}
+        >
+          {formatLabel(warning.code)}: {warning.message}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -175,7 +289,9 @@ function WarningsList({
     <div className="setup-warning-list">
       {warnings.map((warning) => (
         <div
-          className="blocked-reason"
+          className={`blocked-reason${
+            warning.severity === "error" ? " blocked-reason-danger" : ""
+          }`}
           key={`${warning.code}:${warning.message}`}
         >
           <div className="blocked-reason-header">
@@ -195,6 +311,7 @@ function WarningsList({
 
 function summarizeDraft(draft: SetupDraft): {
   readonly bodies: number;
+  readonly mandates: number;
   readonly policies: number;
   readonly roles: number;
 } {
@@ -204,6 +321,9 @@ function summarizeDraft(draft: SetupDraft): {
     ).length,
     policies: draft.actions.filter(
       (action) => action.kind === SetupActionKind.SetPolicyRule,
+    ).length,
+    mandates: draft.actions.filter(
+      (action) => action.kind === SetupActionKind.AssignMandate,
     ).length,
     roles: draft.actions.filter(
       (action) => action.kind === SetupActionKind.CreateRole,
@@ -229,7 +349,10 @@ function getActionSummary(action: SetupAction): string {
 function getCreateOrganizationSummary(
   action: CreateOrganizationSetupAction,
 ): string {
-  return `${action.fallbackName}; admin ${formatAddress(action.adminAddress)}`;
+  const metadata = action.metadataUri ? `; metadata ${action.metadataUri}` : "";
+  return `${action.fallbackName}; admin ${formatDraftAddress(
+    action.adminAddress,
+  )}${metadata}`;
 }
 
 function getCreateBodySummary(action: CreateBodySetupAction): string {
@@ -244,7 +367,7 @@ function getCreateRoleSummary(action: CreateRoleSetupAction): string {
 
 function getAssignMandateSummary(action: AssignMandateSetupAction): string {
   const scopes = action.proposalTypes?.map(formatLabel).join(", ");
-  return `${formatAddress(action.holderAddress)}; scope ${
+  return `${formatDraftAddress(action.holderAddress)}; scope ${
     scopes ?? `mask ${action.proposalTypeMask}`
   }`;
 }
@@ -274,4 +397,12 @@ function formatReference(reference: SetupEntityReference): string {
   }
 
   return reference.draftId ?? "unresolved";
+}
+
+function formatDraftAddress(value: string): string {
+  if (value.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+    return "Zero address";
+  }
+
+  return formatAddress(value);
 }

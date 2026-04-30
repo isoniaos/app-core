@@ -1,5 +1,5 @@
 import type { OrganizationPolicyDto } from "@isonia/types";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import type { IsoniaQueryState } from "../../api/useIsoniaQuery";
@@ -9,8 +9,10 @@ import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
 import { formatLabel, formatNumericString } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
+import { SimpleDaoPlusDraftForm } from "./SimpleDaoPlusDraftForm";
 import {
   createSimpleDaoPlusDraft,
+  DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS,
   SETUP_TEMPLATES,
   SIMPLE_DAO_PLUS_TEMPLATE_ID,
 } from "./setup-templates";
@@ -20,6 +22,7 @@ export function OrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
   const orgId = requireParam(useParams().orgId, "orgId");
+  const [inputs, setInputs] = useState(DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS);
   const policies = useIsoniaQuery(() => client.policies.list(orgId), [
     client,
     orgId,
@@ -29,9 +32,10 @@ export function OrganizationSetupPage(): JSX.Element {
       createSimpleDaoPlusDraft({
         chainId: runtimeConfig.chainId,
         govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        inputs,
         orgId,
       }),
-    [orgId, runtimeConfig.chainId, runtimeConfig.contracts.govCoreAddress],
+    [inputs, orgId, runtimeConfig.chainId, runtimeConfig.contracts.govCoreAddress],
   );
 
   return (
@@ -49,12 +53,14 @@ export function OrganizationSetupPage(): JSX.Element {
         <Link className="button" to="/diagnostics">
           Diagnostics
         </Link>
+        <StatusBadge tone="muted">No transactions</StatusBadge>
       </div>
 
       <TemplateSelection
         selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
         templates={SETUP_TEMPLATES}
       />
+      <SimpleDaoPlusDraftForm inputs={inputs} onChange={setInputs} />
       <SetupDraftPreview draft={draft} />
       <IndexedPoliciesPanel orgId={orgId} policies={policies} />
     </section>

@@ -1,5 +1,6 @@
 import type {
   Address,
+  AssignMandateSetupAction,
   ChainId,
   CreateBodySetupAction,
   CreateOrganizationSetupAction,
@@ -24,12 +25,54 @@ import {
 } from "@isonia/types";
 
 export const SIMPLE_DAO_PLUS_TEMPLATE_ID = "simple-dao-plus";
+
+export type SimpleDaoPlusExecutorBodyChoice =
+  | "general_council"
+  | "treasury_committee";
+
+export interface SimpleDaoPlusDraftInputs {
+  readonly organizationName: string;
+  readonly organizationMetadataUri: string;
+  readonly organizationAdminAddress: string;
+  readonly generalCouncilHolderAddresses: readonly string[];
+  readonly treasuryCommitteeHolderAddresses: readonly string[];
+  readonly securityCouncilHolderAddresses: readonly string[];
+  readonly executorHolderAddress: string;
+  readonly executorBodyChoice: SimpleDaoPlusExecutorBodyChoice;
+  readonly standardTimelockSeconds: string;
+  readonly treasuryTimelockSeconds: string;
+  readonly upgradeTimelockSeconds: string;
+  readonly emergencyTimelockSeconds: string;
+}
+
 const SIMPLE_DAO_PLUS_VERSION = "0.5.0-alpha";
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
+const MAX_UINT64 = 18_446_744_073_709_551_615n;
+
+const DEFAULT_STANDARD_TIMELOCK_SECONDS = "3600";
+const DEFAULT_TREASURY_TIMELOCK_SECONDS = "86400";
+const DEFAULT_UPGRADE_TIMELOCK_SECONDS = "86400";
+const DEFAULT_EMERGENCY_TIMELOCK_SECONDS = "0";
+
+export const DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS: SimpleDaoPlusDraftInputs = {
+  emergencyTimelockSeconds: DEFAULT_EMERGENCY_TIMELOCK_SECONDS,
+  executorBodyChoice: "treasury_committee",
+  executorHolderAddress: "",
+  generalCouncilHolderAddresses: [],
+  organizationAdminAddress: "",
+  organizationMetadataUri: "",
+  organizationName: "",
+  securityCouncilHolderAddresses: [],
+  standardTimelockSeconds: DEFAULT_STANDARD_TIMELOCK_SECONDS,
+  treasuryCommitteeHolderAddresses: [],
+  treasuryTimelockSeconds: DEFAULT_TREASURY_TIMELOCK_SECONDS,
+  upgradeTimelockSeconds: DEFAULT_UPGRADE_TIMELOCK_SECONDS,
+};
 
 interface SetupDraftOptions {
   readonly chainId: ChainId;
   readonly govCoreAddress: Address;
+  readonly inputs?: Partial<SimpleDaoPlusDraftInputs>;
   readonly orgId?: NumericString;
 }
 
@@ -47,84 +90,67 @@ interface DraftRoleDefinition {
   readonly bodyDraftId: string;
   readonly roleType: RoleType;
   readonly fallbackName: string;
+  readonly proposalTypes: readonly ProposalType[];
 }
+
+type SetupResponsibility = "approver" | "vetoer" | "executor";
 
 const ORGANIZATION_DRAFT_ID = "simple-dao-plus-organization";
 const CREATE_ORGANIZATION_ACTION_ID = "create-organization";
 
+const BODY_DRAFT_IDS = {
+  general: "body-general-council",
+  security: "body-security-council",
+  treasury: "body-treasury-committee",
+} as const;
+
+const ROLE_DRAFT_IDS = {
+  generalApprover: "role-general-approver",
+  generalBodyAdmin: "role-general-body-admin",
+  generalExecutor: "role-general-executor",
+  generalProposer: "role-general-proposer",
+  securityApprover: "role-security-approver",
+  securityEmergencyOperator: "role-security-emergency-operator",
+  securityExecutor: "role-security-executor",
+  securityVetoer: "role-security-vetoer",
+  treasuryApprover: "role-treasury-approver",
+  treasuryExecutor: "role-treasury-executor",
+} as const;
+
+const GENERAL_PROPOSAL_TYPES = [
+  ProposalType.Standard,
+  ProposalType.Treasury,
+  ProposalType.Upgrade,
+] as const;
+
+const ALL_PROPOSAL_TYPES = [
+  ProposalType.Standard,
+  ProposalType.Treasury,
+  ProposalType.Upgrade,
+  ProposalType.Emergency,
+] as const;
+
 const SIMPLE_DAO_PLUS_BODIES: readonly DraftBodyDefinition[] = [
   {
     actionId: "create-general-council",
-    bodyDraftId: "body-general-council",
+    bodyDraftId: BODY_DRAFT_IDS.general,
     description: "General organization approval and standard proposal review.",
     fallbackName: "General Council",
     kind: BodyKind.GeneralCouncil,
   },
   {
     actionId: "create-treasury-committee",
-    bodyDraftId: "body-treasury-committee",
+    bodyDraftId: BODY_DRAFT_IDS.treasury,
     description: "Treasury proposal approval and treasury-specific review.",
     fallbackName: "Treasury Committee",
     kind: BodyKind.TreasuryCommittee,
   },
   {
     actionId: "create-security-council",
-    bodyDraftId: "body-security-council",
+    bodyDraftId: BODY_DRAFT_IDS.security,
     description: "Veto coverage and emergency authority.",
     fallbackName: "Security Council",
     kind: BodyKind.SecurityCouncil,
-  },
-];
-
-const SIMPLE_DAO_PLUS_ROLES: readonly DraftRoleDefinition[] = [
-  {
-    actionId: "create-general-body-admin",
-    bodyDraftId: "body-general-council",
-    fallbackName: "General Council Body Admin",
-    roleDraftId: "role-general-body-admin",
-    roleType: RoleType.BodyAdmin,
-  },
-  {
-    actionId: "create-general-proposer",
-    bodyDraftId: "body-general-council",
-    fallbackName: "General Council Proposer",
-    roleDraftId: "role-general-proposer",
-    roleType: RoleType.Proposer,
-  },
-  {
-    actionId: "create-general-approver",
-    bodyDraftId: "body-general-council",
-    fallbackName: "General Council Approver",
-    roleDraftId: "role-general-approver",
-    roleType: RoleType.Approver,
-  },
-  {
-    actionId: "create-treasury-approver",
-    bodyDraftId: "body-treasury-committee",
-    fallbackName: "Treasury Committee Approver",
-    roleDraftId: "role-treasury-approver",
-    roleType: RoleType.Approver,
-  },
-  {
-    actionId: "create-treasury-executor",
-    bodyDraftId: "body-treasury-committee",
-    fallbackName: "Treasury Committee Executor",
-    roleDraftId: "role-treasury-executor",
-    roleType: RoleType.Executor,
-  },
-  {
-    actionId: "create-security-vetoer",
-    bodyDraftId: "body-security-council",
-    fallbackName: "Security Council Vetoer",
-    roleDraftId: "role-security-vetoer",
-    roleType: RoleType.Vetoer,
-  },
-  {
-    actionId: "create-security-emergency-operator",
-    bodyDraftId: "body-security-council",
-    fallbackName: "Security Council Emergency Operator",
-    roleDraftId: "role-security-emergency-operator",
-    roleType: RoleType.EmergencyOperator,
   },
 ];
 
@@ -132,10 +158,18 @@ export const SIMPLE_DAO_PLUS_TEMPLATE: TemplateDescriptor = {
   actionFactoryId: "app-core.simple-dao-plus.v0_5",
   defaults: {
     inputValues: {
-      emergencyTimelockSeconds: 0,
-      standardTimelockSeconds: 3600,
-      treasuryTimelockSeconds: 86400,
-      upgradeTimelockSeconds: 86400,
+      emergencyTimelockSeconds: DEFAULT_EMERGENCY_TIMELOCK_SECONDS,
+      executorBodyChoice: DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.executorBodyChoice,
+      executorHolderAddress: "",
+      generalCouncilHolderAddresses: [],
+      organizationAdminAddress: "",
+      organizationMetadataUri: "",
+      organizationName: "",
+      securityCouncilHolderAddresses: [],
+      standardTimelockSeconds: DEFAULT_STANDARD_TIMELOCK_SECONDS,
+      treasuryCommitteeHolderAddresses: [],
+      treasuryTimelockSeconds: DEFAULT_TREASURY_TIMELOCK_SECONDS,
+      upgradeTimelockSeconds: DEFAULT_UPGRADE_TIMELOCK_SECONDS,
     } satisfies JsonObject,
   },
   description:
@@ -156,10 +190,84 @@ export const SIMPLE_DAO_PLUS_TEMPLATE: TemplateDescriptor = {
       required: false,
     },
     {
-      defaultValue: ZERO_ADDRESS,
       inputId: "organizationAdminAddress",
       kind: "address",
       label: "Organization admin",
+      required: true,
+    },
+    {
+      description: "Addresses that receive General Council BodyAdmin, Proposer, and Approver mandates.",
+      inputId: "generalCouncilHolderAddresses",
+      kind: "address_list",
+      label: "General Council holders",
+      required: true,
+    },
+    {
+      description: "Addresses that receive Treasury Committee Approver mandates.",
+      inputId: "treasuryCommitteeHolderAddresses",
+      kind: "address_list",
+      label: "Treasury Committee holders",
+      required: true,
+    },
+    {
+      description: "Addresses that receive Security Council Approver, Vetoer, and EmergencyOperator mandates.",
+      inputId: "securityCouncilHolderAddresses",
+      kind: "address_list",
+      label: "Security Council holders",
+      required: true,
+    },
+    {
+      description: "Address that receives Executor mandates for the configured executor bodies.",
+      inputId: "executorHolderAddress",
+      kind: "address",
+      label: "Executor holder",
+      required: true,
+    },
+    {
+      defaultValue: DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.executorBodyChoice,
+      inputId: "executorBodyChoice",
+      kind: "text",
+      label: "Standard and upgrade executor body",
+      options: [
+        {
+          description: "The Treasury Committee executor role executes standard, treasury, and upgrade routes.",
+          label: "Treasury Committee",
+          value: "treasury_committee",
+        },
+        {
+          description: "The General Council executor role executes standard and upgrade routes.",
+          label: "General Council",
+          value: "general_council",
+        },
+      ],
+      required: true,
+    },
+    {
+      defaultValue: Number(DEFAULT_STANDARD_TIMELOCK_SECONDS),
+      inputId: "standardTimelockSeconds",
+      kind: "timelock_seconds",
+      label: "Standard timelock",
+      required: true,
+    },
+    {
+      defaultValue: Number(DEFAULT_TREASURY_TIMELOCK_SECONDS),
+      inputId: "treasuryTimelockSeconds",
+      kind: "timelock_seconds",
+      label: "Treasury timelock",
+      required: true,
+    },
+    {
+      defaultValue: Number(DEFAULT_UPGRADE_TIMELOCK_SECONDS),
+      inputId: "upgradeTimelockSeconds",
+      kind: "timelock_seconds",
+      label: "Upgrade timelock",
+      required: true,
+    },
+    {
+      defaultValue: Number(DEFAULT_EMERGENCY_TIMELOCK_SECONDS),
+      inputId: "emergencyTimelockSeconds",
+      kind: "timelock_seconds",
+      label: "Emergency timelock",
       required: true,
     },
   ],
@@ -199,34 +307,76 @@ export const SETUP_TEMPLATES: readonly TemplateDescriptor[] = [
 export function createSimpleDaoPlusDraft({
   chainId,
   govCoreAddress,
+  inputs,
   orgId,
 }: SetupDraftOptions): SetupDraft {
   const createdAt = new Date().toISOString();
+  const normalizedInputs = normalizeSimpleDaoPlusInputs(inputs);
+  const organizationName =
+    normalizedInputs.organizationName || (orgId ? `Organization #${orgId}` : "New organization");
   const organizationRef: SetupEntityReference = orgId
     ? { indexedId: orgId }
     : { draftId: ORGANIZATION_DRAFT_ID };
-  const warnings = createDraftWarnings();
+  const adminAddress = maybeAddress(normalizedInputs.organizationAdminAddress);
+  const roleDefinitions = createRoleDefinitions(normalizedInputs);
+  const baseActions: readonly SetupAction[] = [
+    ...createOrganizationActions({
+      chainId,
+      govCoreAddress,
+      inputs: normalizedInputs,
+      orgId,
+    }),
+    ...createBodyActions({
+      adminAddress,
+      chainId,
+      govCoreAddress,
+      organizationRef,
+      orgId,
+    }),
+    ...createRoleActions({
+      adminAddress,
+      chainId,
+      govCoreAddress,
+      roleDefinitions,
+    }),
+    ...createMandateActions({
+      adminAddress,
+      chainId,
+      govCoreAddress,
+      inputs: normalizedInputs,
+      roleDefinitions,
+    }),
+    ...createPolicyActions({
+      adminAddress,
+      chainId,
+      govCoreAddress,
+      inputs: normalizedInputs,
+      organizationRef,
+    }),
+  ];
+  const warnings = validateDraft({
+    actions: baseActions,
+    inputs: normalizedInputs,
+    roleDefinitions,
+  });
 
   return {
-    actions: [
-      ...createOrganizationActions({ chainId, govCoreAddress, orgId }),
-      ...createBodyActions({ chainId, govCoreAddress, organizationRef, orgId }),
-      ...createRoleActions({ chainId, govCoreAddress }),
-      ...createMandateActions({ chainId, govCoreAddress }),
-      ...createPolicyActions({ chainId, govCoreAddress, organizationRef }),
-    ],
+    actions: withActionWarnings(baseActions, warnings),
     chainId,
     createdAt,
     draftId: orgId
       ? `${SIMPLE_DAO_PLUS_TEMPLATE_ID}-org-${orgId}`
       : `${SIMPLE_DAO_PLUS_TEMPLATE_ID}-new`,
     organization: {
-      adminAddress: orgId ? undefined : ZERO_ADDRESS,
+      adminAddress,
       draftId: ORGANIZATION_DRAFT_ID,
-      fallbackName: orgId ? `Organization #${orgId}` : "New organization",
+      fallbackName: organizationName,
+      metadataUri: optionalString(normalizedInputs.organizationMetadataUri),
       orgId,
     },
-    status: SetupDraftStatus.Editing,
+    status: warnings.some((warning) => warning.severity === "error")
+      ? SetupDraftStatus.Blocked
+      : SetupDraftStatus.Editing,
     templateId: SIMPLE_DAO_PLUS_TEMPLATE.templateId,
     templateVersion: SIMPLE_DAO_PLUS_TEMPLATE.version,
     updatedAt: createdAt,
@@ -234,41 +384,195 @@ export function createSimpleDaoPlusDraft({
   };
 }
 
+function normalizeSimpleDaoPlusInputs(
+  inputs?: Partial<SimpleDaoPlusDraftInputs>,
+): SimpleDaoPlusDraftInputs {
+  const executorBodyChoice =
+    inputs?.executorBodyChoice === "general_council" ||
+    inputs?.executorBodyChoice === "treasury_committee"
+      ? inputs.executorBodyChoice
+      : DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.executorBodyChoice;
+
+  return {
+    emergencyTimelockSeconds: normalizeText(
+      inputs?.emergencyTimelockSeconds,
+      DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.emergencyTimelockSeconds,
+    ),
+    executorBodyChoice,
+    executorHolderAddress: normalizeText(inputs?.executorHolderAddress, ""),
+    generalCouncilHolderAddresses: normalizeAddressList(
+      inputs?.generalCouncilHolderAddresses,
+    ),
+    organizationAdminAddress: normalizeText(
+      inputs?.organizationAdminAddress,
+      "",
+    ),
+    organizationMetadataUri: normalizeText(
+      inputs?.organizationMetadataUri,
+      "",
+    ),
+    organizationName: normalizeText(inputs?.organizationName, ""),
+    securityCouncilHolderAddresses: normalizeAddressList(
+      inputs?.securityCouncilHolderAddresses,
+    ),
+    standardTimelockSeconds: normalizeText(
+      inputs?.standardTimelockSeconds,
+      DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.standardTimelockSeconds,
+    ),
+    treasuryCommitteeHolderAddresses: normalizeAddressList(
+      inputs?.treasuryCommitteeHolderAddresses,
+    ),
+    treasuryTimelockSeconds: normalizeText(
+      inputs?.treasuryTimelockSeconds,
+      DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.treasuryTimelockSeconds,
+    ),
+    upgradeTimelockSeconds: normalizeText(
+      inputs?.upgradeTimelockSeconds,
+      DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS.upgradeTimelockSeconds,
+    ),
+  };
+}
+
+function createRoleDefinitions(
+  inputs: SimpleDaoPlusDraftInputs,
+): readonly DraftRoleDefinition[] {
+  const treasuryExecutorProposalTypes =
+    inputs.executorBodyChoice === "treasury_committee"
+      ? GENERAL_PROPOSAL_TYPES
+      : [ProposalType.Treasury];
+
+  return [
+    {
+      actionId: "create-general-body-admin",
+      bodyDraftId: BODY_DRAFT_IDS.general,
+      fallbackName: "General Council Body Admin",
+      proposalTypes: GENERAL_PROPOSAL_TYPES,
+      roleDraftId: ROLE_DRAFT_IDS.generalBodyAdmin,
+      roleType: RoleType.BodyAdmin,
+    },
+    {
+      actionId: "create-general-proposer",
+      bodyDraftId: BODY_DRAFT_IDS.general,
+      fallbackName: "General Council Proposer",
+      proposalTypes: GENERAL_PROPOSAL_TYPES,
+      roleDraftId: ROLE_DRAFT_IDS.generalProposer,
+      roleType: RoleType.Proposer,
+    },
+    {
+      actionId: "create-general-approver",
+      bodyDraftId: BODY_DRAFT_IDS.general,
+      fallbackName: "General Council Approver",
+      proposalTypes: GENERAL_PROPOSAL_TYPES,
+      roleDraftId: ROLE_DRAFT_IDS.generalApprover,
+      roleType: RoleType.Approver,
+    },
+    ...(inputs.executorBodyChoice === "general_council"
+      ? [
+          {
+            actionId: "create-general-executor",
+            bodyDraftId: BODY_DRAFT_IDS.general,
+            fallbackName: "General Council Executor",
+            proposalTypes: [ProposalType.Standard, ProposalType.Upgrade],
+            roleDraftId: ROLE_DRAFT_IDS.generalExecutor,
+            roleType: RoleType.Executor,
+          } satisfies DraftRoleDefinition,
+        ]
+      : []),
+    {
+      actionId: "create-treasury-approver",
+      bodyDraftId: BODY_DRAFT_IDS.treasury,
+      fallbackName: "Treasury Committee Approver",
+      proposalTypes: [ProposalType.Treasury],
+      roleDraftId: ROLE_DRAFT_IDS.treasuryApprover,
+      roleType: RoleType.Approver,
+    },
+    {
+      actionId: "create-treasury-executor",
+      bodyDraftId: BODY_DRAFT_IDS.treasury,
+      fallbackName: "Treasury Committee Executor",
+      proposalTypes: treasuryExecutorProposalTypes,
+      roleDraftId: ROLE_DRAFT_IDS.treasuryExecutor,
+      roleType: RoleType.Executor,
+    },
+    {
+      actionId: "create-security-approver",
+      bodyDraftId: BODY_DRAFT_IDS.security,
+      fallbackName: "Security Council Approver",
+      proposalTypes: [ProposalType.Emergency],
+      roleDraftId: ROLE_DRAFT_IDS.securityApprover,
+      roleType: RoleType.Approver,
+    },
+    {
+      actionId: "create-security-vetoer",
+      bodyDraftId: BODY_DRAFT_IDS.security,
+      fallbackName: "Security Council Vetoer",
+      proposalTypes: ALL_PROPOSAL_TYPES,
+      roleDraftId: ROLE_DRAFT_IDS.securityVetoer,
+      roleType: RoleType.Vetoer,
+    },
+    {
+      actionId: "create-security-executor",
+      bodyDraftId: BODY_DRAFT_IDS.security,
+      fallbackName: "Security Council Executor",
+      proposalTypes: [ProposalType.Emergency],
+      roleDraftId: ROLE_DRAFT_IDS.securityExecutor,
+      roleType: RoleType.Executor,
+    },
+    {
+      actionId: "create-security-emergency-operator",
+      bodyDraftId: BODY_DRAFT_IDS.security,
+      fallbackName: "Security Council Emergency Operator",
+      proposalTypes: [ProposalType.Emergency],
+      roleDraftId: ROLE_DRAFT_IDS.securityEmergencyOperator,
+      roleType: RoleType.EmergencyOperator,
+    },
+  ];
+}
+
 function createOrganizationActions({
   chainId,
   govCoreAddress,
+  inputs,
   orgId,
-}: SetupDraftOptions): readonly CreateOrganizationSetupAction[] {
+}: SetupDraftOptions & {
+  readonly inputs: SimpleDaoPlusDraftInputs;
+}): readonly CreateOrganizationSetupAction[] {
   if (orgId) {
     return [];
   }
 
+  const adminAddress = maybeAddress(inputs.organizationAdminAddress);
+  const fallbackName = inputs.organizationName || "New organization";
+
   return [
     {
       actionId: CREATE_ORGANIZATION_ACTION_ID,
-      adminAddress: ZERO_ADDRESS,
+      adminAddress: adminAddress ?? ZERO_ADDRESS,
       dependsOn: [],
       description:
         "Create the protocol organization root before topology setup begins.",
       executionStatus: SetupActionExecutionStatus.Draft,
       expectedChainId: chainId,
       expectedContractAddress: govCoreAddress,
-      fallbackName: "New organization",
+      fallbackName,
       kind: SetupActionKind.CreateOrganization,
       label: "Create organization",
+      metadataUri: optionalString(inputs.organizationMetadataUri),
       organizationDraftId: ORGANIZATION_DRAFT_ID,
-      requiredSignerAddress: ZERO_ADDRESS,
+      requiredSignerAddress: adminAddress,
       warnings: [],
     },
   ];
 }
 
 function createBodyActions({
+  adminAddress,
   chainId,
   govCoreAddress,
   organizationRef,
   orgId,
 }: SetupDraftOptions & {
+  readonly adminAddress?: Address;
   readonly organizationRef: SetupEntityReference;
 }): readonly CreateBodySetupAction[] {
   return SIMPLE_DAO_PLUS_BODIES.map((body) => ({
@@ -285,15 +589,21 @@ function createBodyActions({
     kind: SetupActionKind.CreateBody,
     label: `Create ${body.fallbackName}`,
     organizationRef,
+    requiredSignerAddress: adminAddress,
     warnings: [],
   }));
 }
 
 function createRoleActions({
+  adminAddress,
   chainId,
   govCoreAddress,
-}: SetupDraftOptions): readonly CreateRoleSetupAction[] {
-  return SIMPLE_DAO_PLUS_ROLES.map((role) => ({
+  roleDefinitions,
+}: SetupDraftOptions & {
+  readonly adminAddress?: Address;
+  readonly roleDefinitions: readonly DraftRoleDefinition[];
+}): readonly CreateRoleSetupAction[] {
+  return roleDefinitions.map((role) => ({
     actionId: role.actionId,
     active: true,
     bodyRef: { draftId: role.bodyDraftId },
@@ -304,6 +614,7 @@ function createRoleActions({
     fallbackName: role.fallbackName,
     kind: SetupActionKind.CreateRole,
     label: `Create ${role.fallbackName}`,
+    requiredSignerAddress: adminAddress,
     roleDraftId: role.roleDraftId,
     roleType: role.roleType,
     warnings: [],
@@ -311,40 +622,61 @@ function createRoleActions({
 }
 
 function createMandateActions({
+  adminAddress,
   chainId,
   govCoreAddress,
-}: SetupDraftOptions): readonly SetupAction[] {
-  return SIMPLE_DAO_PLUS_ROLES.map((role) => ({
-    actionId: `assign-${role.roleDraftId}`,
-    dependsOn: [role.actionId],
-    description: "Placeholder holder assignment for draft review.",
-    endTime: "0",
-    executionStatus: SetupActionExecutionStatus.Draft,
-    expectedChainId: chainId,
-    expectedContractAddress: govCoreAddress,
-    holderAddress: ZERO_ADDRESS,
-    kind: SetupActionKind.AssignMandate,
-    label: `Assign ${role.fallbackName}`,
-    mandateDraftId: `mandate-${role.roleDraftId}`,
-    proposalTypeMask: getProposalTypeMaskForRole(role.roleType),
-    proposalTypes: getProposalTypesForRole(role.roleType),
-    roleRef: { draftId: role.roleDraftId },
-    spendingLimit: "0",
-    startTime: "0",
-    warnings: [],
-  }));
+  inputs,
+  roleDefinitions,
+}: SetupDraftOptions & {
+  readonly adminAddress?: Address;
+  readonly inputs: SimpleDaoPlusDraftInputs;
+  readonly roleDefinitions: readonly DraftRoleDefinition[];
+}): readonly AssignMandateSetupAction[] {
+  return roleDefinitions.flatMap((role) =>
+    getHolderAddressesForRole(role, inputs).map((holderAddress, index) => ({
+      actionId: `assign-${role.roleDraftId}-${sanitizeActionId(holderAddress)}-${index + 1}`,
+      dependsOn: [role.actionId],
+      description:
+        "Assign a user-provided holder address to this draft role scope.",
+      endTime: "0",
+      executionStatus: SetupActionExecutionStatus.Draft,
+      expectedChainId: chainId,
+      expectedContractAddress: govCoreAddress,
+      holderAddress: holderAddress as Address,
+      kind: SetupActionKind.AssignMandate,
+      label: `Assign ${role.fallbackName}`,
+      mandateDraftId: `mandate-${role.roleDraftId}-${index + 1}`,
+      proposalTypeMask: getProposalTypeMask(role.proposalTypes),
+      proposalTypes: role.proposalTypes,
+      requiredSignerAddress: adminAddress,
+      roleRef: { draftId: role.roleDraftId },
+      spendingLimit: "0",
+      startTime: "0",
+      warnings: [],
+    })),
+  );
 }
 
 function createPolicyActions({
+  adminAddress,
   chainId,
   govCoreAddress,
+  inputs,
   organizationRef,
 }: SetupDraftOptions & {
+  readonly adminAddress?: Address;
+  readonly inputs: SimpleDaoPlusDraftInputs;
   readonly organizationRef: SetupEntityReference;
 }): readonly SetPolicyRuleSetupAction[] {
-  const general = { draftId: "body-general-council" };
-  const treasury = { draftId: "body-treasury-committee" };
-  const security = { draftId: "body-security-council" };
+  const general = bodyRef(BODY_DRAFT_IDS.general);
+  const treasury = bodyRef(BODY_DRAFT_IDS.treasury);
+  const security = bodyRef(BODY_DRAFT_IDS.security);
+  const standardExecutor =
+    inputs.executorBodyChoice === "general_council" ? general : treasury;
+  const standardExecutorRole =
+    inputs.executorBodyChoice === "general_council"
+      ? "create-general-executor"
+      : "create-treasury-executor";
 
   return [
     {
@@ -354,10 +686,11 @@ function createPolicyActions({
         "create-security-council",
         "create-general-approver",
         "create-security-vetoer",
+        standardExecutorRole,
       ],
       enabled: true,
       executionStatus: SetupActionExecutionStatus.Draft,
-      executorBody: general,
+      executorBody: standardExecutor,
       expectedChainId: chainId,
       expectedContractAddress: govCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
@@ -365,7 +698,8 @@ function createPolicyActions({
       organizationRef,
       proposalType: ProposalType.Standard,
       requiredApprovalBodies: [general],
-      timelockSeconds: "3600",
+      requiredSignerAddress: adminAddress,
+      timelockSeconds: inputs.standardTimelockSeconds,
       vetoBodies: [security],
       warnings: [],
     },
@@ -375,6 +709,7 @@ function createPolicyActions({
         "create-general-council",
         "create-treasury-committee",
         "create-security-council",
+        "create-general-approver",
         "create-treasury-approver",
         "create-treasury-executor",
         "create-security-vetoer",
@@ -389,7 +724,8 @@ function createPolicyActions({
       organizationRef,
       proposalType: ProposalType.Treasury,
       requiredApprovalBodies: [general, treasury],
-      timelockSeconds: "86400",
+      requiredSignerAddress: adminAddress,
+      timelockSeconds: inputs.treasuryTimelockSeconds,
       vetoBodies: [security],
       warnings: [],
     },
@@ -400,10 +736,11 @@ function createPolicyActions({
         "create-security-council",
         "create-general-approver",
         "create-security-vetoer",
+        standardExecutorRole,
       ],
       enabled: true,
       executionStatus: SetupActionExecutionStatus.Draft,
-      executorBody: general,
+      executorBody: standardExecutor,
       expectedChainId: chainId,
       expectedContractAddress: govCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
@@ -411,7 +748,8 @@ function createPolicyActions({
       organizationRef,
       proposalType: ProposalType.Upgrade,
       requiredApprovalBodies: [general],
-      timelockSeconds: "86400",
+      requiredSignerAddress: adminAddress,
+      timelockSeconds: inputs.upgradeTimelockSeconds,
       vetoBodies: [security],
       warnings: [],
     },
@@ -419,8 +757,9 @@ function createPolicyActions({
       actionId: "set-policy-emergency",
       dependsOn: [
         "create-security-council",
+        "create-security-approver",
         "create-security-vetoer",
-        "create-security-emergency-operator",
+        "create-security-executor",
       ],
       enabled: true,
       executionStatus: SetupActionExecutionStatus.Draft,
@@ -432,22 +771,313 @@ function createPolicyActions({
       organizationRef,
       proposalType: ProposalType.Emergency,
       requiredApprovalBodies: [security],
-      timelockSeconds: "0",
+      requiredSignerAddress: adminAddress,
+      timelockSeconds: inputs.emergencyTimelockSeconds,
       vetoBodies: [security],
       warnings: [],
     },
   ];
 }
 
-function createDraftWarnings(): readonly SetupValidationWarning[] {
-  return [
-    {
-      code: SetupValidationWarningCode.PolicyRouteWithoutEligibleHolder,
-      message:
-        "This skeleton draft uses placeholder holder addresses. Add real mandate holders before any setup transaction flow is enabled.",
+function validateDraft({
+  actions,
+  inputs,
+  roleDefinitions,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly inputs: SimpleDaoPlusDraftInputs;
+  readonly roleDefinitions: readonly DraftRoleDefinition[];
+}): readonly SetupValidationWarning[] {
+  const warnings: SetupValidationWarning[] = [];
+  const adminAction = actions.find(
+    (action) => action.kind === SetupActionKind.CreateOrganization,
+  );
+
+  validateAddress({
+    actionId: adminAction?.actionId,
+    label: "Organization admin address",
+    relatedRoleId: undefined,
+    value: inputs.organizationAdminAddress,
+    warnings,
+  });
+
+  const mandates = actions.filter(isMandateAction);
+  const policies = actions.filter(isPolicyAction);
+
+  mandates.forEach((mandate) => {
+    validateAddress({
+      actionId: mandate.actionId,
+      label: "Mandate holder address",
+      relatedMandateId: mandate.mandateDraftId,
+      relatedRoleId: mandate.roleRef.draftId,
+      value: mandate.holderAddress,
+      warnings,
+    });
+  });
+
+  policies.forEach((policy) => {
+    validateTimelock(policy, warnings);
+
+    if (!policy.enabled) {
+      return;
+    }
+
+    let routeHasMissingEligibleHolder = false;
+
+    if (policy.requiredApprovalBodies.length === 0) {
+      routeHasMissingEligibleHolder = true;
+      warnings.push({
+        actionId: policy.actionId,
+        code: SetupValidationWarningCode.EmptyRequiredApprovals,
+        message: `${formatProposalType(policy.proposalType)} policy has no required approval body.`,
+        proposalType: policy.proposalType,
+        severity: "error",
+      });
+    }
+
+    policy.requiredApprovalBodies.forEach((body) => {
+      routeHasMissingEligibleHolder =
+        validateBodyResponsibility({
+          body,
+          missingCode: SetupValidationWarningCode.MissingApproverMandate,
+          missingMessage: `${formatBodyRef(body)} has no eligible approver mandate for ${formatProposalType(policy.proposalType)} proposals.`,
+          policy,
+          responsibility: "approver",
+          roleDefinitions,
+          roleTypes: [RoleType.Approver],
+          mandates,
+          warnings,
+        }) || routeHasMissingEligibleHolder;
+    });
+
+    policy.vetoBodies.forEach((body) => {
+      routeHasMissingEligibleHolder =
+        validateBodyResponsibility({
+          body,
+          missingCode: SetupValidationWarningCode.MissingVetoMandate,
+          missingMessage: `${formatBodyRef(body)} has no eligible veto mandate for ${formatProposalType(policy.proposalType)} proposals.`,
+          policy,
+          responsibility: "vetoer",
+          roleDefinitions,
+          roleTypes: [RoleType.Vetoer],
+          mandates,
+          warnings,
+        }) || routeHasMissingEligibleHolder;
+    });
+
+    if (!policy.executorBody) {
+      routeHasMissingEligibleHolder = true;
+      warnings.push({
+        actionId: policy.actionId,
+        code: SetupValidationWarningCode.MissingExecutorMandate,
+        message: `${formatProposalType(policy.proposalType)} policy has no executor body.`,
+        proposalType: policy.proposalType,
+        severity: "warning",
+      });
+    } else {
+      routeHasMissingEligibleHolder =
+        validateBodyResponsibility({
+          body: policy.executorBody,
+          missingCode: SetupValidationWarningCode.MissingExecutorMandate,
+          missingMessage: `${formatBodyRef(policy.executorBody)} has no eligible executor mandate for ${formatProposalType(policy.proposalType)} proposals.`,
+          policy,
+          responsibility: "executor",
+          roleDefinitions,
+          roleTypes: [RoleType.Executor],
+          mandates,
+          warnings,
+        }) || routeHasMissingEligibleHolder;
+    }
+
+    if (routeHasMissingEligibleHolder) {
+      warnings.push({
+        actionId: policy.actionId,
+        code: SetupValidationWarningCode.PolicyRouteWithoutEligibleHolder,
+        message: `${formatProposalType(policy.proposalType)} policy route is not ready because at least one responsibility has no eligible holder.`,
+        proposalType: policy.proposalType,
+        severity: "warning",
+      });
+    }
+  });
+
+  return warnings;
+}
+
+function validateBodyResponsibility({
+  body,
+  mandates,
+  missingCode,
+  missingMessage,
+  policy,
+  responsibility,
+  roleDefinitions,
+  roleTypes,
+  warnings,
+}: {
+  readonly body: SetupEntityReference;
+  readonly mandates: readonly AssignMandateSetupAction[];
+  readonly missingCode: SetupValidationWarningCode;
+  readonly missingMessage: string;
+  readonly policy: SetPolicyRuleSetupAction;
+  readonly responsibility: SetupResponsibility;
+  readonly roleDefinitions: readonly DraftRoleDefinition[];
+  readonly roleTypes: readonly RoleType[];
+  readonly warnings: SetupValidationWarning[];
+}): boolean {
+  const bodyRoles = roleDefinitions.filter(
+    (role) =>
+      matchesBodyRef(role.bodyDraftId, body) && roleTypes.includes(role.roleType),
+  );
+  const candidateMandates = mandates.filter((mandate) =>
+    bodyRoles.some((role) => mandate.roleRef.draftId === role.roleDraftId),
+  );
+  const validHolderMandates = candidateMandates.filter((mandate) =>
+    isUsableAddress(mandate.holderAddress),
+  );
+
+  if (validHolderMandates.length === 0) {
+    warnings.push({
+      actionId: policy.actionId,
+      code: missingCode,
+      message: missingMessage,
+      proposalType: policy.proposalType,
+      relatedBodyId: body.draftId ?? body.indexedId,
       severity: "warning",
-    },
-  ];
+    });
+    return true;
+  }
+
+  const scopedMandates = validHolderMandates.filter((mandate) =>
+    mandate.proposalTypes?.includes(policy.proposalType),
+  );
+
+  if (scopedMandates.length === 0) {
+    warnings.push({
+      actionId: policy.actionId,
+      code: SetupValidationWarningCode.ProposalTypeScopeMismatch,
+      message: `${formatBodyRef(body)} has ${responsibility} holder mandates, but none cover ${formatProposalType(policy.proposalType)} proposals.`,
+      proposalType: policy.proposalType,
+      relatedBodyId: body.draftId ?? body.indexedId,
+      severity: "warning",
+    });
+    return true;
+  }
+
+  return false;
+}
+
+function validateAddress({
+  actionId,
+  label,
+  relatedMandateId,
+  relatedRoleId,
+  value,
+  warnings,
+}: {
+  readonly actionId?: string;
+  readonly label: string;
+  readonly relatedMandateId?: string;
+  readonly relatedRoleId?: string;
+  readonly value: string;
+  readonly warnings: SetupValidationWarning[];
+}): void {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    warnings.push({
+      actionId,
+      code: SetupValidationWarningCode.InvalidAddress,
+      message: `${label} is required before setup transactions can be prepared.`,
+      relatedMandateId,
+      relatedRoleId,
+      severity: "error",
+    });
+    return;
+  }
+
+  if (isZeroAddress(trimmed)) {
+    warnings.push({
+      actionId,
+      code: SetupValidationWarningCode.ZeroAddressAuthority,
+      message: `${label} is the zero address and cannot be treated as final setup authority.`,
+      relatedMandateId,
+      relatedRoleId,
+      severity: "error",
+    });
+    return;
+  }
+
+  if (!isAddress(trimmed)) {
+    warnings.push({
+      actionId,
+      code: SetupValidationWarningCode.InvalidAddress,
+      message: `${label} must be a 20-byte EVM address.`,
+      relatedMandateId,
+      relatedRoleId,
+      severity: "error",
+    });
+  }
+}
+
+function validateTimelock(
+  policy: SetPolicyRuleSetupAction,
+  warnings: SetupValidationWarning[],
+): void {
+  if (!isValidTimelock(policy.timelockSeconds)) {
+    warnings.push({
+      actionId: policy.actionId,
+      code: SetupValidationWarningCode.InvalidTimelock,
+      message: `${formatProposalType(policy.proposalType)} timelock must be a non-negative uint64 integer in seconds.`,
+      proposalType: policy.proposalType,
+      severity: "error",
+    });
+  }
+}
+
+function withActionWarnings(
+  actions: readonly SetupAction[],
+  warnings: readonly SetupValidationWarning[],
+): readonly SetupAction[] {
+  return actions.map((action) => {
+    const actionWarnings = warnings.filter(
+      (warning) => warning.actionId === action.actionId,
+    );
+
+    switch (action.kind) {
+      case SetupActionKind.CreateOrganization:
+        return { ...action, warnings: actionWarnings };
+      case SetupActionKind.CreateBody:
+        return { ...action, warnings: actionWarnings };
+      case SetupActionKind.CreateRole:
+        return { ...action, warnings: actionWarnings };
+      case SetupActionKind.AssignMandate:
+        return { ...action, warnings: actionWarnings };
+      case SetupActionKind.SetPolicyRule:
+        return { ...action, warnings: actionWarnings };
+    }
+  });
+}
+
+function getHolderAddressesForRole(
+  role: DraftRoleDefinition,
+  inputs: SimpleDaoPlusDraftInputs,
+): readonly string[] {
+  if (role.roleType === RoleType.Executor) {
+    return inputs.executorHolderAddress ? [inputs.executorHolderAddress] : [];
+  }
+
+  if (role.bodyDraftId === BODY_DRAFT_IDS.general) {
+    return inputs.generalCouncilHolderAddresses;
+  }
+
+  if (role.bodyDraftId === BODY_DRAFT_IDS.treasury) {
+    return inputs.treasuryCommitteeHolderAddresses;
+  }
+
+  if (role.bodyDraftId === BODY_DRAFT_IDS.security) {
+    return inputs.securityCouncilHolderAddresses;
+  }
+
+  return [];
 }
 
 function getBodyActionId(bodyDraftId: string): string {
@@ -457,25 +1087,10 @@ function getBodyActionId(bodyDraftId: string): string {
   return body?.actionId ?? bodyDraftId;
 }
 
-function getProposalTypesForRole(roleType: RoleType): readonly ProposalType[] {
-  if (roleType === RoleType.Vetoer || roleType === RoleType.EmergencyOperator) {
-    return [
-      ProposalType.Emergency,
-      ProposalType.Standard,
-      ProposalType.Treasury,
-      ProposalType.Upgrade,
-    ];
-  }
-
-  if (roleType === RoleType.Executor) {
-    return [ProposalType.Treasury];
-  }
-
-  return [ProposalType.Standard, ProposalType.Treasury, ProposalType.Upgrade];
-}
-
-function getProposalTypeMaskForRole(roleType: RoleType): NumericString {
-  return getProposalTypesForRole(roleType)
+function getProposalTypeMask(
+  proposalTypes: readonly ProposalType[],
+): NumericString {
+  return proposalTypes
     .reduce((mask, proposalType) => mask | proposalTypeMaskBit(proposalType), 0n)
     .toString();
 }
@@ -491,4 +1106,109 @@ function proposalTypeMaskBit(proposalType: ProposalType): bigint {
     case ProposalType.Emergency:
       return 1n << 4n;
   }
+}
+
+function normalizeText(value: string | undefined, fallback: string): string {
+  return value === undefined ? fallback : value.trim();
+}
+
+function normalizeAddressList(values?: readonly string[]): readonly string[] {
+  if (!values) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+}
+
+function optionalString(value: string): string | undefined {
+  return value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function maybeAddress(value: string): Address | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? (trimmed as Address) : undefined;
+}
+
+function isUsableAddress(value: string): boolean {
+  return isAddress(value) && !isZeroAddress(value);
+}
+
+function isAddress(value: string): value is Address {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function isZeroAddress(value: string): boolean {
+  return value.toLowerCase() === ZERO_ADDRESS;
+}
+
+function isValidTimelock(value: string): boolean {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return false;
+  }
+
+  try {
+    const parsed = BigInt(trimmed);
+    return parsed >= 0n && parsed <= MAX_UINT64;
+  } catch {
+    return false;
+  }
+}
+
+function matchesBodyRef(
+  bodyDraftId: string,
+  reference: SetupEntityReference,
+): boolean {
+  return reference.draftId === bodyDraftId;
+}
+
+function bodyRef(draftId: string): SetupEntityReference {
+  return { draftId };
+}
+
+function isMandateAction(
+  action: SetupAction,
+): action is AssignMandateSetupAction {
+  return action.kind === SetupActionKind.AssignMandate;
+}
+
+function isPolicyAction(
+  action: SetupAction,
+): action is SetPolicyRuleSetupAction {
+  return action.kind === SetupActionKind.SetPolicyRule;
+}
+
+function sanitizeActionId(value: string): string {
+  const sanitized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return sanitized.replace(/^-+|-+$/g, "") || "holder";
+}
+
+function formatBodyRef(reference: SetupEntityReference): string {
+  if (reference.draftId === BODY_DRAFT_IDS.general) {
+    return "General Council";
+  }
+  if (reference.draftId === BODY_DRAFT_IDS.treasury) {
+    return "Treasury Committee";
+  }
+  if (reference.draftId === BODY_DRAFT_IDS.security) {
+    return "Security Council";
+  }
+  return reference.indexedId ? `Body #${reference.indexedId}` : "Unresolved body";
+}
+
+function formatProposalType(proposalType: ProposalType): string {
+  return proposalType
+    .replace(/[_-]/g, " ")
+    .replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
 }

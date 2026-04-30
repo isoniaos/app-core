@@ -347,18 +347,31 @@ td {
 }
 
 .form-field input,
-.form-field select {
+.form-field select,
+.form-field textarea {
   width: 100%;
-  min-height: 40px;
   border: 1px solid var(--iso-color-border);
   border-radius: var(--iso-radius-md);
-  padding: 0 0.75rem;
   background: var(--iso-color-background);
   color: var(--iso-color-foreground);
 }
 
+.form-field input,
+.form-field select {
+  min-height: 40px;
+  padding: 0 0.75rem;
+}
+
+.form-field textarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: 0.7rem 0.75rem;
+  line-height: 1.45;
+}
+
 .form-field input:focus,
-.form-field select:focus {
+.form-field select:focus,
+.form-field textarea:focus {
   outline: 2px solid var(--iso-color-primary);
   outline-offset: 1px;
 }
@@ -1168,14 +1181,53 @@ td {
   border-bottom: 1px solid var(--iso-color-border);
 }
 
+.setup-action-groups {
+  display: grid;
+}
+
+.setup-action-group {
+  display: grid;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-action-group:last-child {
+  border-bottom: 0;
+}
+
+.setup-action-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.setup-action-group-header h3,
+.setup-action-group-header span {
+  margin: 0;
+}
+
+.setup-action-group-header h3 {
+  font-size: 0.95rem;
+}
+
+.setup-action-group-header span,
+.setup-action-empty {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+}
+
+.setup-action-empty {
+  padding: 0.8rem 1rem;
+}
+
 .setup-action-list {
   display: grid;
 }
 
 .setup-action-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
   gap: 1rem;
   padding: 0.9rem 1rem;
   border-bottom: 1px solid var(--iso-color-border);
@@ -1183,6 +1235,13 @@ td {
 
 .setup-action-row:last-child {
   border-bottom: 0;
+}
+
+.setup-action-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .setup-action-main {
@@ -1226,6 +1285,23 @@ td {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.45rem;
+}
+
+.setup-action-warning-list {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 2.7rem;
+}
+
+.setup-action-warning {
+  color: var(--iso-color-warning);
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.setup-action-warning-danger {
+  color: var(--iso-color-danger);
 }
 
 .power-map {
@@ -1475,7 +1551,8 @@ td {
   .execution-state,
   .entity-card-header,
   .proposal-action-card-header,
-  .setup-action-row,
+  .setup-action-row-top,
+  .setup-action-group-header,
   .proposal-action-note,
   .power-body-header,
   .power-role-header,
