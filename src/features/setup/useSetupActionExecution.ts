@@ -9,7 +9,9 @@ import type {
   CreateRoleSetupAction,
   MandateDto,
   OrganizationDto,
+  OrganizationPolicyDto,
   RoleDto,
+  SetPolicyRuleSetupAction,
   SetupAction,
   SetupDraft,
 } from "@isonia/types";
@@ -24,12 +26,15 @@ import {
   GOV_CORE_ABI,
   type MandateAssignedLog,
   getBodyKindChainCode,
+  getProposalTypeChainCode,
   getRoleTypeChainCode,
   parseBodyCreatedLog,
   parseMandateAssignedLog,
   parseOrganizationCreatedLog,
+  parsePolicyRuleSetLog,
   parseRoleCreatedLog,
   type OrganizationCreatedLog,
+  type PolicyRuleSetLog,
   type RoleCreatedLog,
 } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
@@ -51,6 +56,8 @@ export interface SetupActionTransaction {
   readonly holderAddress?: Address;
   readonly mandateId?: string;
   readonly orgId?: string;
+  readonly policyVersion?: string;
+  readonly proposalType?: ProposalType;
   readonly roleId?: string;
   readonly slug?: string;
   readonly stage: SetupActionLifecycleStage;
@@ -62,6 +69,8 @@ export interface SetupDraftExecutionState {
   readonly createBodies: Readonly<Record<string, SetupActionTransaction>>;
   readonly createOrganization: SetupActionTransaction;
   readonly createRoles: Readonly<Record<string, SetupActionTransaction>>;
+  readonly resolvedPolicies: Readonly<Record<string, OrganizationPolicyDto>>;
+  readonly resolvedPolicyVersions: Readonly<Record<string, string>>;
   readonly resolvedBodies: Readonly<Record<string, BodyDto>>;
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedMandateIds: Readonly<Record<string, string>>;
@@ -70,6 +79,7 @@ export interface SetupDraftExecutionState {
   readonly resolvedOrgId?: string;
   readonly resolvedRoleIds: Readonly<Record<string, string>>;
   readonly resolvedRoles: Readonly<Record<string, RoleDto>>;
+  readonly setPolicyRules: Readonly<Record<string, SetupActionTransaction>>;
 }
 
 export interface SetupActionReadiness {
@@ -96,6 +106,7 @@ export function useSetupActionExecution({
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
   readonly state: SetupDraftExecutionState;
@@ -116,6 +127,9 @@ export function useSetupActionExecution({
     resolvedMandates: {},
     resolvedRoleIds: {},
     resolvedRoles: {},
+    resolvedPolicies: {},
+    resolvedPolicyVersions: {},
+    setPolicyRules: {},
   });
 
   const createOrganizationAction = useMemo(
@@ -132,6 +146,10 @@ export function useSetupActionExecution({
   );
   const assignMandateActions = useMemo(
     () => getAssignMandateActions(draft.actions),
+    [draft.actions],
+  );
+  const setPolicyRuleActions = useMemo(
+    () => getSetPolicyRuleActions(draft.actions),
     [draft.actions],
   );
   const resolvedOrgId = state.resolvedOrgId ?? draft.organization?.orgId;
@@ -178,6 +196,9 @@ export function useSetupActionExecution({
     ) ||
     Object.values(state.assignMandates).some((transaction) =>
       isBusyStage(transaction.stage),
+    ) ||
+    Object.values(state.setPolicyRules).some((transaction) =>
+      isBusyStage(transaction.stage),
     );
 
   const reset = useCallback(() => {
@@ -192,6 +213,9 @@ export function useSetupActionExecution({
       resolvedMandates: {},
       resolvedRoleIds: {},
       resolvedRoles: {},
+      resolvedPolicies: {},
+      resolvedPolicyVersions: {},
+      setPolicyRules: {},
     });
   }, []);
 
@@ -1060,12 +1084,257 @@ export function useSetupActionExecution({
     ],
   );
 
+  const executeSetPolicyRule = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = setPolicyRuleActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      if (!action) {
+        setState((current) => ({
+          ...current,
+          setPolicyRules: {
+            ...current.setPolicyRules,
+            [actionId]: {
+              actionId,
+              actionKind: SetupActionKind.SetPolicyRule,
+              error: "No set policy rule setup action exists for this actionId.",
+              stage: "failed",
+            },
+          },
+        }));
+        return;
+      }
+
+      if (state.resolvedPolicyVersions[action.actionId]) {
+        return;
+      }
+
+      if (busy) {
+        setPolicyActionFailed(action, "Another setup transaction is active.");
+        return;
+      }
+
+      if (!setupWritesEnabled) {
+        setPolicyActionFailed(
+          action,
+          "Organization setup writes are disabled by runtime config.",
+        );
+        return;
+      }
+
+      if (!resolvedOrgId) {
+        setPolicyActionFailed(
+          action,
+          "Set policy rule is blocked until the organization is indexed and the real orgId is resolved.",
+        );
+        return;
+      }
+
+      const unresolvedMandates = getPolicyMandateDependencies({
+        mandateActions: assignMandateActions,
+        policy: action,
+        roleActions: createRoleActions,
+      }).filter((mandate) => !state.resolvedMandateIds[mandate.actionId]);
+      if (unresolvedMandates.length > 0) {
+        setPolicyActionFailed(
+          action,
+          `Set policy rule is blocked until ${unresolvedMandates.length.toLocaleString()} related mandate action${unresolvedMandates.length === 1 ? "" : "s"} are indexed.`,
+        );
+        return;
+      }
+
+      if (!account.isConnected || !account.address) {
+        setPolicyActionFailed(action, "Wallet is not connected.");
+        return;
+      }
+
+      if (account.chainId !== runtimeConfig.chainId) {
+        setPolicyActionFailed(
+          action,
+          `Wallet is connected to chain ${String(
+            account.chainId,
+          )}; expected chain ${runtimeConfig.chainId}.`,
+        );
+        return;
+      }
+
+      if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+        setPolicyActionFailed(
+          action,
+          "GovCore contract address is missing from runtime config.",
+        );
+        return;
+      }
+
+      if (!publicClient) {
+        setPolicyActionFailed(
+          action,
+          "Wallet client is unavailable for the configured chain.",
+        );
+        return;
+      }
+
+      const payload = buildSetPolicyRulePayload({
+        action,
+        bodyActions: createBodyActions,
+        resolvedBodyIds: state.resolvedBodyIds,
+        resolvedOrgId,
+      });
+      if (payload instanceof Error) {
+        setPolicyActionFailed(action, payload.message);
+        return;
+      }
+
+      try {
+        setPolicyActionTransaction(action, {
+          orgId: payload.orgId,
+          proposalType: payload.proposalType,
+          stage: "wallet_pending",
+        });
+        const txHash = await writeContractAsync({
+          address: runtimeConfig.contracts.govCoreAddress,
+          abi: GOV_CORE_ABI,
+          functionName: "setPolicyRule",
+          args: [
+            payload.orgIdBigInt,
+            payload.proposalTypeCode,
+            payload.requiredApprovalBodyIdsBigInt,
+            payload.vetoBodyIdsBigInt,
+            payload.executorBodyIdBigInt,
+            payload.timelockSecondsBigInt,
+            payload.enabled,
+          ],
+          chainId: runtimeConfig.chainId,
+        });
+
+        setPolicyActionTransaction(action, {
+          orgId: payload.orgId,
+          proposalType: payload.proposalType,
+          stage: "submitted",
+          txHash,
+        });
+        setPolicyActionTransaction(action, {
+          orgId: payload.orgId,
+          proposalType: payload.proposalType,
+          stage: "confirming",
+          txHash,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+
+        assertSuccessfulReceipt(receipt);
+        const policySet = parsePolicyRuleSetLog(
+          receipt,
+          runtimeConfig.contracts.govCoreAddress,
+        );
+        if (!policySet) {
+          throw new Error(
+            "Transaction confirmed, but PolicyRuleSet was not found in the receipt.",
+          );
+        }
+
+        assertPolicyRuleMatchesPayload(policySet, payload);
+
+        setPolicyActionTransaction(action, {
+          orgId: policySet.orgId,
+          policyVersion: policySet.version,
+          proposalType: policySet.proposalType,
+          stage: "confirmed_waiting_indexer",
+          txHash,
+        });
+        const policy = await waitForIndexedPolicyRule({
+          client,
+          payload,
+          policySet,
+          txHash,
+        });
+
+        setState((current) => ({
+          ...current,
+          resolvedPolicies: {
+            ...current.resolvedPolicies,
+            [action.actionId]: policy,
+          },
+          resolvedPolicyVersions: {
+            ...current.resolvedPolicyVersions,
+            [action.actionId]: policy.version,
+          },
+          setPolicyRules: {
+            ...current.setPolicyRules,
+            [action.actionId]: {
+              actionId: action.actionId,
+              actionKind: action.kind,
+              orgId: policy.orgId,
+              policyVersion: policy.version,
+              proposalType: policy.proposalType,
+              stage: "indexed",
+              txHash,
+            },
+          },
+        }));
+      } catch (error: unknown) {
+        setPolicyActionTransaction(action, {
+          error: normalizeTransactionError(error),
+          orgId: payload.orgId,
+          proposalType: payload.proposalType,
+          stage: "failed",
+        });
+      }
+
+      function setPolicyActionFailed(
+        failedAction: SetPolicyRuleSetupAction,
+        error: string,
+      ): void {
+        setPolicyActionTransaction(failedAction, { stage: "failed", error });
+      }
+
+      function setPolicyActionTransaction(
+        nextAction: SetPolicyRuleSetupAction,
+        transaction: Omit<SetupActionTransaction, "actionId" | "actionKind">,
+      ): void {
+        setState((current) => ({
+          ...current,
+          setPolicyRules: {
+            ...current.setPolicyRules,
+            [nextAction.actionId]: {
+              actionId: nextAction.actionId,
+              actionKind: nextAction.kind,
+              ...transaction,
+            },
+          },
+        }));
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      assignMandateActions,
+      busy,
+      client,
+      createBodyActions,
+      createRoleActions,
+      publicClient,
+      resolvedOrgId,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setPolicyRuleActions,
+      setupWritesEnabled,
+      state.resolvedBodyIds,
+      state.resolvedMandateIds,
+      state.resolvedPolicyVersions,
+      writeContractAsync,
+    ],
+  );
+
   return {
     busy,
     executeAssignMandate,
     executeCreateBody,
     executeCreateOrganization,
     executeCreateRole,
+    executeSetPolicyRule,
     readiness,
     reset,
     state: returnedState,
@@ -1108,6 +1377,22 @@ interface AssignMandatePayload {
   readonly spendingLimitBigInt: bigint;
   readonly startTime: string;
   readonly startTimeBigInt: bigint;
+}
+
+interface SetPolicyRulePayload {
+  readonly enabled: boolean;
+  readonly executorBodyId: string;
+  readonly executorBodyIdBigInt: bigint;
+  readonly orgId: string;
+  readonly orgIdBigInt: bigint;
+  readonly proposalType: ProposalType;
+  readonly proposalTypeCode: number;
+  readonly requiredApprovalBodyIds: readonly string[];
+  readonly requiredApprovalBodyIdsBigInt: readonly bigint[];
+  readonly timelockSeconds: string;
+  readonly timelockSecondsBigInt: bigint;
+  readonly vetoBodyIds: readonly string[];
+  readonly vetoBodyIdsBigInt: readonly bigint[];
 }
 
 function buildCreateOrganizationPayload(
@@ -1280,6 +1565,123 @@ function buildAssignMandatePayload(
   };
 }
 
+function buildSetPolicyRulePayload({
+  action,
+  bodyActions,
+  resolvedBodyIds,
+  resolvedOrgId,
+}: {
+  readonly action: SetPolicyRuleSetupAction;
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string;
+}): SetPolicyRulePayload | Error {
+  if (action.warnings.some((warning) => warning.severity === "error")) {
+    return new Error(
+      "Resolve this policy action's validation errors before submitting.",
+    );
+  }
+
+  if (typeof action.enabled !== "boolean") {
+    return new Error("Policy enabled state must be a boolean before submission.");
+  }
+
+  const orgIdBigInt = parsePositiveUint64(resolvedOrgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const proposalTypeCode = getProposalTypeChainCode(action.proposalType);
+  if (proposalTypeCode === undefined) {
+    return new Error(`Unsupported proposal type: ${action.proposalType}.`);
+  }
+
+  const requiredApprovalBodyIds = resolvePolicyBodyReferences({
+    bodyActions,
+    label: "required approval body",
+    references: action.requiredApprovalBodies,
+    resolvedBodyIds,
+  });
+  if (requiredApprovalBodyIds instanceof Error) {
+    return requiredApprovalBodyIds;
+  }
+
+  const vetoBodyIds = resolvePolicyBodyReferences({
+    bodyActions,
+    label: "veto body",
+    references: action.vetoBodies,
+    resolvedBodyIds,
+  });
+  if (vetoBodyIds instanceof Error) {
+    return vetoBodyIds;
+  }
+
+  const executorBodyId = action.executorBody
+    ? resolveBodyReference({
+        bodyActions,
+        reference: action.executorBody,
+        resolvedBodyIds,
+      })
+    : undefined;
+  if (action.executorBody && !executorBodyId) {
+    return new Error(
+      "Set policy rule is blocked until the executor body action resolves to a real bodyId.",
+    );
+  }
+  if (action.enabled && !executorBodyId) {
+    return new Error(
+      "Enabled policy rules require a resolved executor body before submission.",
+    );
+  }
+
+  const requiredApprovalBodyIdsBigInt = parsePolicyBodyIdArray(
+    requiredApprovalBodyIds,
+    "Required approval bodyId",
+  );
+  if (requiredApprovalBodyIdsBigInt instanceof Error) {
+    return requiredApprovalBodyIdsBigInt;
+  }
+
+  const vetoBodyIdsBigInt = parsePolicyBodyIdArray(
+    vetoBodyIds,
+    "Veto bodyId",
+  );
+  if (vetoBodyIdsBigInt instanceof Error) {
+    return vetoBodyIdsBigInt;
+  }
+
+  const executorBodyIdBigInt = executorBodyId
+    ? parsePositiveUint64(executorBodyId, "Executor bodyId")
+    : 0n;
+  if (executorBodyIdBigInt instanceof Error) {
+    return executorBodyIdBigInt;
+  }
+
+  const timelockSecondsBigInt = parseUint64(
+    action.timelockSeconds,
+    "Policy timelock seconds",
+  );
+  if (timelockSecondsBigInt instanceof Error) {
+    return timelockSecondsBigInt;
+  }
+
+  return {
+    enabled: action.enabled,
+    executorBodyId: executorBodyId ?? "0",
+    executorBodyIdBigInt,
+    orgId: resolvedOrgId,
+    orgIdBigInt,
+    proposalType: action.proposalType,
+    proposalTypeCode,
+    requiredApprovalBodyIds,
+    requiredApprovalBodyIdsBigInt,
+    timelockSeconds: timelockSecondsBigInt.toString(),
+    timelockSecondsBigInt,
+    vetoBodyIds,
+    vetoBodyIdsBigInt,
+  };
+}
+
 async function waitForIndexedOrganization({
   client,
   created,
@@ -1446,6 +1848,44 @@ async function waitForIndexedMandate({
   );
 }
 
+async function waitForIndexedPolicyRule({
+  client,
+  payload,
+  policySet,
+  txHash,
+}: {
+  readonly client: IsoniaControlPlaneClient;
+  readonly payload: SetPolicyRulePayload;
+  readonly policySet: PolicyRuleSetLog;
+  readonly txHash: `0x${string}`;
+}): Promise<OrganizationPolicyDto> {
+  const deadline = Date.now() + INDEXER_TIMEOUT_MS;
+  let lastError: Error | undefined;
+
+  while (Date.now() < deadline) {
+    try {
+      const policies = await client.policies.list(policySet.orgId);
+      const byVersion = policies.find((policy) =>
+        policyMatchesPolicySetLog(policy, policySet),
+      );
+      if (byVersion) {
+        assertIndexedPolicyMatchesPayload(byVersion, payload);
+        return byVersion;
+      }
+    } catch (error: unknown) {
+      lastError = toError(error);
+    }
+
+    await delay(INDEXER_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Indexer timeout: policy ${policySet.proposalType} v${policySet.version} from ${txHash} did not appear in Control Plane read models within ${
+      INDEXER_TIMEOUT_MS / 1_000
+    } seconds.${lastError ? ` Last API error: ${lastError.message}` : ""}`,
+  );
+}
+
 function getReadiness({
   accountChainId,
   action,
@@ -1562,6 +2002,15 @@ function getAssignMandateActions(
   );
 }
 
+function getSetPolicyRuleActions(
+  actions: readonly SetupAction[],
+): readonly SetPolicyRuleSetupAction[] {
+  return actions.filter(
+    (action): action is SetPolicyRuleSetupAction =>
+      action.kind === SetupActionKind.SetPolicyRule,
+  );
+}
+
 function resolveBodyReference({
   bodyActions,
   reference,
@@ -1619,6 +2068,51 @@ function resolveRoleReadModel({
     ? roleActions.find((action) => action.roleDraftId === reference.draftId)
     : undefined;
   return roleAction ? resolvedRoles[roleAction.actionId] : undefined;
+}
+
+function resolvePolicyBodyReferences({
+  bodyActions,
+  label,
+  references,
+  resolvedBodyIds,
+}: {
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly label: string;
+  readonly references: readonly { readonly draftId?: string; readonly indexedId?: string }[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+}): readonly string[] | Error {
+  const resolvedIds: string[] = [];
+  for (const reference of references) {
+    const bodyId = resolveBodyReference({
+      bodyActions,
+      reference,
+      resolvedBodyIds,
+    });
+    if (!bodyId) {
+      return new Error(
+        `Set policy rule is blocked until every ${label} resolves to a real bodyId.`,
+      );
+    }
+    resolvedIds.push(bodyId);
+  }
+
+  return resolvedIds;
+}
+
+function parsePolicyBodyIdArray(
+  bodyIds: readonly string[],
+  label: string,
+): readonly bigint[] | Error {
+  const parsed: bigint[] = [];
+  for (const bodyId of bodyIds) {
+    const bodyIdBigInt = parsePositiveUint64(bodyId, label);
+    if (bodyIdBigInt instanceof Error) {
+      return bodyIdBigInt;
+    }
+    parsed.push(bodyIdBigInt);
+  }
+
+  return parsed;
 }
 
 function assertSuccessfulReceipt(receipt: TransactionReceipt): void {
@@ -1757,6 +2251,147 @@ function mandateMatchesPayloadContext(
     mandate.spendingLimit === payload.spendingLimit &&
     mandate.active &&
     !mandate.revoked
+  );
+}
+
+function assertPolicyRuleMatchesPayload(
+  policySet: PolicyRuleSetLog,
+  payload: SetPolicyRulePayload,
+): void {
+  if (policySet.orgId !== payload.orgId) {
+    throw new Error(
+      `Transaction emitted policy for org #${policySet.orgId}, but setup expected org #${payload.orgId}.`,
+    );
+  }
+
+  if (policySet.proposalType !== payload.proposalType) {
+    throw new Error(
+      `Transaction emitted policy type ${policySet.proposalType}, but setup expected ${payload.proposalType}.`,
+    );
+  }
+
+  if (!sameStringArray(policySet.requiredApprovalBodies, payload.requiredApprovalBodyIds)) {
+    throw new Error(
+      "Transaction emitted required approval bodies that do not match the resolved draft bodyIds.",
+    );
+  }
+
+  if (!sameStringArray(policySet.vetoBodies, payload.vetoBodyIds)) {
+    throw new Error(
+      "Transaction emitted veto bodies that do not match the resolved draft bodyIds.",
+    );
+  }
+
+  if (policySet.executorBody !== payload.executorBodyId) {
+    throw new Error(
+      `Transaction emitted executor body #${policySet.executorBody}, but setup expected #${payload.executorBodyId}.`,
+    );
+  }
+
+  if (policySet.timelockSeconds !== payload.timelockSeconds) {
+    throw new Error(
+      `Transaction emitted timelock ${policySet.timelockSeconds}, but setup expected ${payload.timelockSeconds}.`,
+    );
+  }
+
+  if (policySet.enabled !== payload.enabled) {
+    throw new Error(
+      `Transaction emitted enabled=${String(policySet.enabled)}, but setup expected enabled=${String(payload.enabled)}.`,
+    );
+  }
+}
+
+function assertIndexedPolicyMatchesPayload(
+  policy: OrganizationPolicyDto,
+  payload: SetPolicyRulePayload,
+): void {
+  if (!sameStringArray(policy.requiredApprovalBodies, payload.requiredApprovalBodyIds)) {
+    throw new Error(
+      "Indexed policy approval bodies do not match the resolved draft bodyIds.",
+    );
+  }
+
+  if (!sameStringArray(policy.vetoBodies, payload.vetoBodyIds)) {
+    throw new Error(
+      "Indexed policy veto bodies do not match the resolved draft bodyIds.",
+    );
+  }
+
+  if ((policy.executorBody ?? "0") !== payload.executorBodyId) {
+    throw new Error(
+      `Indexed policy executor body #${policy.executorBody ?? "0"} does not match expected #${payload.executorBodyId}.`,
+    );
+  }
+
+  if (policy.timelockSeconds !== payload.timelockSeconds) {
+    throw new Error(
+      `Indexed policy timelock ${policy.timelockSeconds} does not match expected ${payload.timelockSeconds}.`,
+    );
+  }
+
+  if (policy.enabled !== payload.enabled) {
+    throw new Error(
+      `Indexed policy enabled=${String(policy.enabled)} does not match expected enabled=${String(payload.enabled)}.`,
+    );
+  }
+}
+
+function policyMatchesPolicySetLog(
+  policy: OrganizationPolicyDto,
+  policySet: PolicyRuleSetLog,
+): boolean {
+  return (
+    policy.orgId === policySet.orgId &&
+    policy.proposalType === policySet.proposalType &&
+    policy.version === policySet.version &&
+    sameStringArray(policy.requiredApprovalBodies, policySet.requiredApprovalBodies) &&
+    sameStringArray(policy.vetoBodies, policySet.vetoBodies) &&
+    (policy.executorBody ?? "0") === policySet.executorBody &&
+    policy.timelockSeconds === policySet.timelockSeconds &&
+    policy.enabled === policySet.enabled
+  );
+}
+
+function sameStringArray(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function getPolicyMandateDependencies({
+  mandateActions,
+  policy,
+  roleActions,
+}: {
+  readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly policy: SetPolicyRuleSetupAction;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): readonly AssignMandateSetupAction[] {
+  const dependencyIds = new Set(policy.dependsOn);
+  const dependentRoles = roleActions.filter((role) =>
+    dependencyIds.has(role.actionId),
+  );
+
+  return mandateActions.filter(
+    (mandate) =>
+      dependencyIds.has(mandate.actionId) ||
+      dependentRoles.some((role) => mandateTargetsRole(mandate, role)),
+  );
+}
+
+function mandateTargetsRole(
+  mandate: AssignMandateSetupAction,
+  role: CreateRoleSetupAction,
+): boolean {
+  if (mandate.roleRef.draftId && mandate.roleRef.draftId === role.roleDraftId) {
+    return true;
+  }
+
+  return Boolean(
+    mandate.roleRef.indexedId &&
+      role.roleId &&
+      mandate.roleRef.indexedId === role.roleId,
   );
 }
 

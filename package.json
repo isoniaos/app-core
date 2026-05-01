@@ -1,6 +1,6 @@
 {
   "name": "@isonia/app-core",
-  "version": "0.5.0-alpha.3",
+  "version": "0.5.0-alpha.6",
   "description": "Public self-hostable governance console foundation for IsoniaOS",
   "license": "MIT",
   "type": "module",

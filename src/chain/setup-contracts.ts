@@ -2,6 +2,8 @@ import type { Address } from "@isonia/types";
 import {
   BODY_KIND_CHAIN_MAP,
   BodyKind,
+  PROPOSAL_TYPE_CHAIN_MAP,
+  ProposalType,
   ROLE_TYPE_CHAIN_MAP,
   RoleType,
 } from "@isonia/types";
@@ -62,6 +64,21 @@ export const GOV_CORE_ABI = [
     outputs: [{ name: "mandateId", type: "uint64" }],
   },
   {
+    type: "function",
+    name: "setPolicyRule",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "proposalType", type: "uint8" },
+      { name: "requiredApprovalBodies", type: "uint64[]" },
+      { name: "vetoBodies", type: "uint64[]" },
+      { name: "executorBody", type: "uint64" },
+      { name: "timelockSeconds", type: "uint64" },
+      { name: "enabled", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
     type: "event",
     name: "OrganizationCreated",
     inputs: [
@@ -105,6 +122,20 @@ export const GOV_CORE_ABI = [
       { name: "endTime", type: "uint64", indexed: false },
       { name: "proposalTypeMask", type: "uint256", indexed: false },
       { name: "spendingLimit", type: "uint128", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "PolicyRuleSet",
+    inputs: [
+      { name: "orgId", type: "uint64", indexed: true },
+      { name: "proposalType", type: "uint8", indexed: true },
+      { name: "version", type: "uint64", indexed: false },
+      { name: "requiredApprovalBodies", type: "uint64[]", indexed: false },
+      { name: "vetoBodies", type: "uint64[]", indexed: false },
+      { name: "executorBody", type: "uint64", indexed: false },
+      { name: "timelockSeconds", type: "uint64", indexed: false },
+      { name: "enabled", type: "bool", indexed: false },
     ],
   },
 ] as const satisfies Abi;
@@ -157,6 +188,17 @@ export interface MandateAssignedLog {
   readonly startTime: string;
 }
 
+export interface PolicyRuleSetLog {
+  readonly enabled: boolean;
+  readonly executorBody: string;
+  readonly orgId: string;
+  readonly proposalType: ProposalType;
+  readonly requiredApprovalBodies: readonly string[];
+  readonly timelockSeconds: string;
+  readonly vetoBodies: readonly string[];
+  readonly version: string;
+}
+
 interface RoleCreatedArgs {
   readonly bodyId: bigint;
   readonly metadataURI: string;
@@ -175,6 +217,17 @@ interface MandateAssignedArgs {
   readonly roleId: bigint;
   readonly spendingLimit: bigint;
   readonly startTime: bigint;
+}
+
+interface PolicyRuleSetArgs {
+  readonly enabled: boolean;
+  readonly executorBody: bigint;
+  readonly orgId: bigint;
+  readonly proposalType: bigint | number;
+  readonly requiredApprovalBodies: readonly bigint[];
+  readonly timelockSeconds: bigint;
+  readonly vetoBodies: readonly bigint[];
+  readonly version: bigint;
 }
 
 export function parseOrganizationCreatedLog(
@@ -341,8 +394,62 @@ export function parseMandateAssignedLog(
   return undefined;
 }
 
+export function parsePolicyRuleSetLog(
+  receipt: TransactionReceipt,
+  govCoreAddress: Address,
+): PolicyRuleSetLog | undefined {
+  const expectedAddress = govCoreAddress.toLowerCase();
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== expectedAddress) {
+      continue;
+    }
+
+    try {
+      const decoded = decodeEventLog({
+        abi: GOV_CORE_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decoded.eventName !== "PolicyRuleSet") {
+        continue;
+      }
+
+      const args = decoded.args as unknown as PolicyRuleSetArgs;
+      const proposalType = getProposalTypeFromChainCode(args.proposalType);
+      if (!proposalType) {
+        continue;
+      }
+
+      return {
+        enabled: args.enabled,
+        executorBody: args.executorBody.toString(),
+        orgId: args.orgId.toString(),
+        proposalType,
+        requiredApprovalBodies: args.requiredApprovalBodies.map((bodyId) =>
+          bodyId.toString(),
+        ),
+        timelockSeconds: args.timelockSeconds.toString(),
+        vetoBodies: args.vetoBodies.map((bodyId) => bodyId.toString()),
+        version: args.version.toString(),
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
 export function getBodyKindChainCode(kind: BodyKind): number | undefined {
   return BODY_KIND_TO_CHAIN_CODE[kind];
+}
+
+export function getProposalTypeChainCode(
+  proposalType: ProposalType,
+): number | undefined {
+  return PROPOSAL_TYPE_TO_CHAIN_CODE[proposalType];
 }
 
 export function getRoleTypeChainCode(roleType: RoleType): number | undefined {
@@ -373,6 +480,15 @@ function getRoleTypeFromChainCode(value: bigint | number): RoleType | undefined 
   ];
 }
 
+function getProposalTypeFromChainCode(
+  value: bigint | number,
+): ProposalType | undefined {
+  const code = Number(value);
+  return PROPOSAL_TYPE_CHAIN_MAP.valuesByCode[
+    code as keyof typeof PROPOSAL_TYPE_CHAIN_MAP.valuesByCode
+  ];
+}
+
 const BODY_KIND_TO_CHAIN_CODE: Readonly<Record<BodyKind, number>> = {
   [BodyKind.GeneralCouncil]: BODY_KIND_CHAIN_MAP.codes.GeneralCouncil,
   [BodyKind.TreasuryCommittee]: BODY_KIND_CHAIN_MAP.codes.TreasuryCommittee,
@@ -391,4 +507,11 @@ const ROLE_TYPE_TO_CHAIN_CODE: Readonly<Record<RoleType, number>> = {
   [RoleType.Vetoer]: ROLE_TYPE_CHAIN_MAP.codes.Vetoer,
   [RoleType.Executor]: ROLE_TYPE_CHAIN_MAP.codes.Executor,
   [RoleType.EmergencyOperator]: ROLE_TYPE_CHAIN_MAP.codes.EmergencyOperator,
+};
+
+const PROPOSAL_TYPE_TO_CHAIN_CODE: Readonly<Record<ProposalType, number>> = {
+  [ProposalType.Standard]: PROPOSAL_TYPE_CHAIN_MAP.codes.Standard,
+  [ProposalType.Treasury]: PROPOSAL_TYPE_CHAIN_MAP.codes.Treasury,
+  [ProposalType.Upgrade]: PROPOSAL_TYPE_CHAIN_MAP.codes.Upgrade,
+  [ProposalType.Emergency]: PROPOSAL_TYPE_CHAIN_MAP.codes.Emergency,
 };

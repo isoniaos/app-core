@@ -74,6 +74,7 @@ export function NewOrganizationSetupPage(): JSX.Element {
         executeCreateBody={execution.executeCreateBody}
         executeCreateOrganization={execution.executeCreateOrganization}
         executeCreateRole={execution.executeCreateRole}
+        executeSetPolicyRule={execution.executeSetPolicyRule}
         readiness={execution.readiness}
         reset={execution.reset}
         state={execution.state}

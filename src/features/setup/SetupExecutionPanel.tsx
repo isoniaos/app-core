@@ -26,6 +26,7 @@ interface SetupExecutionPanelProps {
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
   readonly state: SetupDraftExecutionState;
@@ -38,6 +39,7 @@ export function SetupExecutionPanel({
   executeCreateBody,
   executeCreateOrganization,
   executeCreateRole,
+  executeSetPolicyRule,
   readiness,
   reset,
   state,
@@ -51,6 +53,7 @@ export function SetupExecutionPanel({
   const bodyActions = dependentActions.filter(isCreateBodyAction);
   const roleActions = dependentActions.filter(isCreateRoleAction);
   const mandateActions = dependentActions.filter(isAssignMandateAction);
+  const policyActions = dependentActions.filter(isSetPolicyRuleAction);
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
@@ -59,6 +62,7 @@ export function SetupExecutionPanel({
     bodyActions,
     busy,
     mandateActions,
+    policyActions,
     roleActions,
     state,
   });
@@ -121,6 +125,7 @@ export function SetupExecutionPanel({
         executeAssignMandate={executeAssignMandate}
         executeCreateBody={executeCreateBody}
         executeCreateRole={executeCreateRole}
+        executeSetPolicyRule={executeSetPolicyRule}
         resolvedOrgId={state.resolvedOrgId}
         state={state}
       />
@@ -332,6 +337,7 @@ function DependentActionsPanel({
   executeAssignMandate,
   executeCreateBody,
   executeCreateRole,
+  executeSetPolicyRule,
   resolvedOrgId,
   state,
 }: {
@@ -340,17 +346,20 @@ function DependentActionsPanel({
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
   readonly resolvedOrgId: string | undefined;
   readonly state: SetupDraftExecutionState;
 }): JSX.Element {
   const bodyActions = actions.filter(isCreateBodyAction);
   const roleActions = actions.filter(isCreateRoleAction);
   const mandateActions = actions.filter(isAssignMandateAction);
+  const policyActions = actions.filter(isSetPolicyRuleAction);
   const placeholderActions = actions.filter(
     (action) =>
       action.kind !== SetupActionKind.CreateBody &&
       action.kind !== SetupActionKind.CreateRole &&
-      action.kind !== SetupActionKind.AssignMandate,
+      action.kind !== SetupActionKind.AssignMandate &&
+      action.kind !== SetupActionKind.SetPolicyRule,
   );
   const indexedBodyCount = bodyActions.filter(
     (action) => state.resolvedBodyIds[action.actionId],
@@ -360,6 +369,9 @@ function DependentActionsPanel({
   ).length;
   const indexedMandateCount = mandateActions.filter(
     (action) => state.resolvedMandateIds[action.actionId],
+  ).length;
+  const indexedPolicyCount = policyActions.filter(
+    (action) => state.resolvedPolicyVersions[action.actionId],
   ).length;
 
   return (
@@ -430,6 +442,33 @@ function DependentActionsPanel({
               executeAssignMandate={executeAssignMandate}
               index={index + 1}
               key={action.actionId}
+              resolvedOrgId={resolvedOrgId}
+              roleActions={roleActions}
+              state={state}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="setup-action-group-header">
+        <h3>Policy Setup Actions</h3>
+        <span>
+          {indexedPolicyCount} of {policyActions.length} indexed
+        </span>
+      </div>
+      {policyActions.length === 0 ? (
+        <div className="setup-action-empty">No policy actions in this draft.</div>
+      ) : (
+        <div className="setup-action-list">
+          {policyActions.map((action, index) => (
+            <SetPolicyRuleActionCard
+              action={action}
+              bodyActions={bodyActions}
+              busy={busy}
+              executeSetPolicyRule={executeSetPolicyRule}
+              index={index + 1}
+              key={action.actionId}
+              mandateActions={mandateActions}
               resolvedOrgId={resolvedOrgId}
               roleActions={roleActions}
               state={state}
@@ -833,6 +872,216 @@ function AssignMandateActionCard({
   );
 }
 
+function SetPolicyRuleActionCard({
+  action,
+  bodyActions,
+  busy,
+  executeSetPolicyRule,
+  index,
+  mandateActions,
+  resolvedOrgId,
+  roleActions,
+  state,
+}: {
+  readonly action: SetPolicyRuleSetupAction;
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly busy: boolean;
+  readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
+  readonly index: number;
+  readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly resolvedOrgId: string | undefined;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+  readonly state: SetupDraftExecutionState;
+}): JSX.Element {
+  const transaction = state.setPolicyRules[action.actionId] ?? {
+    actionId: action.actionId,
+    actionKind: action.kind,
+    stage: "idle" satisfies SetupActionLifecycleStage,
+  };
+  const resolvedPolicy = state.resolvedPolicies[action.actionId];
+  const resolvedPolicyVersion = state.resolvedPolicyVersions[action.actionId];
+  const resolvedRequiredApprovalBodyIds = action.requiredApprovalBodies.map(
+    (reference) =>
+      resolveBodyReference({
+        bodyActions,
+        reference,
+        resolvedBodyIds: state.resolvedBodyIds,
+      }),
+  );
+  const resolvedVetoBodyIds = action.vetoBodies.map((reference) =>
+    resolveBodyReference({
+      bodyActions,
+      reference,
+      resolvedBodyIds: state.resolvedBodyIds,
+    }),
+  );
+  const resolvedExecutorBodyId = action.executorBody
+    ? resolveBodyReference({
+        bodyActions,
+        reference: action.executorBody,
+        resolvedBodyIds: state.resolvedBodyIds,
+      })
+    : undefined;
+  const blocker = getSetPolicyRuleBlocker({
+    action,
+    bodyActions,
+    busy,
+    mandateActions,
+    resolvedBodyIds: state.resolvedBodyIds,
+    resolvedMandateIds: state.resolvedMandateIds,
+    resolvedOrgId,
+    resolvedPolicyVersion,
+    resolvedRoleIds: state.resolvedRoleIds,
+    roleActions,
+    transaction,
+  });
+  const emittedPolicyVersion = transaction.policyVersion ?? resolvedPolicyVersion;
+
+  return (
+    <article className="setup-action-row">
+      <div className="setup-action-row-top">
+        <div className="setup-action-main">
+          <span className="setup-action-index">{index}</span>
+          <div>
+            <strong>{action.label}</strong>
+            <span>
+              {formatLabel(action.proposalType)} policy draft;{" "}
+              {resolvedPolicyVersion
+                ? `indexed policy version v${resolvedPolicyVersion}`
+                : resolvedOrgId
+                  ? `will set policy in org #${resolvedOrgId}`
+                  : "waiting for resolved orgId"}
+            </span>
+          </div>
+        </div>
+        <div className="setup-action-meta">
+          <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+          <StatusBadge
+            tone={getPolicyActionTone({
+              blocker,
+              resolvedPolicyVersion,
+              transaction,
+            })}
+          >
+            {getPolicyActionStatusLabel({
+              blocker,
+              resolvedPolicyVersion,
+              transaction,
+            })}
+          </StatusBadge>
+        </div>
+      </div>
+
+      <dl className="detail-list detail-list-wide setup-execution-resolution">
+        <div>
+          <dt>Draft approvals</dt>
+          <dd>{formatBodyReferenceList(action.requiredApprovalBodies, bodyActions)}</dd>
+        </div>
+        <div>
+          <dt>Resolved approvals</dt>
+          <dd>{formatOptionalBodyIds(resolvedRequiredApprovalBodyIds)}</dd>
+        </div>
+        <div>
+          <dt>Draft veto</dt>
+          <dd>{formatBodyReferenceList(action.vetoBodies, bodyActions)}</dd>
+        </div>
+        <div>
+          <dt>Resolved veto</dt>
+          <dd>{formatOptionalBodyIds(resolvedVetoBodyIds)}</dd>
+        </div>
+        <div>
+          <dt>Draft executor</dt>
+          <dd>
+            {action.executorBody
+              ? formatBodyReference(action.executorBody, bodyActions)
+              : "None"}
+          </dd>
+        </div>
+        <div>
+          <dt>Resolved executor</dt>
+          <dd>
+            {resolvedExecutorBodyId
+              ? `Body #${resolvedExecutorBodyId}`
+              : action.executorBody
+                ? "Unresolved"
+                : "None"}
+          </dd>
+        </div>
+        <div>
+          <dt>Timelock</dt>
+          <dd>{formatNumericString(action.timelockSeconds)}s</dd>
+        </div>
+        <div>
+          <dt>Draft enabled</dt>
+          <dd>{action.enabled ? "Enabled" : "Disabled"}</dd>
+        </div>
+      </dl>
+
+      <div className="action-row setup-action-controls">
+        <button
+          className="button button-small button-primary"
+          disabled={Boolean(blocker)}
+          type="button"
+          onClick={() => {
+            void executeSetPolicyRule(action.actionId);
+          }}
+        >
+          {getSetPolicyRuleButtonLabel({ resolvedPolicyVersion, transaction })}
+        </button>
+        {resolvedOrgId && resolvedPolicyVersion ? (
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}/setup`}>
+            Open indexed policies
+          </Link>
+        ) : null}
+        {blocker ? <span className="setup-action-control-note">{blocker}</span> : null}
+      </div>
+
+      {resolvedPolicy ? (
+        <dl className="detail-list detail-list-wide setup-execution-resolution">
+          <div>
+            <dt>Action ID</dt>
+            <dd>{action.actionId}</dd>
+          </div>
+          <div>
+            <dt>Indexed version</dt>
+            <dd>v{resolvedPolicy.version}</dd>
+          </div>
+          <div>
+            <dt>Indexed approvals</dt>
+            <dd>{formatBodyIds(resolvedPolicy.requiredApprovalBodies)}</dd>
+          </div>
+          <div>
+            <dt>Indexed veto</dt>
+            <dd>{formatBodyIds(resolvedPolicy.vetoBodies)}</dd>
+          </div>
+          <div>
+            <dt>Indexed executor</dt>
+            <dd>
+              {resolvedPolicy.executorBody
+                ? `Body #${resolvedPolicy.executorBody}`
+                : "None"}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {transaction.stage !== "idle" ? (
+        <SetupActionLifecycle
+          emittedIdLabel={
+            emittedPolicyVersion
+              ? `${formatLabel(action.proposalType)} policy v${emittedPolicyVersion}`
+              : undefined
+          }
+          entityName="policy rule"
+          idleDetail="Ready for this set policy rule setup action."
+          indexedDetail="Control Plane returned the indexed policy rule."
+          transaction={transaction}
+        />
+      ) : null}
+    </article>
+  );
+}
+
 function RemainingPlaceholderActions({
   actions,
   bodyActions,
@@ -855,7 +1104,7 @@ function RemainingPlaceholderActions({
   return (
     <section className="setup-placeholder-actions">
       <div className="setup-action-group-header">
-        <h3>Policy Placeholders</h3>
+        <h3>Remaining Placeholders</h3>
         <span>{actions.length} non-executable</span>
       </div>
       {actions.length === 0 ? (
@@ -908,12 +1157,14 @@ function getPanelStatus({
   bodyActions,
   busy,
   mandateActions,
+  policyActions,
   roleActions,
   state,
 }: {
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly busy: boolean;
   readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly policyActions: readonly SetPolicyRuleSetupAction[];
   readonly roleActions: readonly CreateRoleSetupAction[];
   readonly state: SetupDraftExecutionState;
 }): PanelStatus {
@@ -926,6 +1177,9 @@ function getPanelStatus({
       (transaction) => transaction.stage === "failed",
     ) ||
     Object.values(state.assignMandates).some(
+      (transaction) => transaction.stage === "failed",
+    ) ||
+    Object.values(state.setPolicyRules).some(
       (transaction) => transaction.stage === "failed",
     )
   ) {
@@ -943,9 +1197,25 @@ function getPanelStatus({
     roleActions.length > 0 &&
     roleActions.every((action) => state.resolvedRoleIds[action.actionId]) &&
     mandateActions.length > 0 &&
+    mandateActions.every((action) => state.resolvedMandateIds[action.actionId]) &&
+    policyActions.length > 0 &&
+    policyActions.every((action) => state.resolvedPolicyVersions[action.actionId])
+  ) {
+    return { label: "Policies indexed", tone: "success" };
+  }
+
+  if (
+    state.resolvedOrgId &&
+    bodyActions.length > 0 &&
+    bodyActions.every((action) => state.resolvedBodyIds[action.actionId]) &&
+    roleActions.length > 0 &&
+    roleActions.every((action) => state.resolvedRoleIds[action.actionId]) &&
+    mandateActions.length > 0 &&
     mandateActions.every((action) => state.resolvedMandateIds[action.actionId])
   ) {
-    return { label: "Mandates indexed", tone: "success" };
+    return policyActions.length === 0
+      ? { label: "Mandates indexed", tone: "success" }
+      : { label: "Policy setup ready", tone: "warning" };
   }
 
   if (
@@ -1315,6 +1585,156 @@ function getAssignMandateButtonLabel({
   return "Assign mandate";
 }
 
+function getSetPolicyRuleBlocker({
+  action,
+  bodyActions,
+  busy,
+  mandateActions,
+  resolvedBodyIds,
+  resolvedMandateIds,
+  resolvedOrgId,
+  resolvedPolicyVersion,
+  resolvedRoleIds,
+  roleActions,
+  transaction,
+}: {
+  readonly action: SetPolicyRuleSetupAction;
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly busy: boolean;
+  readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedMandateIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string | undefined;
+  readonly resolvedPolicyVersion: string | undefined;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+  readonly transaction: SetupActionTransaction;
+}): string | undefined {
+  if (resolvedPolicyVersion || transaction.stage === "indexed") {
+    return "Policy rule already indexed.";
+  }
+
+  if (isBusyStage(transaction.stage)) {
+    return "This policy transaction is already in progress.";
+  }
+
+  if (busy) {
+    return "Another setup transaction is active.";
+  }
+
+  if (!resolvedOrgId) {
+    return "Blocked until create organization is indexed and the real orgId is resolved.";
+  }
+
+  if (action.warnings.some((warning) => warning.severity === "error")) {
+    return "Resolve this policy action's validation errors before submitting.";
+  }
+
+  const unresolvedBodyRefs = getPolicyBodyReferences(action).filter(
+    (reference) =>
+      !resolveBodyReference({ bodyActions, reference, resolvedBodyIds }),
+  );
+  if (unresolvedBodyRefs.length > 0) {
+    return `Blocked until ${unresolvedBodyRefs.length.toLocaleString()} referenced bodyId${unresolvedBodyRefs.length === 1 ? "" : "s"} resolve.`;
+  }
+
+  const unresolvedRoleDependencies = action.dependsOn.filter((dependency) =>
+    isUnresolvedRoleDependency({
+      actionId: dependency,
+      resolvedRoleIds,
+      roleActions,
+    }),
+  );
+  if (unresolvedRoleDependencies.length > 0) {
+    return `Blocked until ${unresolvedRoleDependencies.length.toLocaleString()} referenced roleId${unresolvedRoleDependencies.length === 1 ? "" : "s"} resolve.`;
+  }
+
+  const unresolvedMandateDependencies = getPolicyMandateDependencies({
+    mandateActions,
+    policy: action,
+    roleActions,
+  }).filter((mandate) => !resolvedMandateIds[mandate.actionId]);
+  if (unresolvedMandateDependencies.length > 0) {
+    return `Blocked until ${unresolvedMandateDependencies.length.toLocaleString()} related mandateId${unresolvedMandateDependencies.length === 1 ? "" : "s"} resolve.`;
+  }
+
+  if (action.enabled && !action.executorBody) {
+    return "Enabled policy rules require an executor body.";
+  }
+
+  return undefined;
+}
+
+function getPolicyActionTone({
+  blocker,
+  resolvedPolicyVersion,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedPolicyVersion: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): BadgeTone {
+  if (resolvedPolicyVersion || transaction.stage === "indexed") {
+    return "success";
+  }
+  if (transaction.stage === "failed") {
+    return "danger";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "warning";
+  }
+  if (blocker) {
+    return "warning";
+  }
+  return "default";
+}
+
+function getPolicyActionStatusLabel({
+  blocker,
+  resolvedPolicyVersion,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedPolicyVersion: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedPolicyVersion) {
+    return `Policy v${resolvedPolicyVersion}`;
+  }
+  if (transaction.stage === "indexed" && transaction.policyVersion) {
+    return `Policy v${transaction.policyVersion}`;
+  }
+  if (transaction.stage === "failed") {
+    return "Failed";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return formatLabel(transaction.stage);
+  }
+  if (blocker) {
+    return "Blocked";
+  }
+  return "Executable";
+}
+
+function getSetPolicyRuleButtonLabel({
+  resolvedPolicyVersion,
+  transaction,
+}: {
+  readonly resolvedPolicyVersion: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedPolicyVersion || transaction.stage === "indexed") {
+    return "Policy indexed";
+  }
+  if (transaction.stage === "failed") {
+    return "Retry policy";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "Submitting policy";
+  }
+  return "Set policy";
+}
+
 interface PlaceholderActionStatus {
   readonly label: string;
   readonly message: string;
@@ -1534,6 +1954,29 @@ function formatBodyReference(
     ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
     : undefined;
   return bodyAction?.label ?? reference.draftId ?? "the referenced body";
+}
+
+function formatBodyReferenceList(
+  references: readonly SetupEntityReference[],
+  bodyActions: readonly CreateBodySetupAction[],
+): string {
+  return references.length === 0
+    ? "None"
+    : references
+        .map((reference) => formatBodyReference(reference, bodyActions))
+        .join(", ");
+}
+
+function formatOptionalBodyIds(bodyIds: readonly (string | undefined)[]): string {
+  return bodyIds.length === 0
+    ? "None"
+    : bodyIds.map((bodyId) => (bodyId ? `Body #${bodyId}` : "Unresolved")).join(", ");
+}
+
+function formatBodyIds(bodyIds: readonly string[]): string {
+  return bodyIds.length === 0
+    ? "None"
+    : bodyIds.map((bodyId) => `Body #${bodyId}`).join(", ");
 }
 
 function formatRoleReference(
