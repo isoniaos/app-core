@@ -16,7 +16,10 @@ import {
   SETUP_TEMPLATES,
   SIMPLE_DAO_PLUS_TEMPLATE_ID,
 } from "./setup-templates";
+import { SetupCompletionSummary } from "./SetupCompletionSummary";
 import { SetupDraftPreview, TemplateSelection } from "./SetupDraftPreview";
+import { verifySetupCompletion } from "./setup-completion-verification";
+import { useSetupCompletionReadModels } from "./useSetupCompletionReadModels";
 
 export function OrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
@@ -27,6 +30,7 @@ export function OrganizationSetupPage(): JSX.Element {
     client,
     orgId,
   ]);
+  const completionReadModels = useSetupCompletionReadModels(orgId);
   const draft = useMemo(
     () =>
       createSimpleDaoPlusDraft({
@@ -36,6 +40,14 @@ export function OrganizationSetupPage(): JSX.Element {
         orgId,
       }),
     [inputs, orgId, runtimeConfig.chainId, runtimeConfig.contracts.govCoreAddress],
+  );
+  const completion = useMemo(
+    () =>
+      verifySetupCompletion({
+        draft,
+        readModels: completionReadModels.data,
+      }),
+    [completionReadModels.data, draft],
   );
 
   return (
@@ -53,7 +65,9 @@ export function OrganizationSetupPage(): JSX.Element {
         <Link className="button" to="/diagnostics">
           Diagnostics
         </Link>
-        <StatusBadge tone="muted">No transactions</StatusBadge>
+        <StatusBadge tone={getCompletionTone(completion.readiness)}>
+          {formatLabel(completion.readiness)}
+        </StatusBadge>
       </div>
 
       <TemplateSelection
@@ -62,9 +76,31 @@ export function OrganizationSetupPage(): JSX.Element {
       />
       <SimpleDaoPlusDraftForm inputs={inputs} onChange={setInputs} />
       <SetupDraftPreview draft={draft} />
+      <SetupCompletionSummary
+        completion={completion}
+        error={completionReadModels.error}
+        loading={completionReadModels.loading}
+        reload={completionReadModels.reload}
+      />
       <IndexedPoliciesPanel orgId={orgId} policies={policies} />
     </section>
   );
+}
+
+function getCompletionTone(
+  readiness: ReturnType<typeof verifySetupCompletion>["readiness"],
+): "default" | "success" | "warning" | "danger" | "muted" {
+  switch (readiness) {
+    case "completed":
+      return "success";
+    case "blocked":
+      return "danger";
+    case "in_progress":
+    case "partially_indexed":
+      return "warning";
+    case "not_started":
+      return "muted";
+  }
 }
 
 function IndexedPoliciesPanel({
@@ -75,7 +111,7 @@ function IndexedPoliciesPanel({
   readonly policies: IsoniaQueryState<readonly OrganizationPolicyDto[]>;
 }): JSX.Element {
   return (
-    <section className="panel">
+    <section className="panel" id="indexed-policies">
       <div className="panel-header">
         <div>
           <h2>Current Indexed Policies</h2>

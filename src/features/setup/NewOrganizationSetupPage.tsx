@@ -10,8 +10,11 @@ import {
   SETUP_TEMPLATES,
   SIMPLE_DAO_PLUS_TEMPLATE_ID,
 } from "./setup-templates";
+import { SetupCompletionSummary } from "./SetupCompletionSummary";
 import { SetupExecutionPanel } from "./SetupExecutionPanel";
 import { SetupDraftPreview, TemplateSelection } from "./SetupDraftPreview";
+import { verifySetupCompletion } from "./setup-completion-verification";
+import { useSetupCompletionReadModels } from "./useSetupCompletionReadModels";
 import { useSetupActionExecution } from "./useSetupActionExecution";
 
 export function NewOrganizationSetupPage(): JSX.Element {
@@ -27,6 +30,17 @@ export function NewOrganizationSetupPage(): JSX.Element {
     [inputs, runtimeConfig.chainId, runtimeConfig.contracts.govCoreAddress],
   );
   const execution = useSetupActionExecution({ draft });
+  const completionOrgId = execution.state.resolvedOrgId ?? draft.organization?.orgId;
+  const completionReadModels = useSetupCompletionReadModels(completionOrgId);
+  const completion = useMemo(
+    () =>
+      verifySetupCompletion({
+        draft,
+        executionState: execution.state,
+        readModels: completionReadModels.data,
+      }),
+    [completionReadModels.data, draft, execution.state],
+  );
   const draftInputsLocked =
     execution.busy ||
     execution.state.createOrganization.stage === "indexed";
@@ -78,6 +92,12 @@ export function NewOrganizationSetupPage(): JSX.Element {
         readiness={execution.readiness}
         reset={execution.reset}
         state={execution.state}
+      />
+      <SetupCompletionSummary
+        completion={completion}
+        error={completionReadModels.error}
+        loading={Boolean(completionOrgId) && completionReadModels.loading}
+        reload={completionReadModels.reload}
       />
     </section>
   );

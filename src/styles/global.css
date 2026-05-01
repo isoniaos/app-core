@@ -1175,6 +1175,33 @@ td {
   border-bottom: 1px solid var(--iso-color-border);
 }
 
+.setup-completion-panel > .setup-validation-state {
+  margin: 1rem;
+}
+
+.setup-completion-grid {
+  border-top: 1px solid var(--iso-color-border);
+}
+
+.setup-completion-inline {
+  margin: 1rem;
+}
+
+.setup-completion-issues {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-top: 1px solid var(--iso-color-border);
+}
+
+.setup-completion-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-top: 1px solid var(--iso-color-border);
+}
+
 .setup-validation-summary {
   display: grid;
   gap: 0.85rem;
