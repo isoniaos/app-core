@@ -24,6 +24,7 @@ interface SetupExecutionPanelProps {
   readonly draft: SetupDraft;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
+  readonly executeCreateRole: (actionId: string) => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
   readonly state: SetupDraftExecutionState;
@@ -34,6 +35,7 @@ export function SetupExecutionPanel({
   draft,
   executeCreateBody,
   executeCreateOrganization,
+  executeCreateRole,
   readiness,
   reset,
   state,
@@ -45,6 +47,7 @@ export function SetupExecutionPanel({
     (action) => action.kind !== SetupActionKind.CreateOrganization,
   );
   const bodyActions = dependentActions.filter(isCreateBodyAction);
+  const roleActions = dependentActions.filter(isCreateRoleAction);
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
@@ -52,6 +55,7 @@ export function SetupExecutionPanel({
   const panelStatus = getPanelStatus({
     bodyActions,
     busy,
+    roleActions,
     state,
   });
 
@@ -111,6 +115,7 @@ export function SetupExecutionPanel({
         actions={dependentActions}
         busy={busy}
         executeCreateBody={executeCreateBody}
+        executeCreateRole={executeCreateRole}
         resolvedOrgId={state.resolvedOrgId}
         state={state}
       />
@@ -320,21 +325,29 @@ function DependentActionsPanel({
   actions,
   busy,
   executeCreateBody,
+  executeCreateRole,
   resolvedOrgId,
   state,
 }: {
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly executeCreateRole: (actionId: string) => Promise<void>;
   readonly resolvedOrgId: string | undefined;
   readonly state: SetupDraftExecutionState;
 }): JSX.Element {
   const bodyActions = actions.filter(isCreateBodyAction);
+  const roleActions = actions.filter(isCreateRoleAction);
   const placeholderActions = actions.filter(
-    (action) => action.kind !== SetupActionKind.CreateBody,
+    (action) =>
+      action.kind !== SetupActionKind.CreateBody &&
+      action.kind !== SetupActionKind.CreateRole,
   );
   const indexedBodyCount = bodyActions.filter(
     (action) => state.resolvedBodyIds[action.actionId],
+  ).length;
+  const indexedRoleCount = roleActions.filter(
+    (action) => state.resolvedRoleIds[action.actionId],
   ).length;
 
   return (
@@ -363,11 +376,38 @@ function DependentActionsPanel({
         </div>
       )}
 
+      <div className="setup-action-group-header">
+        <h3>Role Setup Actions</h3>
+        <span>
+          {indexedRoleCount} of {roleActions.length} indexed
+        </span>
+      </div>
+      {roleActions.length === 0 ? (
+        <div className="setup-action-empty">No role actions in this draft.</div>
+      ) : (
+        <div className="setup-action-list">
+          {roleActions.map((action, index) => (
+            <CreateRoleActionCard
+              action={action}
+              bodyActions={bodyActions}
+              busy={busy}
+              executeCreateRole={executeCreateRole}
+              index={index + 1}
+              key={action.actionId}
+              resolvedOrgId={resolvedOrgId}
+              state={state}
+            />
+          ))}
+        </div>
+      )}
+
       <RemainingPlaceholderActions
         actions={placeholderActions}
         bodyActions={bodyActions}
         resolvedBodyIds={state.resolvedBodyIds}
         resolvedOrgId={resolvedOrgId}
+        resolvedRoleIds={state.resolvedRoleIds}
+        roleActions={roleActions}
       />
     </section>
   );
@@ -488,21 +528,151 @@ function CreateBodyActionCard({
   );
 }
 
+function CreateRoleActionCard({
+  action,
+  bodyActions,
+  busy,
+  executeCreateRole,
+  index,
+  resolvedOrgId,
+  state,
+}: {
+  readonly action: CreateRoleSetupAction;
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly busy: boolean;
+  readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly index: number;
+  readonly resolvedOrgId: string | undefined;
+  readonly state: SetupDraftExecutionState;
+}): JSX.Element {
+  const transaction = state.createRoles[action.actionId] ?? {
+    actionId: action.actionId,
+    actionKind: action.kind,
+    stage: "idle" satisfies SetupActionLifecycleStage,
+  };
+  const resolvedBodyId = resolveBodyReference({
+    bodyActions,
+    reference: action.bodyRef,
+    resolvedBodyIds: state.resolvedBodyIds,
+  });
+  const resolvedRole = state.resolvedRoles[action.actionId];
+  const resolvedRoleId = state.resolvedRoleIds[action.actionId];
+  const blocker = getCreateRoleBlocker({
+    action,
+    busy,
+    resolvedBodyId,
+    resolvedOrgId,
+    resolvedRoleId,
+    transaction,
+  });
+  const emittedRoleId = transaction.roleId ?? resolvedRoleId;
+
+  return (
+    <article className="setup-action-row">
+      <div className="setup-action-row-top">
+        <div className="setup-action-main">
+          <span className="setup-action-index">{index}</span>
+          <div>
+            <strong>{action.label}</strong>
+            <span>
+              {formatLabel(action.roleType)};{" "}
+              {resolvedRoleId
+                ? `resolved roleId #${resolvedRoleId}`
+                : resolvedBodyId
+                  ? `will create in body #${resolvedBodyId}`
+                  : `waiting for ${formatBodyReference(
+                      action.bodyRef,
+                      bodyActions,
+                    )}`}
+            </span>
+          </div>
+        </div>
+        <div className="setup-action-meta">
+          <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+          <StatusBadge
+            tone={getRoleActionTone({ blocker, resolvedRoleId, transaction })}
+          >
+            {getRoleActionStatusLabel({
+              blocker,
+              resolvedRoleId,
+              transaction,
+            })}
+          </StatusBadge>
+        </div>
+      </div>
+
+      <div className="action-row setup-action-controls">
+        <button
+          className="button button-small button-primary"
+          disabled={Boolean(blocker)}
+          type="button"
+          onClick={() => {
+            void executeCreateRole(action.actionId);
+          }}
+        >
+          {getCreateRoleButtonLabel({ resolvedRoleId, transaction })}
+        </button>
+        {resolvedOrgId && resolvedRoleId ? (
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
+            Open governance
+          </Link>
+        ) : null}
+        {blocker ? <span className="setup-action-control-note">{blocker}</span> : null}
+      </div>
+
+      {resolvedRole ? (
+        <dl className="detail-list detail-list-wide setup-execution-resolution">
+          <div>
+            <dt>Action ID</dt>
+            <dd>{action.actionId}</dd>
+          </div>
+          <div>
+            <dt>Resolved roleId</dt>
+            <dd>#{resolvedRole.roleId}</dd>
+          </div>
+          <div>
+            <dt>Body</dt>
+            <dd>#{resolvedRole.bodyId}</dd>
+          </div>
+          <div>
+            <dt>Role type</dt>
+            <dd>{formatLabel(resolvedRole.roleType)}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {transaction.stage !== "idle" ? (
+        <SetupActionLifecycle
+          emittedIdLabel={emittedRoleId ? `Role #${emittedRoleId}` : undefined}
+          entityName="role"
+          idleDetail="Ready for this create role setup action."
+          indexedDetail="Control Plane returned the role read model."
+          transaction={transaction}
+        />
+      ) : null}
+    </article>
+  );
+}
+
 function RemainingPlaceholderActions({
   actions,
   bodyActions,
   resolvedBodyIds,
   resolvedOrgId,
+  resolvedRoleIds,
+  roleActions,
 }: {
   readonly actions: readonly SetupAction[];
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string | undefined;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
 }): JSX.Element {
   return (
     <section className="setup-placeholder-actions">
       <div className="setup-action-group-header">
-        <h3>Role, Mandate, and Policy Placeholders</h3>
+        <h3>Mandate and Policy Placeholders</h3>
         <span>{actions.length} non-executable</span>
       </div>
       {actions.length === 0 ? (
@@ -515,6 +685,8 @@ function RemainingPlaceholderActions({
               bodyActions,
               resolvedBodyIds,
               resolvedOrgId,
+              resolvedRoleIds,
+              roleActions,
             });
             return (
               <article className="setup-action-row" key={action.actionId}>
@@ -550,15 +722,20 @@ interface PanelStatus {
 function getPanelStatus({
   bodyActions,
   busy,
+  roleActions,
   state,
 }: {
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly busy: boolean;
+  readonly roleActions: readonly CreateRoleSetupAction[];
   readonly state: SetupDraftExecutionState;
 }): PanelStatus {
   if (
     state.createOrganization.stage === "failed" ||
     Object.values(state.createBodies).some(
+      (transaction) => transaction.stage === "failed",
+    ) ||
+    Object.values(state.createRoles).some(
       (transaction) => transaction.stage === "failed",
     )
   ) {
@@ -572,9 +749,21 @@ function getPanelStatus({
   if (
     state.resolvedOrgId &&
     bodyActions.length > 0 &&
+    bodyActions.every((action) => state.resolvedBodyIds[action.actionId]) &&
+    roleActions.length > 0 &&
+    roleActions.every((action) => state.resolvedRoleIds[action.actionId])
+  ) {
+    return { label: "Roles indexed", tone: "success" };
+  }
+
+  if (
+    state.resolvedOrgId &&
+    bodyActions.length > 0 &&
     bodyActions.every((action) => state.resolvedBodyIds[action.actionId])
   ) {
-    return { label: "Bodies indexed", tone: "success" };
+    return roleActions.length === 0
+      ? { label: "Bodies indexed", tone: "success" }
+      : { label: "Role setup ready", tone: "warning" };
   }
 
   if (state.resolvedOrgId) {
@@ -694,6 +883,122 @@ function getCreateBodyButtonLabel({
   return "Create body";
 }
 
+function getCreateRoleBlocker({
+  action,
+  busy,
+  resolvedBodyId,
+  resolvedOrgId,
+  resolvedRoleId,
+  transaction,
+}: {
+  readonly action: CreateRoleSetupAction;
+  readonly busy: boolean;
+  readonly resolvedBodyId: string | undefined;
+  readonly resolvedOrgId: string | undefined;
+  readonly resolvedRoleId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string | undefined {
+  if (resolvedRoleId || transaction.stage === "indexed") {
+    return "Role already indexed.";
+  }
+
+  if (isBusyStage(transaction.stage)) {
+    return "This role transaction is already in progress.";
+  }
+
+  if (busy) {
+    return "Another setup transaction is active.";
+  }
+
+  if (!resolvedOrgId) {
+    return "Blocked until create organization is indexed and the real orgId is resolved.";
+  }
+
+  if (!resolvedBodyId) {
+    return "Blocked until the referenced body action resolves to a real bodyId.";
+  }
+
+  if (!action.active) {
+    return "GovCore createRole creates active roles only.";
+  }
+
+  if (action.warnings.some((warning) => warning.severity === "error")) {
+    return "Resolve this role action's validation errors before submitting.";
+  }
+
+  return undefined;
+}
+
+function getRoleActionTone({
+  blocker,
+  resolvedRoleId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedRoleId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): BadgeTone {
+  if (resolvedRoleId || transaction.stage === "indexed") {
+    return "success";
+  }
+  if (transaction.stage === "failed") {
+    return "danger";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "warning";
+  }
+  if (blocker) {
+    return "warning";
+  }
+  return "default";
+}
+
+function getRoleActionStatusLabel({
+  blocker,
+  resolvedRoleId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedRoleId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedRoleId) {
+    return `Role #${resolvedRoleId}`;
+  }
+  if (transaction.stage === "indexed" && transaction.roleId) {
+    return `Role #${transaction.roleId}`;
+  }
+  if (transaction.stage === "failed") {
+    return "Failed";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return formatLabel(transaction.stage);
+  }
+  if (blocker) {
+    return "Blocked";
+  }
+  return "Executable";
+}
+
+function getCreateRoleButtonLabel({
+  resolvedRoleId,
+  transaction,
+}: {
+  readonly resolvedRoleId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedRoleId || transaction.stage === "indexed") {
+    return "Role indexed";
+  }
+  if (transaction.stage === "failed") {
+    return "Retry role";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "Submitting role";
+  }
+  return "Create role";
+}
+
 interface PlaceholderActionStatus {
   readonly label: string;
   readonly message: string;
@@ -705,11 +1010,15 @@ function getPlaceholderActionStatus({
   bodyActions,
   resolvedBodyIds,
   resolvedOrgId,
+  resolvedRoleIds,
+  roleActions,
 }: {
   readonly action: SetupAction;
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string | undefined;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
 }): PlaceholderActionStatus {
   if (!resolvedOrgId) {
     return {
@@ -756,15 +1065,42 @@ function getPlaceholderActionStatus({
         tone: "warning",
       };
     }
+    const unresolvedRoleDependencies = action.dependsOn.filter((dependency) =>
+      isUnresolvedRoleDependency({
+        actionId: dependency,
+        resolvedRoleIds,
+        roleActions,
+      }),
+    );
+    if (unresolvedRoleDependencies.length > 0) {
+      return {
+        label: "Blocked",
+        message: `Blocked until ${unresolvedRoleDependencies.length.toLocaleString()} referenced roleId${unresolvedRoleDependencies.length === 1 ? "" : "s"} resolve.`,
+        tone: "warning",
+      };
+    }
     return {
       label: "Placeholder",
       message:
-        "All referenced bodyIds are resolved; set_policy_rule execution is not implemented in this task.",
+        "All required bodyIds and roleIds are resolved; set_policy_rule execution is not implemented in this task.",
       tone: "muted",
     };
   }
 
   if (isAssignMandateAction(action)) {
+    const roleId = resolveRoleReference({
+      reference: action.roleRef,
+      resolvedRoleIds,
+      roleActions,
+    });
+    if (roleId) {
+      return {
+        label: "Placeholder",
+        message: `Role #${roleId} is resolved; assign_mandate execution is not implemented in this task.`,
+        tone: "muted",
+      };
+    }
+
     return {
       label: "Blocked",
       message:
@@ -797,6 +1133,38 @@ function resolveBodyReference({
     ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
     : undefined;
   return bodyAction ? resolvedBodyIds[bodyAction.actionId] : undefined;
+}
+
+function resolveRoleReference({
+  reference,
+  resolvedRoleIds,
+  roleActions,
+}: {
+  readonly reference: SetupEntityReference;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): string | undefined {
+  if (reference.indexedId) {
+    return reference.indexedId;
+  }
+
+  const roleAction = reference.draftId
+    ? roleActions.find((action) => action.roleDraftId === reference.draftId)
+    : undefined;
+  return roleAction ? resolvedRoleIds[roleAction.actionId] : undefined;
+}
+
+function isUnresolvedRoleDependency({
+  actionId,
+  resolvedRoleIds,
+  roleActions,
+}: {
+  readonly actionId: string;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): boolean {
+  const roleAction = roleActions.find((action) => action.actionId === actionId);
+  return Boolean(roleAction && !resolvedRoleIds[roleAction.actionId]);
 }
 
 function formatBodyReference(

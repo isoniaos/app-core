@@ -1,5 +1,10 @@
 import type { Address } from "@isonia/types";
-import { BODY_KIND_CHAIN_MAP, BodyKind } from "@isonia/types";
+import {
+  BODY_KIND_CHAIN_MAP,
+  BodyKind,
+  ROLE_TYPE_CHAIN_MAP,
+  RoleType,
+} from "@isonia/types";
 import {
   decodeEventLog,
   type Abi,
@@ -30,6 +35,18 @@ export const GOV_CORE_ABI = [
     outputs: [{ name: "bodyId", type: "uint64" }],
   },
   {
+    type: "function",
+    name: "createRole",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "bodyId", type: "uint64" },
+      { name: "roleType", type: "uint8" },
+      { name: "metadataURI", type: "string" },
+    ],
+    outputs: [{ name: "roleId", type: "uint64" }],
+  },
+  {
     type: "event",
     name: "OrganizationCreated",
     inputs: [
@@ -46,6 +63,17 @@ export const GOV_CORE_ABI = [
       { name: "orgId", type: "uint64", indexed: true },
       { name: "bodyId", type: "uint64", indexed: true },
       { name: "kind", type: "uint8", indexed: false },
+      { name: "metadataURI", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "RoleCreated",
+    inputs: [
+      { name: "orgId", type: "uint64", indexed: true },
+      { name: "roleId", type: "uint64", indexed: true },
+      { name: "bodyId", type: "uint64", indexed: true },
+      { name: "roleType", type: "uint8", indexed: false },
       { name: "metadataURI", type: "string", indexed: false },
     ],
   },
@@ -77,6 +105,22 @@ interface BodyCreatedArgs {
   readonly kind: bigint | number;
   readonly metadataURI: string;
   readonly orgId: bigint;
+}
+
+export interface RoleCreatedLog {
+  readonly bodyId: string;
+  readonly metadataUri: string;
+  readonly orgId: string;
+  readonly roleId: string;
+  readonly roleType: RoleType;
+}
+
+interface RoleCreatedArgs {
+  readonly bodyId: bigint;
+  readonly metadataURI: string;
+  readonly orgId: bigint;
+  readonly roleId: bigint;
+  readonly roleType: bigint | number;
 }
 
 export function parseOrganizationCreatedLog(
@@ -158,8 +202,55 @@ export function parseBodyCreatedLog(
   return undefined;
 }
 
+export function parseRoleCreatedLog(
+  receipt: TransactionReceipt,
+  govCoreAddress: Address,
+): RoleCreatedLog | undefined {
+  const expectedAddress = govCoreAddress.toLowerCase();
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== expectedAddress) {
+      continue;
+    }
+
+    try {
+      const decoded = decodeEventLog({
+        abi: GOV_CORE_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decoded.eventName !== "RoleCreated") {
+        continue;
+      }
+
+      const args = decoded.args as unknown as RoleCreatedArgs;
+      const roleType = getRoleTypeFromChainCode(args.roleType);
+      if (!roleType) {
+        continue;
+      }
+
+      return {
+        bodyId: args.bodyId.toString(),
+        metadataUri: args.metadataURI,
+        orgId: args.orgId.toString(),
+        roleId: args.roleId.toString(),
+        roleType,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
 export function getBodyKindChainCode(kind: BodyKind): number | undefined {
   return BODY_KIND_TO_CHAIN_CODE[kind];
+}
+
+export function getRoleTypeChainCode(roleType: RoleType): number | undefined {
+  return ROLE_TYPE_TO_CHAIN_CODE[roleType];
 }
 
 export function buildOrganizationSlug(fallbackName: string): string {
@@ -179,6 +270,13 @@ function getBodyKindFromChainCode(value: bigint | number): BodyKind | undefined 
   ];
 }
 
+function getRoleTypeFromChainCode(value: bigint | number): RoleType | undefined {
+  const code = Number(value);
+  return ROLE_TYPE_CHAIN_MAP.valuesByCode[
+    code as keyof typeof ROLE_TYPE_CHAIN_MAP.valuesByCode
+  ];
+}
+
 const BODY_KIND_TO_CHAIN_CODE: Readonly<Record<BodyKind, number>> = {
   [BodyKind.GeneralCouncil]: BODY_KIND_CHAIN_MAP.codes.GeneralCouncil,
   [BodyKind.TreasuryCommittee]: BODY_KIND_CHAIN_MAP.codes.TreasuryCommittee,
@@ -187,4 +285,14 @@ const BODY_KIND_TO_CHAIN_CODE: Readonly<Record<BodyKind, number>> = {
   [BodyKind.MeritHouse]: BODY_KIND_CHAIN_MAP.codes.MeritHouse,
   [BodyKind.EmergencyCouncil]: BODY_KIND_CHAIN_MAP.codes.EmergencyCouncil,
   [BodyKind.Custom]: BODY_KIND_CHAIN_MAP.codes.Custom,
+};
+
+const ROLE_TYPE_TO_CHAIN_CODE: Readonly<Record<RoleType, number>> = {
+  [RoleType.OrgAdmin]: ROLE_TYPE_CHAIN_MAP.codes.OrgAdmin,
+  [RoleType.BodyAdmin]: ROLE_TYPE_CHAIN_MAP.codes.BodyAdmin,
+  [RoleType.Proposer]: ROLE_TYPE_CHAIN_MAP.codes.Proposer,
+  [RoleType.Approver]: ROLE_TYPE_CHAIN_MAP.codes.Approver,
+  [RoleType.Vetoer]: ROLE_TYPE_CHAIN_MAP.codes.Vetoer,
+  [RoleType.Executor]: ROLE_TYPE_CHAIN_MAP.codes.Executor,
+  [RoleType.EmergencyOperator]: ROLE_TYPE_CHAIN_MAP.codes.EmergencyOperator,
 };
