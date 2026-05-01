@@ -70,6 +70,7 @@ export function NewOrganizationSetupPage(): JSX.Element {
       <SetupExecutionPanel
         busy={execution.busy}
         draft={draft}
+        executeAssignMandate={execution.executeAssignMandate}
         executeCreateBody={execution.executeCreateBody}
         executeCreateOrganization={execution.executeCreateOrganization}
         executeCreateRole={execution.executeCreateRole}

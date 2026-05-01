@@ -22,6 +22,7 @@ import type {
 interface SetupExecutionPanelProps {
   readonly busy: boolean;
   readonly draft: SetupDraft;
+  readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
@@ -33,6 +34,7 @@ interface SetupExecutionPanelProps {
 export function SetupExecutionPanel({
   busy,
   draft,
+  executeAssignMandate,
   executeCreateBody,
   executeCreateOrganization,
   executeCreateRole,
@@ -48,6 +50,7 @@ export function SetupExecutionPanel({
   );
   const bodyActions = dependentActions.filter(isCreateBodyAction);
   const roleActions = dependentActions.filter(isCreateRoleAction);
+  const mandateActions = dependentActions.filter(isAssignMandateAction);
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
@@ -55,6 +58,7 @@ export function SetupExecutionPanel({
   const panelStatus = getPanelStatus({
     bodyActions,
     busy,
+    mandateActions,
     roleActions,
     state,
   });
@@ -114,6 +118,7 @@ export function SetupExecutionPanel({
       <DependentActionsPanel
         actions={dependentActions}
         busy={busy}
+        executeAssignMandate={executeAssignMandate}
         executeCreateBody={executeCreateBody}
         executeCreateRole={executeCreateRole}
         resolvedOrgId={state.resolvedOrgId}
@@ -324,6 +329,7 @@ function ResolvedOrganizationSummary({
 function DependentActionsPanel({
   actions,
   busy,
+  executeAssignMandate,
   executeCreateBody,
   executeCreateRole,
   resolvedOrgId,
@@ -331,6 +337,7 @@ function DependentActionsPanel({
 }: {
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
+  readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
   readonly resolvedOrgId: string | undefined;
@@ -338,16 +345,21 @@ function DependentActionsPanel({
 }): JSX.Element {
   const bodyActions = actions.filter(isCreateBodyAction);
   const roleActions = actions.filter(isCreateRoleAction);
+  const mandateActions = actions.filter(isAssignMandateAction);
   const placeholderActions = actions.filter(
     (action) =>
       action.kind !== SetupActionKind.CreateBody &&
-      action.kind !== SetupActionKind.CreateRole,
+      action.kind !== SetupActionKind.CreateRole &&
+      action.kind !== SetupActionKind.AssignMandate,
   );
   const indexedBodyCount = bodyActions.filter(
     (action) => state.resolvedBodyIds[action.actionId],
   ).length;
   const indexedRoleCount = roleActions.filter(
     (action) => state.resolvedRoleIds[action.actionId],
+  ).length;
+  const indexedMandateCount = mandateActions.filter(
+    (action) => state.resolvedMandateIds[action.actionId],
   ).length;
 
   return (
@@ -401,10 +413,37 @@ function DependentActionsPanel({
         </div>
       )}
 
+      <div className="setup-action-group-header">
+        <h3>Mandate Setup Actions</h3>
+        <span>
+          {indexedMandateCount} of {mandateActions.length} indexed
+        </span>
+      </div>
+      {mandateActions.length === 0 ? (
+        <div className="setup-action-empty">No mandate actions in this draft.</div>
+      ) : (
+        <div className="setup-action-list">
+          {mandateActions.map((action, index) => (
+            <AssignMandateActionCard
+              action={action}
+              busy={busy}
+              executeAssignMandate={executeAssignMandate}
+              index={index + 1}
+              key={action.actionId}
+              resolvedOrgId={resolvedOrgId}
+              roleActions={roleActions}
+              state={state}
+            />
+          ))}
+        </div>
+      )}
+
       <RemainingPlaceholderActions
         actions={placeholderActions}
         bodyActions={bodyActions}
+        mandateActions={mandateActions}
         resolvedBodyIds={state.resolvedBodyIds}
+        resolvedMandateIds={state.resolvedMandateIds}
         resolvedOrgId={resolvedOrgId}
         resolvedRoleIds={state.resolvedRoleIds}
         roleActions={roleActions}
@@ -654,17 +693,161 @@ function CreateRoleActionCard({
   );
 }
 
+function AssignMandateActionCard({
+  action,
+  busy,
+  executeAssignMandate,
+  index,
+  resolvedOrgId,
+  roleActions,
+  state,
+}: {
+  readonly action: AssignMandateSetupAction;
+  readonly busy: boolean;
+  readonly executeAssignMandate: (actionId: string) => Promise<void>;
+  readonly index: number;
+  readonly resolvedOrgId: string | undefined;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+  readonly state: SetupDraftExecutionState;
+}): JSX.Element {
+  const transaction = state.assignMandates[action.actionId] ?? {
+    actionId: action.actionId,
+    actionKind: action.kind,
+    stage: "idle" satisfies SetupActionLifecycleStage,
+  };
+  const resolvedRoleId = resolveRoleReference({
+    reference: action.roleRef,
+    resolvedRoleIds: state.resolvedRoleIds,
+    roleActions,
+  });
+  const resolvedMandate = state.resolvedMandates[action.actionId];
+  const resolvedMandateId = state.resolvedMandateIds[action.actionId];
+  const blocker = getAssignMandateBlocker({
+    action,
+    busy,
+    resolvedMandateId,
+    resolvedOrgId,
+    resolvedRoleId,
+    transaction,
+  });
+  const emittedMandateId = transaction.mandateId ?? resolvedMandateId;
+
+  return (
+    <article className="setup-action-row">
+      <div className="setup-action-row-top">
+        <div className="setup-action-main">
+          <span className="setup-action-index">{index}</span>
+          <div>
+            <strong>{action.label}</strong>
+            <span>
+              {formatAddress(action.holderAddress)};{" "}
+              {resolvedMandateId
+                ? `resolved mandateId #${resolvedMandateId}`
+                : resolvedRoleId
+                  ? `will assign role #${resolvedRoleId}`
+                  : `waiting for ${formatRoleReference(
+                      action.roleRef,
+                      roleActions,
+                    )}`}
+            </span>
+          </div>
+        </div>
+        <div className="setup-action-meta">
+          <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+          <StatusBadge
+            tone={getMandateActionTone({
+              blocker,
+              resolvedMandateId,
+              transaction,
+            })}
+          >
+            {getMandateActionStatusLabel({
+              blocker,
+              resolvedMandateId,
+              transaction,
+            })}
+          </StatusBadge>
+        </div>
+      </div>
+
+      <div className="action-row setup-action-controls">
+        <button
+          className="button button-small button-primary"
+          disabled={Boolean(blocker)}
+          type="button"
+          onClick={() => {
+            void executeAssignMandate(action.actionId);
+          }}
+        >
+          {getAssignMandateButtonLabel({ resolvedMandateId, transaction })}
+        </button>
+        {resolvedOrgId && resolvedMandateId ? (
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
+            Open governance
+          </Link>
+        ) : null}
+        {blocker ? <span className="setup-action-control-note">{blocker}</span> : null}
+      </div>
+
+      {resolvedMandate ? (
+        <dl className="detail-list detail-list-wide setup-execution-resolution">
+          <div>
+            <dt>Action ID</dt>
+            <dd>{action.actionId}</dd>
+          </div>
+          <div>
+            <dt>Resolved mandateId</dt>
+            <dd>#{resolvedMandate.mandateId}</dd>
+          </div>
+          <div>
+            <dt>Role</dt>
+            <dd>#{resolvedMandate.roleId}</dd>
+          </div>
+          <div>
+            <dt>Holder</dt>
+            <dd>{formatAddress(resolvedMandate.holderAddress)}</dd>
+          </div>
+          <div>
+            <dt>Scope mask</dt>
+            <dd>{formatNumericString(resolvedMandate.proposalTypeMask)}</dd>
+          </div>
+          <div>
+            <dt>Spending limit</dt>
+            <dd>{formatNumericString(resolvedMandate.spendingLimit)}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {transaction.stage !== "idle" ? (
+        <SetupActionLifecycle
+          emittedIdLabel={
+            emittedMandateId ? `Mandate #${emittedMandateId}` : undefined
+          }
+          entityName="mandate"
+          idleDetail="Ready for this assign mandate setup action."
+          indexedDetail="Control Plane returned the mandate read model."
+          transaction={transaction}
+        />
+      ) : null}
+    </article>
+  );
+}
+
 function RemainingPlaceholderActions({
   actions,
   bodyActions,
+  mandateActions,
   resolvedBodyIds,
+  resolvedMandateIds,
   resolvedOrgId,
   resolvedRoleIds,
   roleActions,
 }: {
   readonly actions: readonly SetupAction[];
   readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly mandateActions: readonly AssignMandateSetupAction[];
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedMandateIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string | undefined;
   readonly resolvedRoleIds: Readonly<Record<string, string>>;
   readonly roleActions: readonly CreateRoleSetupAction[];
@@ -672,7 +855,7 @@ function RemainingPlaceholderActions({
   return (
     <section className="setup-placeholder-actions">
       <div className="setup-action-group-header">
-        <h3>Mandate and Policy Placeholders</h3>
+        <h3>Policy Placeholders</h3>
         <span>{actions.length} non-executable</span>
       </div>
       {actions.length === 0 ? (
@@ -683,7 +866,9 @@ function RemainingPlaceholderActions({
             const status = getPlaceholderActionStatus({
               action,
               bodyActions,
+              mandateActions,
               resolvedBodyIds,
+              resolvedMandateIds,
               resolvedOrgId,
               resolvedRoleIds,
               roleActions,
@@ -722,11 +907,13 @@ interface PanelStatus {
 function getPanelStatus({
   bodyActions,
   busy,
+  mandateActions,
   roleActions,
   state,
 }: {
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly busy: boolean;
+  readonly mandateActions: readonly AssignMandateSetupAction[];
   readonly roleActions: readonly CreateRoleSetupAction[];
   readonly state: SetupDraftExecutionState;
 }): PanelStatus {
@@ -736,6 +923,9 @@ function getPanelStatus({
       (transaction) => transaction.stage === "failed",
     ) ||
     Object.values(state.createRoles).some(
+      (transaction) => transaction.stage === "failed",
+    ) ||
+    Object.values(state.assignMandates).some(
       (transaction) => transaction.stage === "failed",
     )
   ) {
@@ -751,9 +941,23 @@ function getPanelStatus({
     bodyActions.length > 0 &&
     bodyActions.every((action) => state.resolvedBodyIds[action.actionId]) &&
     roleActions.length > 0 &&
+    roleActions.every((action) => state.resolvedRoleIds[action.actionId]) &&
+    mandateActions.length > 0 &&
+    mandateActions.every((action) => state.resolvedMandateIds[action.actionId])
+  ) {
+    return { label: "Mandates indexed", tone: "success" };
+  }
+
+  if (
+    state.resolvedOrgId &&
+    bodyActions.length > 0 &&
+    bodyActions.every((action) => state.resolvedBodyIds[action.actionId]) &&
+    roleActions.length > 0 &&
     roleActions.every((action) => state.resolvedRoleIds[action.actionId])
   ) {
-    return { label: "Roles indexed", tone: "success" };
+    return mandateActions.length === 0
+      ? { label: "Roles indexed", tone: "success" }
+      : { label: "Mandate setup ready", tone: "warning" };
   }
 
   if (
@@ -999,6 +1203,118 @@ function getCreateRoleButtonLabel({
   return "Create role";
 }
 
+function getAssignMandateBlocker({
+  action,
+  busy,
+  resolvedMandateId,
+  resolvedOrgId,
+  resolvedRoleId,
+  transaction,
+}: {
+  readonly action: AssignMandateSetupAction;
+  readonly busy: boolean;
+  readonly resolvedMandateId: string | undefined;
+  readonly resolvedOrgId: string | undefined;
+  readonly resolvedRoleId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string | undefined {
+  if (resolvedMandateId || transaction.stage === "indexed") {
+    return "Mandate already indexed.";
+  }
+
+  if (isBusyStage(transaction.stage)) {
+    return "This mandate transaction is already in progress.";
+  }
+
+  if (busy) {
+    return "Another setup transaction is active.";
+  }
+
+  if (!resolvedOrgId) {
+    return "Blocked until create organization is indexed and the real orgId is resolved.";
+  }
+
+  if (!resolvedRoleId) {
+    return "Blocked until the referenced role action resolves to a real roleId.";
+  }
+
+  if (action.warnings.some((warning) => warning.severity === "error")) {
+    return "Resolve this mandate action's validation errors before submitting.";
+  }
+
+  return undefined;
+}
+
+function getMandateActionTone({
+  blocker,
+  resolvedMandateId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedMandateId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): BadgeTone {
+  if (resolvedMandateId || transaction.stage === "indexed") {
+    return "success";
+  }
+  if (transaction.stage === "failed") {
+    return "danger";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "warning";
+  }
+  if (blocker) {
+    return "warning";
+  }
+  return "default";
+}
+
+function getMandateActionStatusLabel({
+  blocker,
+  resolvedMandateId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedMandateId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedMandateId) {
+    return `Mandate #${resolvedMandateId}`;
+  }
+  if (transaction.stage === "indexed" && transaction.mandateId) {
+    return `Mandate #${transaction.mandateId}`;
+  }
+  if (transaction.stage === "failed") {
+    return "Failed";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return formatLabel(transaction.stage);
+  }
+  if (blocker) {
+    return "Blocked";
+  }
+  return "Executable";
+}
+
+function getAssignMandateButtonLabel({
+  resolvedMandateId,
+  transaction,
+}: {
+  readonly resolvedMandateId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedMandateId || transaction.stage === "indexed") {
+    return "Mandate indexed";
+  }
+  if (transaction.stage === "failed") {
+    return "Retry mandate";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "Submitting mandate";
+  }
+  return "Assign mandate";
+}
+
 interface PlaceholderActionStatus {
   readonly label: string;
   readonly message: string;
@@ -1008,14 +1324,18 @@ interface PlaceholderActionStatus {
 function getPlaceholderActionStatus({
   action,
   bodyActions,
+  mandateActions,
   resolvedBodyIds,
+  resolvedMandateIds,
   resolvedOrgId,
   resolvedRoleIds,
   roleActions,
 }: {
   readonly action: SetupAction;
   readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly mandateActions: readonly AssignMandateSetupAction[];
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedMandateIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string | undefined;
   readonly resolvedRoleIds: Readonly<Record<string, string>>;
   readonly roleActions: readonly CreateRoleSetupAction[];
@@ -1053,6 +1373,15 @@ function getPlaceholderActionStatus({
   }
 
   if (isSetPolicyRuleAction(action)) {
+    if (action.warnings.some((warning) => warning.severity === "error")) {
+      return {
+        label: "Blocked",
+        message:
+          "Blocked until this policy action's validation errors are resolved.",
+        tone: "warning",
+      };
+    }
+
     const bodyRefs = getPolicyBodyReferences(action);
     const unresolvedRefs = bodyRefs.filter(
       (reference) =>
@@ -1079,33 +1408,23 @@ function getPlaceholderActionStatus({
         tone: "warning",
       };
     }
+    const unresolvedMandateDependencies = getPolicyMandateDependencies({
+      mandateActions,
+      policy: action,
+      roleActions,
+    }).filter((mandate) => !resolvedMandateIds[mandate.actionId]);
+    if (unresolvedMandateDependencies.length > 0) {
+      return {
+        label: "Blocked",
+        message: `Blocked until ${unresolvedMandateDependencies.length.toLocaleString()} referenced mandateId${unresolvedMandateDependencies.length === 1 ? "" : "s"} resolve.`,
+        tone: "warning",
+      };
+    }
     return {
       label: "Placeholder",
       message:
-        "All required bodyIds and roleIds are resolved; set_policy_rule execution is not implemented in this task.",
+        "All required bodyIds, roleIds, and mandateIds are resolved; set_policy_rule execution is not implemented in this task.",
       tone: "muted",
-    };
-  }
-
-  if (isAssignMandateAction(action)) {
-    const roleId = resolveRoleReference({
-      reference: action.roleRef,
-      resolvedRoleIds,
-      roleActions,
-    });
-    if (roleId) {
-      return {
-        label: "Placeholder",
-        message: `Role #${roleId} is resolved; assign_mandate execution is not implemented in this task.`,
-        tone: "muted",
-      };
-    }
-
-    return {
-      label: "Blocked",
-      message:
-        "Blocked until create_role execution resolves role IDs; assign_mandate is not implemented in this task.",
-      tone: "warning",
     };
   }
 
@@ -1167,6 +1486,42 @@ function isUnresolvedRoleDependency({
   return Boolean(roleAction && !resolvedRoleIds[roleAction.actionId]);
 }
 
+function getPolicyMandateDependencies({
+  mandateActions,
+  policy,
+  roleActions,
+}: {
+  readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly policy: SetPolicyRuleSetupAction;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): readonly AssignMandateSetupAction[] {
+  const dependencyIds = new Set(policy.dependsOn);
+  const dependentRoles = roleActions.filter((role) =>
+    dependencyIds.has(role.actionId),
+  );
+
+  return mandateActions.filter(
+    (mandate) =>
+      dependencyIds.has(mandate.actionId) ||
+      dependentRoles.some((role) => mandateTargetsRole(mandate, role)),
+  );
+}
+
+function mandateTargetsRole(
+  mandate: AssignMandateSetupAction,
+  role: CreateRoleSetupAction,
+): boolean {
+  if (mandate.roleRef.draftId && mandate.roleRef.draftId === role.roleDraftId) {
+    return true;
+  }
+
+  return Boolean(
+    mandate.roleRef.indexedId &&
+      role.roleId &&
+      mandate.roleRef.indexedId === role.roleId,
+  );
+}
+
 function formatBodyReference(
   reference: SetupEntityReference,
   bodyActions: readonly CreateBodySetupAction[],
@@ -1179,6 +1534,20 @@ function formatBodyReference(
     ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
     : undefined;
   return bodyAction?.label ?? reference.draftId ?? "the referenced body";
+}
+
+function formatRoleReference(
+  reference: SetupEntityReference,
+  roleActions: readonly CreateRoleSetupAction[],
+): string {
+  if (reference.indexedId) {
+    return `Role #${reference.indexedId}`;
+  }
+
+  const roleAction = reference.draftId
+    ? roleActions.find((action) => action.roleDraftId === reference.draftId)
+    : undefined;
+  return roleAction?.label ?? reference.draftId ?? "the referenced role";
 }
 
 function getPolicyBodyReferences(

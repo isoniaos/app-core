@@ -14,6 +14,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Hardened Simple DAO+ setup draft validation with blocking readiness status, severity summaries, action-level warnings, and dependency checks.
 - Setup execution now supports one-by-one `create_body` transactions after organization indexing, including `BodyCreated` receipt parsing and indexed body ID resolution.
 - Setup execution now supports one-by-one `create_role` transactions after body indexing, including `RoleCreated` receipt parsing and indexed role ID resolution.
+- Setup execution now supports one-by-one `assign_mandate` transactions after role indexing, including `MandateAssigned` receipt parsing and indexed mandate ID resolution.
 
 ## [0.5.0-alpha.2]
 

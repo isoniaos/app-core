@@ -2,16 +2,18 @@ import { useCallback, useMemo, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type {
   Address,
+  AssignMandateSetupAction,
   BodyDto,
   CreateBodySetupAction,
   CreateOrganizationSetupAction,
   CreateRoleSetupAction,
+  MandateDto,
   OrganizationDto,
   RoleDto,
   SetupAction,
   SetupDraft,
 } from "@isonia/types";
-import { SetupActionKind } from "@isonia/types";
+import { ProposalType, SetupActionKind } from "@isonia/types";
 import type { TransactionReceipt } from "viem";
 import { isAddress } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
@@ -20,9 +22,11 @@ import {
   type BodyCreatedLog,
   buildOrganizationSlug,
   GOV_CORE_ABI,
+  type MandateAssignedLog,
   getBodyKindChainCode,
   getRoleTypeChainCode,
   parseBodyCreatedLog,
+  parseMandateAssignedLog,
   parseOrganizationCreatedLog,
   parseRoleCreatedLog,
   type OrganizationCreatedLog,
@@ -44,6 +48,8 @@ export interface SetupActionTransaction {
   readonly actionKind?: SetupActionKind;
   readonly bodyId?: string;
   readonly error?: string;
+  readonly holderAddress?: Address;
+  readonly mandateId?: string;
   readonly orgId?: string;
   readonly roleId?: string;
   readonly slug?: string;
@@ -52,11 +58,14 @@ export interface SetupActionTransaction {
 }
 
 export interface SetupDraftExecutionState {
+  readonly assignMandates: Readonly<Record<string, SetupActionTransaction>>;
   readonly createBodies: Readonly<Record<string, SetupActionTransaction>>;
   readonly createOrganization: SetupActionTransaction;
   readonly createRoles: Readonly<Record<string, SetupActionTransaction>>;
   readonly resolvedBodies: Readonly<Record<string, BodyDto>>;
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedMandateIds: Readonly<Record<string, string>>;
+  readonly resolvedMandates: Readonly<Record<string, MandateDto>>;
   readonly resolvedOrganization?: OrganizationDto;
   readonly resolvedOrgId?: string;
   readonly resolvedRoleIds: Readonly<Record<string, string>>;
@@ -75,11 +84,15 @@ interface UseSetupActionExecutionOptions {
 const INDEXER_POLL_INTERVAL_MS = 1_500;
 const INDEXER_TIMEOUT_MS = 60_000;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const MAX_UINT64 = (1n << 64n) - 1n;
+const MAX_UINT128 = (1n << 128n) - 1n;
+const MAX_UINT256 = (1n << 256n) - 1n;
 
 export function useSetupActionExecution({
   draft,
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
+  readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
@@ -93,11 +106,14 @@ export function useSetupActionExecution({
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<SetupDraftExecutionState>({
+    assignMandates: {},
     createBodies: {},
     createOrganization: { stage: "idle" },
     createRoles: {},
     resolvedBodies: {},
     resolvedBodyIds: {},
+    resolvedMandateIds: {},
+    resolvedMandates: {},
     resolvedRoleIds: {},
     resolvedRoles: {},
   });
@@ -112,6 +128,10 @@ export function useSetupActionExecution({
   );
   const createRoleActions = useMemo(
     () => getCreateRoleActions(draft.actions),
+    [draft.actions],
+  );
+  const assignMandateActions = useMemo(
+    () => getAssignMandateActions(draft.actions),
     [draft.actions],
   );
   const resolvedOrgId = state.resolvedOrgId ?? draft.organization?.orgId;
@@ -155,15 +175,21 @@ export function useSetupActionExecution({
     ) ||
     Object.values(state.createRoles).some((transaction) =>
       isBusyStage(transaction.stage),
+    ) ||
+    Object.values(state.assignMandates).some((transaction) =>
+      isBusyStage(transaction.stage),
     );
 
   const reset = useCallback(() => {
     setState({
+      assignMandates: {},
       createBodies: {},
       createOrganization: { stage: "idle" },
       createRoles: {},
       resolvedBodies: {},
       resolvedBodyIds: {},
+      resolvedMandateIds: {},
+      resolvedMandates: {},
       resolvedRoleIds: {},
       resolvedRoles: {},
     });
@@ -774,8 +800,269 @@ export function useSetupActionExecution({
     ],
   );
 
+  const executeAssignMandate = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = assignMandateActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      if (!action) {
+        setState((current) => ({
+          ...current,
+          assignMandates: {
+            ...current.assignMandates,
+            [actionId]: {
+              actionId,
+              actionKind: SetupActionKind.AssignMandate,
+              error: "No assign mandate setup action exists for this actionId.",
+              stage: "failed",
+            },
+          },
+        }));
+        return;
+      }
+
+      if (state.resolvedMandateIds[action.actionId]) {
+        return;
+      }
+
+      if (busy) {
+        setMandateActionFailed(action, "Another setup transaction is active.");
+        return;
+      }
+
+      if (!setupWritesEnabled) {
+        setMandateActionFailed(
+          action,
+          "Organization setup writes are disabled by runtime config.",
+        );
+        return;
+      }
+
+      if (!resolvedOrgId) {
+        setMandateActionFailed(
+          action,
+          "Assign mandate is blocked until the organization is indexed and the real orgId is resolved.",
+        );
+        return;
+      }
+
+      const resolvedRoleId = resolveRoleReference({
+        reference: action.roleRef,
+        resolvedRoleIds: state.resolvedRoleIds,
+        roleActions: createRoleActions,
+      });
+      if (!resolvedRoleId) {
+        setMandateActionFailed(
+          action,
+          "Assign mandate is blocked until the referenced role is indexed and the real roleId is resolved.",
+        );
+        return;
+      }
+
+      if (!account.isConnected || !account.address) {
+        setMandateActionFailed(action, "Wallet is not connected.");
+        return;
+      }
+
+      if (account.chainId !== runtimeConfig.chainId) {
+        setMandateActionFailed(
+          action,
+          `Wallet is connected to chain ${String(
+            account.chainId,
+          )}; expected chain ${runtimeConfig.chainId}.`,
+        );
+        return;
+      }
+
+      if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+        setMandateActionFailed(
+          action,
+          "GovCore contract address is missing from runtime config.",
+        );
+        return;
+      }
+
+      if (!publicClient) {
+        setMandateActionFailed(
+          action,
+          "Wallet client is unavailable for the configured chain.",
+        );
+        return;
+      }
+
+      const payload = buildAssignMandatePayload(
+        action,
+        resolvedOrgId,
+        resolvedRoleId,
+      );
+      if (payload instanceof Error) {
+        setMandateActionFailed(action, payload.message);
+        return;
+      }
+
+      try {
+        setMandateActionTransaction(action, {
+          holderAddress: payload.holderAddress,
+          orgId: payload.orgId,
+          roleId: payload.roleId,
+          stage: "wallet_pending",
+        });
+        const txHash = await writeContractAsync({
+          address: runtimeConfig.contracts.govCoreAddress,
+          abi: GOV_CORE_ABI,
+          functionName: "assignMandate",
+          args: [
+            payload.orgIdBigInt,
+            payload.roleIdBigInt,
+            payload.holderAddress,
+            payload.startTimeBigInt,
+            payload.endTimeBigInt,
+            payload.proposalTypeMaskBigInt,
+            payload.spendingLimitBigInt,
+          ],
+          chainId: runtimeConfig.chainId,
+        });
+
+        setMandateActionTransaction(action, {
+          holderAddress: payload.holderAddress,
+          orgId: payload.orgId,
+          roleId: payload.roleId,
+          stage: "submitted",
+          txHash,
+        });
+        setMandateActionTransaction(action, {
+          holderAddress: payload.holderAddress,
+          orgId: payload.orgId,
+          roleId: payload.roleId,
+          stage: "confirming",
+          txHash,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+
+        assertSuccessfulReceipt(receipt);
+        const assigned = parseMandateAssignedLog(
+          receipt,
+          runtimeConfig.contracts.govCoreAddress,
+        );
+        if (!assigned) {
+          throw new Error(
+            "Transaction confirmed, but MandateAssigned was not found in the receipt.",
+          );
+        }
+
+        assertMandateMatchesPayload(assigned, payload);
+
+        const resolvedRole = resolveRoleReadModel({
+          reference: action.roleRef,
+          resolvedRoles: state.resolvedRoles,
+          roleActions: createRoleActions,
+        });
+        if (resolvedRole && assigned.bodyId !== resolvedRole.bodyId) {
+          throw new Error(
+            `Transaction emitted mandate for body #${assigned.bodyId}, but setup expected body #${resolvedRole.bodyId}.`,
+          );
+        }
+
+        setMandateActionTransaction(action, {
+          bodyId: assigned.bodyId,
+          holderAddress: assigned.holderAddress,
+          mandateId: assigned.mandateId,
+          orgId: assigned.orgId,
+          roleId: assigned.roleId,
+          stage: "confirmed_waiting_indexer",
+          txHash,
+        });
+        const mandate = await waitForIndexedMandate({
+          assigned,
+          client,
+          payload,
+          txHash,
+        });
+
+        setState((current) => ({
+          ...current,
+          assignMandates: {
+            ...current.assignMandates,
+            [action.actionId]: {
+              actionId: action.actionId,
+              actionKind: action.kind,
+              bodyId: mandate.bodyId,
+              holderAddress: mandate.holderAddress,
+              mandateId: mandate.mandateId,
+              orgId: mandate.orgId,
+              roleId: mandate.roleId,
+              stage: "indexed",
+              txHash,
+            },
+          },
+          resolvedMandateIds: {
+            ...current.resolvedMandateIds,
+            [action.actionId]: mandate.mandateId,
+          },
+          resolvedMandates: {
+            ...current.resolvedMandates,
+            [action.actionId]: mandate,
+          },
+        }));
+      } catch (error: unknown) {
+        setMandateActionTransaction(action, {
+          error: normalizeTransactionError(error),
+          holderAddress: payload.holderAddress,
+          orgId: payload.orgId,
+          roleId: payload.roleId,
+          stage: "failed",
+        });
+      }
+
+      function setMandateActionFailed(
+        failedAction: AssignMandateSetupAction,
+        error: string,
+      ): void {
+        setMandateActionTransaction(failedAction, { stage: "failed", error });
+      }
+
+      function setMandateActionTransaction(
+        nextAction: AssignMandateSetupAction,
+        transaction: Omit<SetupActionTransaction, "actionId" | "actionKind">,
+      ): void {
+        setState((current) => ({
+          ...current,
+          assignMandates: {
+            ...current.assignMandates,
+            [nextAction.actionId]: {
+              actionId: nextAction.actionId,
+              actionKind: nextAction.kind,
+              ...transaction,
+            },
+          },
+        }));
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      assignMandateActions,
+      busy,
+      client,
+      createRoleActions,
+      publicClient,
+      resolvedOrgId,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setupWritesEnabled,
+      state.resolvedMandateIds,
+      state.resolvedRoleIds,
+      state.resolvedRoles,
+      writeContractAsync,
+    ],
+  );
+
   return {
     busy,
+    executeAssignMandate,
     executeCreateBody,
     executeCreateOrganization,
     executeCreateRole,
@@ -805,6 +1092,22 @@ interface CreateRolePayload {
   readonly orgId: string;
   readonly orgIdBigInt: bigint;
   readonly roleTypeCode: number;
+}
+
+interface AssignMandatePayload {
+  readonly endTime: string;
+  readonly endTimeBigInt: bigint;
+  readonly holderAddress: Address;
+  readonly orgId: string;
+  readonly orgIdBigInt: bigint;
+  readonly proposalTypeMask: string;
+  readonly proposalTypeMaskBigInt: bigint;
+  readonly roleId: string;
+  readonly roleIdBigInt: bigint;
+  readonly spendingLimit: string;
+  readonly spendingLimitBigInt: bigint;
+  readonly startTime: string;
+  readonly startTimeBigInt: bigint;
 }
 
 function buildCreateOrganizationPayload(
@@ -893,6 +1196,87 @@ function buildCreateRolePayload(
     orgId: resolvedOrgId,
     orgIdBigInt,
     roleTypeCode,
+  };
+}
+
+function buildAssignMandatePayload(
+  action: AssignMandateSetupAction,
+  resolvedOrgId: string,
+  resolvedRoleId: string,
+): AssignMandatePayload | Error {
+  if (!isAddress(action.holderAddress) || isZeroAddress(action.holderAddress)) {
+    return new Error("Mandate holder address must be a non-zero EVM address.");
+  }
+
+  const orgIdBigInt = parsePositiveUint64(resolvedOrgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const roleIdBigInt = parsePositiveUint64(resolvedRoleId, "Resolved roleId");
+  if (roleIdBigInt instanceof Error) {
+    return roleIdBigInt;
+  }
+
+  const startTimeBigInt = parseUint64(action.startTime, "Mandate start time");
+  if (startTimeBigInt instanceof Error) {
+    return startTimeBigInt;
+  }
+
+  const endTimeBigInt = parseUint64(action.endTime, "Mandate end time");
+  if (endTimeBigInt instanceof Error) {
+    return endTimeBigInt;
+  }
+
+  if (endTimeBigInt !== 0n && endTimeBigInt <= startTimeBigInt) {
+    return new Error(
+      "Mandate end time must be zero or greater than the start time.",
+    );
+  }
+
+  const proposalTypeMaskBigInt = parseUint256(
+    action.proposalTypeMask,
+    "Mandate proposal type mask",
+  );
+  if (proposalTypeMaskBigInt instanceof Error) {
+    return proposalTypeMaskBigInt;
+  }
+
+  if (proposalTypeMaskBigInt === 0n) {
+    return new Error("Mandate proposal type mask must cover at least one proposal type.");
+  }
+
+  if (action.proposalTypes) {
+    const expectedMask = getProposalTypeMask(action.proposalTypes);
+    if (proposalTypeMaskBigInt !== expectedMask) {
+      return new Error(
+        `Mandate proposal type mask ${proposalTypeMaskBigInt.toString()} does not match the selected proposal type scope ${expectedMask.toString()}.`,
+      );
+    }
+  }
+
+  const spendingLimitBigInt = parseUint128(
+    action.spendingLimit,
+    "Mandate spending limit",
+  );
+  if (spendingLimitBigInt instanceof Error) {
+    return spendingLimitBigInt;
+  }
+
+  return {
+    endTime: endTimeBigInt.toString(),
+    endTimeBigInt,
+    holderAddress: action.holderAddress,
+    orgId: resolvedOrgId,
+    orgIdBigInt,
+    proposalTypeMask: proposalTypeMaskBigInt.toString(),
+    proposalTypeMaskBigInt,
+    roleId: resolvedRoleId,
+    roleIdBigInt,
+    spendingLimit: spendingLimitBigInt.toString(),
+    spendingLimitBigInt,
+    startTime: startTimeBigInt.toString(),
+    startTimeBigInt,
   };
 }
 
@@ -1018,6 +1402,50 @@ async function waitForIndexedRole({
   );
 }
 
+async function waitForIndexedMandate({
+  assigned,
+  client,
+  payload,
+  txHash,
+}: {
+  readonly assigned: MandateAssignedLog;
+  readonly client: IsoniaControlPlaneClient;
+  readonly payload: AssignMandatePayload;
+  readonly txHash: `0x${string}`;
+}): Promise<MandateDto> {
+  const deadline = Date.now() + INDEXER_TIMEOUT_MS;
+  let lastError: Error | undefined;
+
+  while (Date.now() < deadline) {
+    try {
+      const mandates = await client.getMandates(assigned.orgId);
+      const byCreatedId = mandates.find((mandate) =>
+        mandateMatchesAssignedLog(mandate, assigned),
+      );
+      if (byCreatedId) {
+        return byCreatedId;
+      }
+
+      const byContext = mandates.find((mandate) =>
+        mandateMatchesPayloadContext(mandate, payload),
+      );
+      if (byContext) {
+        return byContext;
+      }
+    } catch (error: unknown) {
+      lastError = toError(error);
+    }
+
+    await delay(INDEXER_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Indexer timeout: mandate #${assigned.mandateId} from ${txHash} did not appear in Control Plane read models within ${
+      INDEXER_TIMEOUT_MS / 1_000
+    } seconds.${lastError ? ` Last API error: ${lastError.message}` : ""}`,
+  );
+}
+
 function getReadiness({
   accountChainId,
   action,
@@ -1125,6 +1553,15 @@ function getCreateRoleActions(
   );
 }
 
+function getAssignMandateActions(
+  actions: readonly SetupAction[],
+): readonly AssignMandateSetupAction[] {
+  return actions.filter(
+    (action): action is AssignMandateSetupAction =>
+      action.kind === SetupActionKind.AssignMandate,
+  );
+}
+
 function resolveBodyReference({
   bodyActions,
   reference,
@@ -1142,6 +1579,46 @@ function resolveBodyReference({
     ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
     : undefined;
   return bodyAction ? resolvedBodyIds[bodyAction.actionId] : undefined;
+}
+
+function resolveRoleReference({
+  reference,
+  resolvedRoleIds,
+  roleActions,
+}: {
+  readonly reference: { readonly draftId?: string; readonly indexedId?: string };
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): string | undefined {
+  if (reference.indexedId) {
+    return reference.indexedId;
+  }
+
+  const roleAction = reference.draftId
+    ? roleActions.find((action) => action.roleDraftId === reference.draftId)
+    : undefined;
+  return roleAction ? resolvedRoleIds[roleAction.actionId] : undefined;
+}
+
+function resolveRoleReadModel({
+  reference,
+  resolvedRoles,
+  roleActions,
+}: {
+  readonly reference: { readonly draftId?: string; readonly indexedId?: string };
+  readonly resolvedRoles: Readonly<Record<string, RoleDto>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): RoleDto | undefined {
+  if (reference.indexedId) {
+    return Object.values(resolvedRoles).find(
+      (role) => role.roleId === reference.indexedId,
+    );
+  }
+
+  const roleAction = reference.draftId
+    ? roleActions.find((action) => action.roleDraftId === reference.draftId)
+    : undefined;
+  return roleAction ? resolvedRoles[roleAction.actionId] : undefined;
 }
 
 function assertSuccessfulReceipt(receipt: TransactionReceipt): void {
@@ -1163,6 +1640,144 @@ function parsePositiveUint64(value: string, label: string): bigint | Error {
   }
 
   return parsed;
+}
+
+function parseUint64(value: string, label: string): bigint | Error {
+  return parseUint(value, label, MAX_UINT64, "uint64");
+}
+
+function parseUint128(value: string, label: string): bigint | Error {
+  return parseUint(value, label, MAX_UINT128, "uint128");
+}
+
+function parseUint256(value: string, label: string): bigint | Error {
+  return parseUint(value, label, MAX_UINT256, "uint256");
+}
+
+function parseUint(
+  value: string,
+  label: string,
+  max: bigint,
+  typeName: "uint64" | "uint128" | "uint256",
+): bigint | Error {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return new Error(`${label} must be a non-negative ${typeName} integer.`);
+  }
+
+  let parsed: bigint;
+  try {
+    parsed = BigInt(trimmed);
+  } catch {
+    return new Error(`${label} must be a non-negative ${typeName} integer.`);
+  }
+
+  if (parsed > max) {
+    return new Error(`${label} exceeds the maximum ${typeName} value.`);
+  }
+
+  return parsed;
+}
+
+function assertMandateMatchesPayload(
+  assigned: MandateAssignedLog,
+  payload: AssignMandatePayload,
+): void {
+  if (assigned.orgId !== payload.orgId) {
+    throw new Error(
+      `Transaction emitted mandate for org #${assigned.orgId}, but setup expected org #${payload.orgId}.`,
+    );
+  }
+
+  if (assigned.roleId !== payload.roleId) {
+    throw new Error(
+      `Transaction emitted mandate for role #${assigned.roleId}, but setup expected role #${payload.roleId}.`,
+    );
+  }
+
+  if (!sameAddress(assigned.holderAddress, payload.holderAddress)) {
+    throw new Error(
+      `Transaction emitted mandate holder ${assigned.holderAddress}, but setup expected ${payload.holderAddress}.`,
+    );
+  }
+
+  if (assigned.startTime !== payload.startTime) {
+    throw new Error(
+      `Transaction emitted start time ${assigned.startTime}, but setup expected ${payload.startTime}.`,
+    );
+  }
+
+  if (assigned.endTime !== payload.endTime) {
+    throw new Error(
+      `Transaction emitted end time ${assigned.endTime}, but setup expected ${payload.endTime}.`,
+    );
+  }
+
+  if (assigned.proposalTypeMask !== payload.proposalTypeMask) {
+    throw new Error(
+      `Transaction emitted proposal type mask ${assigned.proposalTypeMask}, but setup expected ${payload.proposalTypeMask}.`,
+    );
+  }
+
+  if (assigned.spendingLimit !== payload.spendingLimit) {
+    throw new Error(
+      `Transaction emitted spending limit ${assigned.spendingLimit}, but setup expected ${payload.spendingLimit}.`,
+    );
+  }
+}
+
+function mandateMatchesAssignedLog(
+  mandate: MandateDto,
+  assigned: MandateAssignedLog,
+): boolean {
+  return (
+    mandate.orgId === assigned.orgId &&
+    mandate.mandateId === assigned.mandateId &&
+    mandate.bodyId === assigned.bodyId &&
+    mandate.roleId === assigned.roleId &&
+    sameAddress(mandate.holderAddress, assigned.holderAddress) &&
+    mandate.startTime === assigned.startTime &&
+    mandate.endTime === assigned.endTime &&
+    mandate.proposalTypeMask === assigned.proposalTypeMask &&
+    mandate.spendingLimit === assigned.spendingLimit
+  );
+}
+
+function mandateMatchesPayloadContext(
+  mandate: MandateDto,
+  payload: AssignMandatePayload,
+): boolean {
+  return (
+    mandate.orgId === payload.orgId &&
+    mandate.roleId === payload.roleId &&
+    sameAddress(mandate.holderAddress, payload.holderAddress) &&
+    mandate.startTime === payload.startTime &&
+    mandate.endTime === payload.endTime &&
+    mandate.proposalTypeMask === payload.proposalTypeMask &&
+    mandate.spendingLimit === payload.spendingLimit &&
+    mandate.active &&
+    !mandate.revoked
+  );
+}
+
+function getProposalTypeMask(proposalTypes: readonly ProposalType[]): bigint {
+  return proposalTypes.reduce(
+    (mask, proposalType) => mask | proposalTypeMaskBit(proposalType),
+    0n,
+  );
+}
+
+function proposalTypeMaskBit(proposalType: ProposalType): bigint {
+  switch (proposalType) {
+    case ProposalType.Standard:
+      return 1n << 1n;
+    case ProposalType.Treasury:
+      return 1n << 2n;
+    case ProposalType.Upgrade:
+      return 1n << 3n;
+    case ProposalType.Emergency:
+      return 1n << 4n;
+  }
 }
 
 function isBusyStage(stage: SetupActionLifecycleStage): boolean {

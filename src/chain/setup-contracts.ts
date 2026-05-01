@@ -47,6 +47,21 @@ export const GOV_CORE_ABI = [
     outputs: [{ name: "roleId", type: "uint64" }],
   },
   {
+    type: "function",
+    name: "assignMandate",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      { name: "roleId", type: "uint64" },
+      { name: "holder", type: "address" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "proposalTypeMask", type: "uint256" },
+      { name: "spendingLimit", type: "uint128" },
+    ],
+    outputs: [{ name: "mandateId", type: "uint64" }],
+  },
+  {
     type: "event",
     name: "OrganizationCreated",
     inputs: [
@@ -75,6 +90,21 @@ export const GOV_CORE_ABI = [
       { name: "bodyId", type: "uint64", indexed: true },
       { name: "roleType", type: "uint8", indexed: false },
       { name: "metadataURI", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "MandateAssigned",
+    inputs: [
+      { name: "orgId", type: "uint64", indexed: true },
+      { name: "mandateId", type: "uint64", indexed: true },
+      { name: "roleId", type: "uint64", indexed: true },
+      { name: "bodyId", type: "uint64", indexed: false },
+      { name: "holder", type: "address", indexed: false },
+      { name: "startTime", type: "uint64", indexed: false },
+      { name: "endTime", type: "uint64", indexed: false },
+      { name: "proposalTypeMask", type: "uint256", indexed: false },
+      { name: "spendingLimit", type: "uint128", indexed: false },
     ],
   },
 ] as const satisfies Abi;
@@ -115,12 +145,36 @@ export interface RoleCreatedLog {
   readonly roleType: RoleType;
 }
 
+export interface MandateAssignedLog {
+  readonly bodyId: string;
+  readonly endTime: string;
+  readonly holderAddress: Address;
+  readonly mandateId: string;
+  readonly orgId: string;
+  readonly proposalTypeMask: string;
+  readonly roleId: string;
+  readonly spendingLimit: string;
+  readonly startTime: string;
+}
+
 interface RoleCreatedArgs {
   readonly bodyId: bigint;
   readonly metadataURI: string;
   readonly orgId: bigint;
   readonly roleId: bigint;
   readonly roleType: bigint | number;
+}
+
+interface MandateAssignedArgs {
+  readonly bodyId: bigint;
+  readonly endTime: bigint;
+  readonly holder: Address;
+  readonly mandateId: bigint;
+  readonly orgId: bigint;
+  readonly proposalTypeMask: bigint;
+  readonly roleId: bigint;
+  readonly spendingLimit: bigint;
+  readonly startTime: bigint;
 }
 
 export function parseOrganizationCreatedLog(
@@ -236,6 +290,48 @@ export function parseRoleCreatedLog(
         orgId: args.orgId.toString(),
         roleId: args.roleId.toString(),
         roleType,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
+export function parseMandateAssignedLog(
+  receipt: TransactionReceipt,
+  govCoreAddress: Address,
+): MandateAssignedLog | undefined {
+  const expectedAddress = govCoreAddress.toLowerCase();
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== expectedAddress) {
+      continue;
+    }
+
+    try {
+      const decoded = decodeEventLog({
+        abi: GOV_CORE_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decoded.eventName !== "MandateAssigned") {
+        continue;
+      }
+
+      const args = decoded.args as unknown as MandateAssignedArgs;
+      return {
+        bodyId: args.bodyId.toString(),
+        endTime: args.endTime.toString(),
+        holderAddress: args.holder,
+        mandateId: args.mandateId.toString(),
+        orgId: args.orgId.toString(),
+        proposalTypeMask: args.proposalTypeMask.toString(),
+        roleId: args.roleId.toString(),
+        spendingLimit: args.spendingLimit.toString(),
+        startTime: args.startTime.toString(),
       };
     } catch {
       continue;
