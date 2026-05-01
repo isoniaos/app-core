@@ -53,7 +53,7 @@ export function NewOrganizationSetupPage(): JSX.Element {
               : "warning"
           }
         >
-          Create organization only
+          Organization and bodies
         </StatusBadge>
       </div>
 
@@ -70,6 +70,7 @@ export function NewOrganizationSetupPage(): JSX.Element {
       <SetupExecutionPanel
         busy={execution.busy}
         draft={draft}
+        executeCreateBody={execution.executeCreateBody}
         executeCreateOrganization={execution.executeCreateOrganization}
         readiness={execution.readiness}
         reset={execution.reset}

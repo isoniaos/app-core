@@ -1,9 +1,17 @@
-import type { SetupAction, SetupDraft } from "@isonia/types";
+import type {
+  AssignMandateSetupAction,
+  CreateBodySetupAction,
+  CreateRoleSetupAction,
+  SetPolicyRuleSetupAction,
+  SetupAction,
+  SetupDraft,
+  SetupEntityReference,
+} from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import { Link } from "react-router-dom";
 import { buildOrganizationSlug } from "../../chain/setup-contracts";
 import { StatusBadge } from "../../ui/StatusBadge";
-import { formatAddress, formatLabel } from "../../utils/format";
+import { formatAddress, formatLabel, formatNumericString } from "../../utils/format";
 import type {
   SetupActionLifecycleStage,
   SetupActionReadiness,
@@ -14,6 +22,7 @@ import type {
 interface SetupExecutionPanelProps {
   readonly busy: boolean;
   readonly draft: SetupDraft;
+  readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
@@ -23,6 +32,7 @@ interface SetupExecutionPanelProps {
 export function SetupExecutionPanel({
   busy,
   draft,
+  executeCreateBody,
   executeCreateOrganization,
   readiness,
   reset,
@@ -34,10 +44,16 @@ export function SetupExecutionPanel({
   const dependentActions = draft.actions.filter(
     (action) => action.kind !== SetupActionKind.CreateOrganization,
   );
+  const bodyActions = dependentActions.filter(isCreateBodyAction);
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
     readiness !== undefined;
+  const panelStatus = getPanelStatus({
+    bodyActions,
+    busy,
+    state,
+  });
 
   return (
     <section className="panel setup-execution-panel">
@@ -45,12 +61,12 @@ export function SetupExecutionPanel({
         <div>
           <h2>Setup Execution</h2>
           <p className="panel-subtitle">
-            This step can submit only create organization. Template topology
-            actions stay visible as placeholders until their executors exist.
+            Submit setup transactions one at a time. Draft topology remains
+            non-authoritative until each action is confirmed and indexed.
           </p>
         </div>
-        <StatusBadge tone={transactionTone(state.createOrganization.stage)}>
-          {formatLabel(state.createOrganization.stage)}
+        <StatusBadge tone={panelStatus.tone}>
+          {panelStatus.label}
         </StatusBadge>
       </div>
 
@@ -74,7 +90,18 @@ export function SetupExecutionPanel({
         </div>
       )}
 
-      <SetupActionLifecycle reset={reset} transaction={state.createOrganization} />
+      <SetupActionLifecycle
+        emittedIdLabel={
+          state.createOrganization.orgId
+            ? `Organization #${state.createOrganization.orgId}`
+            : undefined
+        }
+        entityName="organization"
+        idleDetail="Ready for the create organization setup action."
+        indexedDetail="Control Plane returned the organization read model."
+        reset={reset}
+        transaction={state.createOrganization}
+      />
 
       {state.resolvedOrganization ? (
         <ResolvedOrganizationSummary organization={state.resolvedOrganization} />
@@ -82,7 +109,10 @@ export function SetupExecutionPanel({
 
       <DependentActionsPanel
         actions={dependentActions}
+        busy={busy}
+        executeCreateBody={executeCreateBody}
         resolvedOrgId={state.resolvedOrgId}
+        state={state}
       />
     </section>
   );
@@ -159,17 +189,25 @@ function SetupReadinessNotice({
 }
 
 function SetupActionLifecycle({
+  emittedIdLabel,
+  entityName,
+  idleDetail,
+  indexedDetail,
   reset,
   transaction,
 }: {
-  readonly reset: () => void;
+  readonly emittedIdLabel?: string;
+  readonly entityName: string;
+  readonly idleDetail: string;
+  readonly indexedDetail: string;
+  readonly reset?: () => void;
   readonly transaction: SetupActionTransaction;
 }): JSX.Element {
   const steps = [
     {
       id: "wallet_pending",
       title: "Wallet pending",
-      detail: "Confirm or reject the organization transaction in the connected wallet.",
+      detail: `Confirm or reject the ${entityName} transaction in the connected wallet.`,
     },
     {
       id: "submitted",
@@ -186,14 +224,14 @@ function SetupActionLifecycle({
     {
       id: "confirmed_waiting_indexer",
       title: "Confirmed, waiting for indexer",
-      detail: transaction.orgId
-        ? `Organization #${transaction.orgId} was emitted on-chain.`
+      detail: emittedIdLabel
+        ? `${emittedIdLabel} was emitted on-chain.`
         : "Receipt confirmed and Control Plane polling is active.",
     },
     {
       id: "indexed",
       title: "Indexed",
-      detail: "Control Plane returned the organization read model.",
+      detail: indexedDetail,
     },
   ] satisfies readonly {
     readonly detail: string;
@@ -207,7 +245,7 @@ function SetupActionLifecycle({
         {transaction.stage === "idle" ? (
           <TransactionStep
             active
-            detail="Ready for the create organization setup action."
+            detail={idleDetail}
             title="Idle"
           />
         ) : null}
@@ -229,7 +267,8 @@ function SetupActionLifecycle({
           />
         ) : null}
       </div>
-      {transaction.stage === "failed" || transaction.stage === "indexed" ? (
+      {reset &&
+      (transaction.stage === "failed" || transaction.stage === "indexed") ? (
         <div className="setup-execution-footer">
           <button className="button button-small" type="button" onClick={reset}>
             Reset local execution state
@@ -279,49 +318,537 @@ function ResolvedOrganizationSummary({
 
 function DependentActionsPanel({
   actions,
+  busy,
+  executeCreateBody,
   resolvedOrgId,
+  state,
 }: {
   readonly actions: readonly SetupAction[];
+  readonly busy: boolean;
+  readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly resolvedOrgId: string | undefined;
+  readonly state: SetupDraftExecutionState;
 }): JSX.Element {
+  const bodyActions = actions.filter(isCreateBodyAction);
+  const placeholderActions = actions.filter(
+    (action) => action.kind !== SetupActionKind.CreateBody,
+  );
+  const indexedBodyCount = bodyActions.filter(
+    (action) => state.resolvedBodyIds[action.actionId],
+  ).length;
+
   return (
     <section className="setup-dependent-actions">
       <div className="setup-action-group-header">
-        <h3>Remaining Setup Actions</h3>
-        <span>{actions.length} placeholders</span>
+        <h3>Body Setup Actions</h3>
+        <span>
+          {indexedBodyCount} of {bodyActions.length} indexed
+        </span>
       </div>
-      {actions.length === 0 ? (
-        <div className="setup-action-empty">No dependent actions in this draft.</div>
+      {bodyActions.length === 0 ? (
+        <div className="setup-action-empty">No body actions in this draft.</div>
       ) : (
         <div className="setup-action-list">
-          {actions.map((action) => (
-            <article className="setup-action-row" key={action.actionId}>
-              <div className="setup-action-row-top">
-                <div className="setup-action-main">
-                  <span className="setup-action-index">-</span>
-                  <div>
-                    <strong>{action.label}</strong>
-                    <span>
-                      {resolvedOrgId
-                        ? `Org #${resolvedOrgId} resolved; execution for ${formatLabel(
-                            action.kind,
-                          )} is not implemented in this task.`
-                        : "Blocked until create organization is indexed and the real orgId is resolved."}
-                    </span>
-                  </div>
-                </div>
-                <div className="setup-action-meta">
-                  <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
-                  <StatusBadge tone={resolvedOrgId ? "muted" : "warning"}>
-                    {resolvedOrgId ? "Placeholder" : "Blocked"}
-                  </StatusBadge>
-                </div>
-              </div>
-            </article>
+          {bodyActions.map((action, index) => (
+            <CreateBodyActionCard
+              action={action}
+              busy={busy}
+              executeCreateBody={executeCreateBody}
+              index={index + 1}
+              key={action.actionId}
+              resolvedOrgId={resolvedOrgId}
+              state={state}
+            />
           ))}
         </div>
       )}
+
+      <RemainingPlaceholderActions
+        actions={placeholderActions}
+        bodyActions={bodyActions}
+        resolvedBodyIds={state.resolvedBodyIds}
+        resolvedOrgId={resolvedOrgId}
+      />
     </section>
+  );
+}
+
+function CreateBodyActionCard({
+  action,
+  busy,
+  executeCreateBody,
+  index,
+  resolvedOrgId,
+  state,
+}: {
+  readonly action: CreateBodySetupAction;
+  readonly busy: boolean;
+  readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly index: number;
+  readonly resolvedOrgId: string | undefined;
+  readonly state: SetupDraftExecutionState;
+}): JSX.Element {
+  const transaction = state.createBodies[action.actionId] ?? {
+    actionId: action.actionId,
+    actionKind: action.kind,
+    stage: "idle" satisfies SetupActionLifecycleStage,
+  };
+  const resolvedBody = state.resolvedBodies[action.actionId];
+  const resolvedBodyId = state.resolvedBodyIds[action.actionId];
+  const blocker = getCreateBodyBlocker({
+    action,
+    busy,
+    resolvedBodyId,
+    resolvedOrgId,
+    transaction,
+  });
+  const emittedBodyId = transaction.bodyId ?? resolvedBodyId;
+
+  return (
+    <article className="setup-action-row">
+      <div className="setup-action-row-top">
+        <div className="setup-action-main">
+          <span className="setup-action-index">{index}</span>
+          <div>
+            <strong>{action.label}</strong>
+            <span>
+              {formatLabel(action.bodyKind)};{" "}
+              {resolvedBodyId
+                ? `resolved bodyId #${resolvedBodyId}`
+                : resolvedOrgId
+                  ? `will create under org #${resolvedOrgId}`
+                  : "waiting for resolved orgId"}
+            </span>
+          </div>
+        </div>
+        <div className="setup-action-meta">
+          <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+          <StatusBadge
+            tone={getBodyActionTone({ blocker, resolvedBodyId, transaction })}
+          >
+            {getBodyActionStatusLabel({
+              blocker,
+              resolvedBodyId,
+              transaction,
+            })}
+          </StatusBadge>
+        </div>
+      </div>
+
+      <div className="action-row setup-action-controls">
+        <button
+          className="button button-small button-primary"
+          disabled={Boolean(blocker)}
+          type="button"
+          onClick={() => {
+            void executeCreateBody(action.actionId);
+          }}
+        >
+          {getCreateBodyButtonLabel({ resolvedBodyId, transaction })}
+        </button>
+        {resolvedOrgId && resolvedBodyId ? (
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
+            Open governance
+          </Link>
+        ) : null}
+        {blocker ? <span className="setup-action-control-note">{blocker}</span> : null}
+      </div>
+
+      {resolvedBody ? (
+        <dl className="detail-list detail-list-wide setup-execution-resolution">
+          <div>
+            <dt>Action ID</dt>
+            <dd>{action.actionId}</dd>
+          </div>
+          <div>
+            <dt>Resolved bodyId</dt>
+            <dd>#{resolvedBody.bodyId}</dd>
+          </div>
+          <div>
+            <dt>Kind</dt>
+            <dd>{formatLabel(resolvedBody.kind)}</dd>
+          </div>
+          <div>
+            <dt>Created block</dt>
+            <dd>{formatNumericString(resolvedBody.createdBlock)}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {transaction.stage !== "idle" ? (
+        <SetupActionLifecycle
+          emittedIdLabel={emittedBodyId ? `Body #${emittedBodyId}` : undefined}
+          entityName="body"
+          idleDetail="Ready for this create body setup action."
+          indexedDetail="Control Plane returned the body read model."
+          transaction={transaction}
+        />
+      ) : null}
+    </article>
+  );
+}
+
+function RemainingPlaceholderActions({
+  actions,
+  bodyActions,
+  resolvedBodyIds,
+  resolvedOrgId,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string | undefined;
+}): JSX.Element {
+  return (
+    <section className="setup-placeholder-actions">
+      <div className="setup-action-group-header">
+        <h3>Role, Mandate, and Policy Placeholders</h3>
+        <span>{actions.length} non-executable</span>
+      </div>
+      {actions.length === 0 ? (
+        <div className="setup-action-empty">No remaining placeholders.</div>
+      ) : (
+        <div className="setup-action-list">
+          {actions.map((action) => {
+            const status = getPlaceholderActionStatus({
+              action,
+              bodyActions,
+              resolvedBodyIds,
+              resolvedOrgId,
+            });
+            return (
+              <article className="setup-action-row" key={action.actionId}>
+                <div className="setup-action-row-top">
+                  <div className="setup-action-main">
+                    <span className="setup-action-index">-</span>
+                    <div>
+                      <strong>{action.label}</strong>
+                      <span>{status.message}</span>
+                    </div>
+                  </div>
+                  <div className="setup-action-meta">
+                    <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
+                    <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
+
+interface PanelStatus {
+  readonly label: string;
+  readonly tone: BadgeTone;
+}
+
+function getPanelStatus({
+  bodyActions,
+  busy,
+  state,
+}: {
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly busy: boolean;
+  readonly state: SetupDraftExecutionState;
+}): PanelStatus {
+  if (
+    state.createOrganization.stage === "failed" ||
+    Object.values(state.createBodies).some(
+      (transaction) => transaction.stage === "failed",
+    )
+  ) {
+    return { label: "Action failed", tone: "danger" };
+  }
+
+  if (busy) {
+    return { label: "Transaction active", tone: "warning" };
+  }
+
+  if (
+    state.resolvedOrgId &&
+    bodyActions.length > 0 &&
+    bodyActions.every((action) => state.resolvedBodyIds[action.actionId])
+  ) {
+    return { label: "Bodies indexed", tone: "success" };
+  }
+
+  if (state.resolvedOrgId) {
+    return { label: "Body setup ready", tone: "warning" };
+  }
+
+  return { label: "Draft only", tone: "muted" };
+}
+
+function getCreateBodyBlocker({
+  action,
+  busy,
+  resolvedBodyId,
+  resolvedOrgId,
+  transaction,
+}: {
+  readonly action: CreateBodySetupAction;
+  readonly busy: boolean;
+  readonly resolvedBodyId: string | undefined;
+  readonly resolvedOrgId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string | undefined {
+  if (resolvedBodyId || transaction.stage === "indexed") {
+    return "Body already indexed.";
+  }
+
+  if (isBusyStage(transaction.stage)) {
+    return "This body transaction is already in progress.";
+  }
+
+  if (busy) {
+    return "Another setup transaction is active.";
+  }
+
+  if (!resolvedOrgId) {
+    return "Blocked until create organization is indexed and the real orgId is resolved.";
+  }
+
+  if (!action.active) {
+    return "GovCore createBody creates active bodies only.";
+  }
+
+  if (action.warnings.some((warning) => warning.severity === "error")) {
+    return "Resolve this body action's validation errors before submitting.";
+  }
+
+  return undefined;
+}
+
+function getBodyActionTone({
+  blocker,
+  resolvedBodyId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedBodyId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): BadgeTone {
+  if (resolvedBodyId || transaction.stage === "indexed") {
+    return "success";
+  }
+  if (transaction.stage === "failed") {
+    return "danger";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "warning";
+  }
+  if (blocker) {
+    return "warning";
+  }
+  return "default";
+}
+
+function getBodyActionStatusLabel({
+  blocker,
+  resolvedBodyId,
+  transaction,
+}: {
+  readonly blocker: string | undefined;
+  readonly resolvedBodyId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedBodyId) {
+    return `Body #${resolvedBodyId}`;
+  }
+  if (transaction.stage === "indexed" && transaction.bodyId) {
+    return `Body #${transaction.bodyId}`;
+  }
+  if (transaction.stage === "failed") {
+    return "Failed";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return formatLabel(transaction.stage);
+  }
+  if (blocker) {
+    return "Blocked";
+  }
+  return "Executable";
+}
+
+function getCreateBodyButtonLabel({
+  resolvedBodyId,
+  transaction,
+}: {
+  readonly resolvedBodyId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedBodyId || transaction.stage === "indexed") {
+    return "Body indexed";
+  }
+  if (transaction.stage === "failed") {
+    return "Retry body";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return "Submitting body";
+  }
+  return "Create body";
+}
+
+interface PlaceholderActionStatus {
+  readonly label: string;
+  readonly message: string;
+  readonly tone: BadgeTone;
+}
+
+function getPlaceholderActionStatus({
+  action,
+  bodyActions,
+  resolvedBodyIds,
+  resolvedOrgId,
+}: {
+  readonly action: SetupAction;
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string | undefined;
+}): PlaceholderActionStatus {
+  if (!resolvedOrgId) {
+    return {
+      label: "Blocked",
+      message:
+        "Blocked until create organization is indexed and the real orgId is resolved.",
+      tone: "warning",
+    };
+  }
+
+  if (isCreateRoleAction(action)) {
+    const bodyId = resolveBodyReference({
+      bodyActions,
+      reference: action.bodyRef,
+      resolvedBodyIds,
+    });
+    if (!bodyId) {
+      return {
+        label: "Blocked",
+        message: `Blocked until ${formatBodyReference(
+          action.bodyRef,
+          bodyActions,
+        )} resolves to a real bodyId.`,
+        tone: "warning",
+      };
+    }
+    return {
+      label: "Placeholder",
+      message: `Body #${bodyId} is resolved; create_role execution is not implemented in this task.`,
+      tone: "muted",
+    };
+  }
+
+  if (isSetPolicyRuleAction(action)) {
+    const bodyRefs = getPolicyBodyReferences(action);
+    const unresolvedRefs = bodyRefs.filter(
+      (reference) =>
+        !resolveBodyReference({ bodyActions, reference, resolvedBodyIds }),
+    );
+    if (unresolvedRefs.length > 0) {
+      return {
+        label: "Blocked",
+        message: `Blocked until ${unresolvedRefs.length.toLocaleString()} referenced bodyId${unresolvedRefs.length === 1 ? "" : "s"} resolve.`,
+        tone: "warning",
+      };
+    }
+    return {
+      label: "Placeholder",
+      message:
+        "All referenced bodyIds are resolved; set_policy_rule execution is not implemented in this task.",
+      tone: "muted",
+    };
+  }
+
+  if (isAssignMandateAction(action)) {
+    return {
+      label: "Blocked",
+      message:
+        "Blocked until create_role execution resolves role IDs; assign_mandate is not implemented in this task.",
+      tone: "warning",
+    };
+  }
+
+  return {
+    label: "Placeholder",
+    message: `${formatLabel(action.kind)} execution is not implemented in this task.`,
+    tone: "muted",
+  };
+}
+
+function resolveBodyReference({
+  bodyActions,
+  reference,
+  resolvedBodyIds,
+}: {
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly reference: SetupEntityReference;
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+}): string | undefined {
+  if (reference.indexedId) {
+    return reference.indexedId;
+  }
+
+  const bodyAction = reference.draftId
+    ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
+    : undefined;
+  return bodyAction ? resolvedBodyIds[bodyAction.actionId] : undefined;
+}
+
+function formatBodyReference(
+  reference: SetupEntityReference,
+  bodyActions: readonly CreateBodySetupAction[],
+): string {
+  if (reference.indexedId) {
+    return `Body #${reference.indexedId}`;
+  }
+
+  const bodyAction = reference.draftId
+    ? bodyActions.find((action) => action.bodyDraftId === reference.draftId)
+    : undefined;
+  return bodyAction?.label ?? reference.draftId ?? "the referenced body";
+}
+
+function getPolicyBodyReferences(
+  action: SetPolicyRuleSetupAction,
+): readonly SetupEntityReference[] {
+  return [
+    ...action.requiredApprovalBodies,
+    ...action.vetoBodies,
+    ...(action.executorBody ? [action.executorBody] : []),
+  ];
+}
+
+function isCreateBodyAction(action: SetupAction): action is CreateBodySetupAction {
+  return action.kind === SetupActionKind.CreateBody;
+}
+
+function isCreateRoleAction(action: SetupAction): action is CreateRoleSetupAction {
+  return action.kind === SetupActionKind.CreateRole;
+}
+
+function isAssignMandateAction(
+  action: SetupAction,
+): action is AssignMandateSetupAction {
+  return action.kind === SetupActionKind.AssignMandate;
+}
+
+function isSetPolicyRuleAction(
+  action: SetupAction,
+): action is SetPolicyRuleSetupAction {
+  return action.kind === SetupActionKind.SetPolicyRule;
+}
+
+function isBusyStage(stage: SetupActionLifecycleStage): boolean {
+  return (
+    stage === "wallet_pending" ||
+    stage === "submitted" ||
+    stage === "confirming" ||
+    stage === "confirmed_waiting_indexer"
   );
 }
 
@@ -353,21 +880,6 @@ function TransactionStep({
       <span>{detail}</span>
     </div>
   );
-}
-
-function transactionTone(
-  stage: SetupActionLifecycleStage,
-): "default" | "success" | "warning" | "danger" | "muted" {
-  if (stage === "indexed") {
-    return "success";
-  }
-  if (stage === "failed") {
-    return "danger";
-  }
-  if (stage === "idle") {
-    return "muted";
-  }
-  return "warning";
 }
 
 function isTransactionStepActive(

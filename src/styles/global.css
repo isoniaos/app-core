@@ -1447,8 +1447,23 @@ td {
   border-bottom: 1px solid var(--iso-color-border);
 }
 
+.setup-action-controls {
+  padding: 0 1rem 1rem 3.35rem;
+}
+
+.setup-action-control-note {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
 .setup-dependent-actions {
   display: grid;
+}
+
+.setup-placeholder-actions {
+  display: grid;
+  border-top: 1px solid var(--iso-color-border);
 }
 
 .power-map {

@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type {
   Address,
+  BodyDto,
+  CreateBodySetupAction,
   CreateOrganizationSetupAction,
   OrganizationDto,
   SetupAction,
@@ -13,8 +15,11 @@ import { isAddress } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import {
+  type BodyCreatedLog,
   buildOrganizationSlug,
   GOV_CORE_ABI,
+  getBodyKindChainCode,
+  parseBodyCreatedLog,
   parseOrganizationCreatedLog,
   type OrganizationCreatedLog,
 } from "../../chain/setup-contracts";
@@ -32,6 +37,7 @@ export type SetupActionLifecycleStage =
 export interface SetupActionTransaction {
   readonly actionId?: string;
   readonly actionKind?: SetupActionKind;
+  readonly bodyId?: string;
   readonly error?: string;
   readonly orgId?: string;
   readonly slug?: string;
@@ -40,7 +46,10 @@ export interface SetupActionTransaction {
 }
 
 export interface SetupDraftExecutionState {
+  readonly createBodies: Readonly<Record<string, SetupActionTransaction>>;
   readonly createOrganization: SetupActionTransaction;
+  readonly resolvedBodies: Readonly<Record<string, BodyDto>>;
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedOrganization?: OrganizationDto;
   readonly resolvedOrgId?: string;
 }
@@ -62,6 +71,7 @@ export function useSetupActionExecution({
   draft,
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
+  readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
@@ -73,12 +83,27 @@ export function useSetupActionExecution({
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<SetupDraftExecutionState>({
+    createBodies: {},
     createOrganization: { stage: "idle" },
+    resolvedBodies: {},
+    resolvedBodyIds: {},
   });
 
   const createOrganizationAction = useMemo(
     () => getCreateOrganizationAction(draft.actions),
     [draft.actions],
+  );
+  const createBodyActions = useMemo(
+    () => getCreateBodyActions(draft.actions),
+    [draft.actions],
+  );
+  const resolvedOrgId = state.resolvedOrgId ?? draft.organization?.orgId;
+  const returnedState = useMemo<SetupDraftExecutionState>(
+    () =>
+      resolvedOrgId && state.resolvedOrgId !== resolvedOrgId
+        ? { ...state, resolvedOrgId }
+        : state,
+    [resolvedOrgId, state],
   );
   const setupWritesEnabled =
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
@@ -107,14 +132,17 @@ export function useSetupActionExecution({
   );
 
   const busy =
-    state.createOrganization.stage === "wallet_pending" ||
-    state.createOrganization.stage === "submitted" ||
-    state.createOrganization.stage === "confirming" ||
-    state.createOrganization.stage === "confirmed_waiting_indexer";
+    isBusyStage(state.createOrganization.stage) ||
+    Object.values(state.createBodies).some((transaction) =>
+      isBusyStage(transaction.stage),
+    );
 
   const reset = useCallback(() => {
     setState({
+      createBodies: {},
       createOrganization: { stage: "idle" },
+      resolvedBodies: {},
+      resolvedBodyIds: {},
     });
   }, []);
 
@@ -223,7 +251,8 @@ export function useSetupActionExecution({
         txHash,
       });
 
-      setState({
+      setState((current) => ({
+        ...current,
         createOrganization: {
           actionId: action.actionId,
           actionKind: action.kind,
@@ -234,7 +263,7 @@ export function useSetupActionExecution({
         },
         resolvedOrgId: organization.orgId,
         resolvedOrganization: organization,
-      });
+      }));
     } catch (error: unknown) {
       setActionTransaction(action, {
         stage: "failed",
@@ -276,12 +305,214 @@ export function useSetupActionExecution({
     writeContractAsync,
   ]);
 
+  const executeCreateBody = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = createBodyActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      if (!action) {
+        setState((current) => ({
+          ...current,
+          createBodies: {
+            ...current.createBodies,
+            [actionId]: {
+              actionId,
+              actionKind: SetupActionKind.CreateBody,
+              error: "No create body setup action exists for this actionId.",
+              stage: "failed",
+            },
+          },
+        }));
+        return;
+      }
+
+      if (state.resolvedBodyIds[action.actionId]) {
+        return;
+      }
+
+      if (!setupWritesEnabled) {
+        setBodyActionFailed(action, "Organization setup writes are disabled by runtime config.");
+        return;
+      }
+
+      if (!resolvedOrgId) {
+        setBodyActionFailed(
+          action,
+          "Create body is blocked until the organization is indexed and the real orgId is resolved.",
+        );
+        return;
+      }
+
+      if (!account.isConnected || !account.address) {
+        setBodyActionFailed(action, "Wallet is not connected.");
+        return;
+      }
+
+      if (account.chainId !== runtimeConfig.chainId) {
+        setBodyActionFailed(
+          action,
+          `Wallet is connected to chain ${String(
+            account.chainId,
+          )}; expected chain ${runtimeConfig.chainId}.`,
+        );
+        return;
+      }
+
+      if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+        setBodyActionFailed(
+          action,
+          "GovCore contract address is missing from runtime config.",
+        );
+        return;
+      }
+
+      if (!publicClient) {
+        setBodyActionFailed(
+          action,
+          "Wallet client is unavailable for the configured chain.",
+        );
+        return;
+      }
+
+      const payload = buildCreateBodyPayload(action, resolvedOrgId);
+      if (payload instanceof Error) {
+        setBodyActionFailed(action, payload.message);
+        return;
+      }
+
+      try {
+        setBodyActionTransaction(action, {
+          orgId: payload.orgId,
+          stage: "wallet_pending",
+        });
+        const txHash = await writeContractAsync({
+          address: runtimeConfig.contracts.govCoreAddress,
+          abi: GOV_CORE_ABI,
+          functionName: "createBody",
+          args: [payload.orgIdBigInt, payload.bodyKindCode, payload.metadataUri],
+          chainId: runtimeConfig.chainId,
+        });
+
+        setBodyActionTransaction(action, {
+          orgId: payload.orgId,
+          stage: "submitted",
+          txHash,
+        });
+        setBodyActionTransaction(action, {
+          orgId: payload.orgId,
+          stage: "confirming",
+          txHash,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+
+        assertSuccessfulReceipt(receipt);
+        const created = parseBodyCreatedLog(
+          receipt,
+          runtimeConfig.contracts.govCoreAddress,
+        );
+        if (!created) {
+          throw new Error(
+            "Transaction confirmed, but BodyCreated was not found in the receipt.",
+          );
+        }
+
+        if (created.orgId !== payload.orgId) {
+          throw new Error(
+            `Transaction emitted body for org #${created.orgId}, but setup expected org #${payload.orgId}.`,
+          );
+        }
+
+        setBodyActionTransaction(action, {
+          bodyId: created.bodyId,
+          orgId: created.orgId,
+          stage: "confirmed_waiting_indexer",
+          txHash,
+        });
+        const body = await waitForIndexedBody({
+          client,
+          created,
+          txHash,
+        });
+
+        setState((current) => ({
+          ...current,
+          createBodies: {
+            ...current.createBodies,
+            [action.actionId]: {
+              actionId: action.actionId,
+              actionKind: action.kind,
+              bodyId: body.bodyId,
+              orgId: body.orgId,
+              stage: "indexed",
+              txHash,
+            },
+          },
+          resolvedBodies: {
+            ...current.resolvedBodies,
+            [action.actionId]: body,
+          },
+          resolvedBodyIds: {
+            ...current.resolvedBodyIds,
+            [action.actionId]: body.bodyId,
+          },
+        }));
+      } catch (error: unknown) {
+        setBodyActionTransaction(action, {
+          error: normalizeTransactionError(error),
+          orgId: payload.orgId,
+          stage: "failed",
+        });
+      }
+
+      function setBodyActionFailed(
+        failedAction: CreateBodySetupAction,
+        error: string,
+      ): void {
+        setBodyActionTransaction(failedAction, { stage: "failed", error });
+      }
+
+      function setBodyActionTransaction(
+        nextAction: CreateBodySetupAction,
+        transaction: Omit<SetupActionTransaction, "actionId" | "actionKind">,
+      ): void {
+        setState((current) => ({
+          ...current,
+          createBodies: {
+            ...current.createBodies,
+            [nextAction.actionId]: {
+              actionId: nextAction.actionId,
+              actionKind: nextAction.kind,
+              ...transaction,
+            },
+          },
+        }));
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      client,
+      createBodyActions,
+      publicClient,
+      resolvedOrgId,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setupWritesEnabled,
+      state.resolvedBodyIds,
+      writeContractAsync,
+    ],
+  );
+
   return {
     busy,
+    executeCreateBody,
     executeCreateOrganization,
     readiness,
     reset,
-    state,
+    state: returnedState,
   };
 }
 
@@ -289,6 +520,13 @@ interface CreateOrganizationPayload {
   readonly adminAddress: Address;
   readonly metadataUri: string;
   readonly slug: string;
+}
+
+interface CreateBodyPayload {
+  readonly bodyKindCode: number;
+  readonly metadataUri: string;
+  readonly orgId: string;
+  readonly orgIdBigInt: bigint;
 }
 
 function buildCreateOrganizationPayload(
@@ -307,6 +545,40 @@ function buildCreateOrganizationPayload(
     adminAddress: action.adminAddress,
     metadataUri: action.metadataUri ?? "",
     slug,
+  };
+}
+
+function buildCreateBodyPayload(
+  action: CreateBodySetupAction,
+  resolvedOrgId: string,
+): CreateBodyPayload | Error {
+  if (!action.active) {
+    return new Error(
+      "GovCore createBody creates active bodies only; inactive body drafts are not executable.",
+    );
+  }
+
+  const bodyKindCode = getBodyKindChainCode(action.bodyKind);
+  if (bodyKindCode === undefined) {
+    return new Error(`Unsupported body kind: ${action.bodyKind}.`);
+  }
+
+  let orgIdBigInt: bigint;
+  try {
+    orgIdBigInt = BigInt(resolvedOrgId);
+  } catch {
+    return new Error(`Resolved orgId is not a valid uint64 value: ${resolvedOrgId}.`);
+  }
+
+  if (orgIdBigInt <= 0n) {
+    return new Error(`Resolved orgId must be greater than zero: ${resolvedOrgId}.`);
+  }
+
+  return {
+    bodyKindCode,
+    metadataUri: action.metadataUri ?? "",
+    orgId: resolvedOrgId,
+    orgIdBigInt,
   };
 }
 
@@ -350,6 +622,44 @@ async function waitForIndexedOrganization({
 
   throw new Error(
     `Indexer timeout: organization from ${txHash} did not appear in Control Plane read models within ${
+      INDEXER_TIMEOUT_MS / 1_000
+    } seconds.${lastError ? ` Last API error: ${lastError.message}` : ""}`,
+  );
+}
+
+async function waitForIndexedBody({
+  client,
+  created,
+  txHash,
+}: {
+  readonly client: IsoniaControlPlaneClient;
+  readonly created: BodyCreatedLog;
+  readonly txHash: `0x${string}`;
+}): Promise<BodyDto> {
+  const deadline = Date.now() + INDEXER_TIMEOUT_MS;
+  let lastError: Error | undefined;
+
+  while (Date.now() < deadline) {
+    try {
+      const bodies = await client.getBodies(created.orgId);
+      const byCreatedId = bodies.find(
+        (body) =>
+          body.orgId === created.orgId &&
+          body.bodyId === created.bodyId &&
+          body.kind === created.kind,
+      );
+      if (byCreatedId) {
+        return byCreatedId;
+      }
+    } catch (error: unknown) {
+      lastError = toError(error);
+    }
+
+    await delay(INDEXER_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Indexer timeout: body #${created.bodyId} from ${txHash} did not appear in Control Plane read models within ${
       INDEXER_TIMEOUT_MS / 1_000
     } seconds.${lastError ? ` Last API error: ${lastError.message}` : ""}`,
   );
@@ -444,10 +754,28 @@ function getCreateOrganizationAction(
   );
 }
 
+function getCreateBodyActions(
+  actions: readonly SetupAction[],
+): readonly CreateBodySetupAction[] {
+  return actions.filter(
+    (action): action is CreateBodySetupAction =>
+      action.kind === SetupActionKind.CreateBody,
+  );
+}
+
 function assertSuccessfulReceipt(receipt: TransactionReceipt): void {
   if (receipt.status !== "success") {
     throw new Error("Transaction reverted on-chain.");
   }
+}
+
+function isBusyStage(stage: SetupActionLifecycleStage): boolean {
+  return (
+    stage === "wallet_pending" ||
+    stage === "submitted" ||
+    stage === "confirming" ||
+    stage === "confirmed_waiting_indexer"
+  );
 }
 
 function isConfiguredAddress(value: Address): boolean {
