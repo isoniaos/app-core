@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@isonia/sdk": ["../sdk/src/index.ts"],
+      "@isonia/types": ["../types/src/index.ts"]
+    }
+  }
+}

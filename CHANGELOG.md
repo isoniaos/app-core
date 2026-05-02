@@ -22,6 +22,9 @@ All notable changes to `@isonia/app-core` are documented here.
 
 - Runtime config loading now falls through from `isonia.config.local.json` to `isonia.config.json` before using built-in defaults.
 - Updated README shared package examples to current v0.5 alpha GitHub tags.
+- Default TypeScript and Vite builds now resolve `@isonia/sdk` and `@isonia/types` through declared package dependencies.
+- Workspace-source aliases for `../sdk/src` and `../types/src` are now opt-in through `ISONIA_WORKSPACE_SOURCES=true`.
+- Updated pinned shared package refs to `@isonia/types` `v0.5.0-alpha.5`, `@isonia/sdk` `v0.5.0-alpha.6`, and `@isonia/theme-default` `v0.5.0-alpha.2`.
 
 ## [0.5.0-alpha.2]
 
@@ -41,6 +44,6 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.5.0-alpha.2...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.5.0-alpha.6...HEAD
 [0.5.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.5.0-alpha.2
 [0.1.0]: https://github.com/isoniaos/app-core/releases/tag/v0.1.0

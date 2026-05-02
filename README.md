@@ -126,7 +126,7 @@ Example:
 
 The proposal details screen shows approve, veto, queue, execute, and cancel controls when `writeActions` is enabled and the proposal or route state makes the action relevant. These controls are UI hints only; the GovProposals contract decides authority and final validity. After a transaction receipt is confirmed, app-core polls Control Plane until proposal details or the route explanation reflect the indexed event.
 
-Execution remains intentionally narrow in v0.1. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
+Execution remains intentionally narrow in the v0.5 Developer Preview. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator.
 
@@ -163,14 +163,14 @@ Deployable app-core builds depend on pinned GitHub tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.3",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.5",
-  "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.1"
+  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.5",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.6",
+  "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.2"
 }
 ```
 
 Do not duplicate shared DTOs locally. Add shared domain types to `@isonia/types` first.
 
-For v0.5 workspace development, TypeScript and Vite resolve `@isonia/types` and `@isonia/sdk` to the adjacent `../types/src` and `../sdk/src` sources so app-core can consume current shared DTOs and SDK clients while alpha package tags are being prepared.
+Default builds resolve `@isonia/types` and `@isonia/sdk` through the declared package dependencies above. To test unpublished adjacent workspace sources, set `ISONIA_WORKSPACE_SOURCES=true`; Vite will alias those imports to `../types/src` and `../sdk/src`, and the package scripts will use `tsconfig.workspace-sources.json` for TypeScript.
 
 For local workspace development, `@isonia/theme-default` can be linked from `../theme-default` when testing unpublished theme changes. Deployable builds should return to pinned GitHub tags.
