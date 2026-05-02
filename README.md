@@ -126,7 +126,7 @@ Example:
 
 The proposal details screen shows approve, veto, queue, execute, and cancel controls when `writeActions` is enabled and the proposal or route state makes the action relevant. These controls are UI hints only; the GovProposals contract decides authority and final validity. After a transaction receipt is confirmed, app-core polls Control Plane until proposal details or the route explanation reflect the indexed event.
 
-Execution remains intentionally narrow in the v0.5 Developer Preview. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
+Execution remains intentionally narrow in the current v0.6 preparation baseline, inherited from the closed v0.5 Developer Preview. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator.
 
@@ -159,7 +159,7 @@ At runtime the app surfaces wallet setup diagnostics for:
 
 ## Shared Packages
 
-Deployable app-core builds depend on pinned GitHub tags:
+Deployable app-core builds depend on pinned known-good v0.5 compatibility tags:
 
 ```json
 {
