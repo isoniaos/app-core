@@ -103,38 +103,86 @@ const LOCAL_RUNTIME_CONFIG_PATH = "/isonia.config.local.json";
 const RUNTIME_CONFIG_PATH = "/isonia.config.json";
 
 export async function loadRuntimeConfig(configPath?: string): Promise<RuntimeConfig> {
+  if (configPath) {
+    return (
+      (await tryLoadRuntimeConfigFile(configPath, {
+        ignoreNotFound: false,
+      })) ?? fallBackToDefaultRuntimeConfig()
+    );
+  }
+
+  const localConfig = await tryLoadRuntimeConfigFile(
+    LOCAL_RUNTIME_CONFIG_PATH,
+    {
+      ignoreNotFound: true,
+    },
+  );
+  if (localConfig) {
+    return localConfig;
+  }
+
+  const runtimeConfig = await tryLoadRuntimeConfigFile(RUNTIME_CONFIG_PATH, {
+    ignoreNotFound: false,
+  });
+  return runtimeConfig ?? fallBackToDefaultRuntimeConfig();
+}
+
+async function tryLoadRuntimeConfigFile(
+  configPath: string,
+  options: { readonly ignoreNotFound: boolean },
+): Promise<RuntimeConfig | undefined> {
   try {
-    if (configPath) {
-      return await loadRuntimeConfigFile(configPath);
-    }
-
-    const localResponse = await fetch(LOCAL_RUNTIME_CONFIG_PATH, {
-      cache: "no-store",
-    });
-    if (localResponse.status !== 404) {
-      return await parseRuntimeConfigResponse(localResponse);
-    }
-
-    return await loadRuntimeConfigFile(RUNTIME_CONFIG_PATH);
+    return await loadRuntimeConfigFile(configPath);
   } catch (error) {
-    console.warn("Falling back to default IsoniaOS runtime config.", error);
-    return DEFAULT_RUNTIME_CONFIG;
+    if (options.ignoreNotFound && isRuntimeConfigHttpError(error, 404)) {
+      return undefined;
+    }
+    console.warn(
+      `Unable to load IsoniaOS runtime config from ${configPath}.`,
+      error,
+    );
+    return undefined;
   }
 }
 
 async function loadRuntimeConfigFile(configPath: string): Promise<RuntimeConfig> {
   const response = await fetch(configPath, { cache: "no-store" });
-  return parseRuntimeConfigResponse(response);
+  return parseRuntimeConfigResponse(configPath, response);
 }
 
 async function parseRuntimeConfigResponse(
+  configPath: string,
   response: Response,
 ): Promise<RuntimeConfig> {
   if (!response.ok) {
-    return DEFAULT_RUNTIME_CONFIG;
+    throw new RuntimeConfigHttpError(configPath, response);
   }
   const value = (await response.json()) as unknown;
   return parseRuntimeConfig(value);
+}
+
+function fallBackToDefaultRuntimeConfig(): RuntimeConfig {
+  console.warn("Falling back to default IsoniaOS runtime config.");
+  return DEFAULT_RUNTIME_CONFIG;
+}
+
+class RuntimeConfigHttpError extends Error {
+  readonly status: number;
+
+  constructor(configPath: string, response: Response) {
+    super(
+      `Unable to fetch runtime config from ${configPath}: HTTP ${response.status} ${response.statusText}`,
+    );
+    this.name = "RuntimeConfigHttpError";
+    this.status = response.status;
+  }
+}
+
+function isRuntimeConfigHttpError(
+  error: unknown,
+  status: number,
+): error is RuntimeConfigHttpError {
+  return error instanceof RuntimeConfigHttpError && error.status === status;
 }
 
 export function RuntimeConfigProvider({

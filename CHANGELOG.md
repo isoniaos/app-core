@@ -18,6 +18,11 @@ All notable changes to `@isonia/app-core` are documented here.
 - Setup execution now supports one-by-one `set_policy_rule` transactions after required bodies, roles, and mandates are indexed, including `PolicyRuleSet` receipt parsing and indexed policy version resolution.
 - Added a project wallet connection hook backed by Wagmi `useConnection` so feature code no longer imports deprecated account state directly.
 
+### Changed
+
+- Runtime config loading now falls through from `isonia.config.local.json` to `isonia.config.json` before using built-in defaults.
+- Updated README shared package examples to current v0.5 alpha GitHub tags.
+
 ## [0.5.0-alpha.2]
 
 ### Added

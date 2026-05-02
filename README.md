@@ -71,6 +71,8 @@ If that request returns 404, the app falls back to the committed/default runtime
 /isonia.config.json
 ```
 
+Safe built-in defaults are used only when neither runtime config file can be loaded.
+
 For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values.
 
 Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` in committed defaults and examples so app-core falls back to injected wallet mode when no local or deployment-specific project ID is provided.
@@ -161,9 +163,9 @@ Deployable app-core builds depend on pinned GitHub tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.1",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.1",
-  "@isonia/theme-default": "github:isoniaos/theme-default#v0.1.0"
+  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.3",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.5",
+  "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.1"
 }
 ```
 
@@ -171,4 +173,4 @@ Do not duplicate shared DTOs locally. Add shared domain types to `@isonia/types`
 
 For v0.5 workspace development, TypeScript and Vite resolve `@isonia/types` and `@isonia/sdk` to the adjacent `../types/src` and `../sdk/src` sources so app-core can consume current shared DTOs and SDK clients while alpha package tags are being prepared.
 
-For local workspace development, `@isonia/theme-default` can be linked from `../theme-default`. Switch the dependency to `github:isoniaos/theme-default#v0.1.0` only after that tag exists in the public theme repository.
+For local workspace development, `@isonia/theme-default` can be linked from `../theme-default` when testing unpublished theme changes. Deployable builds should return to pinned GitHub tags.
