@@ -10,11 +10,11 @@ import type {
   SetupActionKind,
 } from "@isonia/types";
 import type {
-  useAccount,
   usePublicClient,
   useWriteContract,
 } from "wagmi";
 import type { RuntimeConfig } from "../../config/runtime-config";
+import type { WalletConnection } from "../../wallet/useWalletConnection";
 
 export type SetupActionLifecycleStage =
   | "idle"
@@ -69,7 +69,7 @@ export type SetupExecutionStateUpdater = (
 ) => void;
 
 export type SetupExecutionAccount = Pick<
-  ReturnType<typeof useAccount>,
+  WalletConnection,
   "address" | "chainId" | "isConnected"
 >;
 

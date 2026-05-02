@@ -5,11 +5,7 @@ import type { Address, Bytes32Hash, ProposalDto } from "@isonia/types";
 import { ProposalType } from "@isonia/types";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isAddress } from "viem";
-import {
-  useAccount,
-  usePublicClient,
-  useWriteContract,
-} from "wagmi";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import {
   buildDemoSetNumberAction,
@@ -24,6 +20,10 @@ import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatAddress, formatLabel } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
+import {
+  useWalletConnection,
+  type WalletConnection,
+} from "../../wallet/useWalletConnection";
 
 type TargetMode = "demo" | "custom";
 
@@ -70,7 +70,7 @@ export function CreateProposalPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
   const navigate = useNavigate();
-  const account = useAccount();
+  const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const orgId = requireParam(useParams().orgId, "orgId");
@@ -674,7 +674,7 @@ function getBlockingNotice({
   runtimeChainId,
   writeFlowEnabled,
 }: {
-  readonly account: ReturnType<typeof useAccount>;
+  readonly account: WalletConnection;
   readonly publicClientReady: boolean;
   readonly runtimeChainId: number;
   readonly writeFlowEnabled: boolean;

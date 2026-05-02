@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import type { SetupDraft } from "@isonia/types";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import { useWalletConnection } from "../../wallet/useWalletConnection";
 import { executeAssignMandateAction } from "./assign-mandate-executor";
 import { executeCreateBodyAction } from "./create-body-executor";
 import { executeCreateOrganizationAction } from "./create-organization-executor";
@@ -50,7 +51,7 @@ export function useSetupActionExecution({
 } {
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
-  const account = useAccount();
+  const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<SetupDraftExecutionState>(

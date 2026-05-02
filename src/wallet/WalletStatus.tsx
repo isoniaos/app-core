@@ -1,19 +1,20 @@
 import { createElement } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useConnect, useDisconnect } from "wagmi";
 import type { WalletSetupDiagnostic } from "../chain/wallet-setup";
 import { formatAddress } from "../utils/format";
 import { useWalletSetup } from "./WalletProvider";
+import { useWalletConnection } from "./useWalletConnection";
 
 export function WalletStatus(): JSX.Element {
   const setup = useWalletSetup();
-  const account = useAccount();
+  const connection = useWalletConnection();
 
   if (setup.appKitEnabled) {
     return (
       <div className="wallet-status">
         {createElement("appkit-button")}
-        {account.chainId ? (
-          <span className="wallet-chain">Chain {account.chainId}</span>
+        {connection.chainId ? (
+          <span className="wallet-chain">Chain {connection.chainId}</span>
         ) : null}
         <WalletDiagnostics diagnostics={setup.diagnostics} />
       </div>
@@ -25,15 +26,15 @@ export function WalletStatus(): JSX.Element {
 
 function InjectedWalletStatus(): JSX.Element {
   const setup = useWalletSetup();
-  const account = useAccount();
+  const connection = useWalletConnection();
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
 
-  if (account.isConnected) {
+  if (connection.isConnected) {
     return (
       <div className="wallet-status">
         <span className="wallet-address">
-          {account.address ? formatAddress(account.address) : "Connected"}
+          {connection.address ? formatAddress(connection.address) : "Connected"}
         </span>
         <button
           className="button button-small"

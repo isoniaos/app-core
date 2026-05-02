@@ -147,6 +147,8 @@ The wallet config controls the connection UX:
 
 wagmi and viem remain the core EVM interaction layer in both modes. Reown AppKit is only the optional multi-wallet UX layer.
 
+App-core feature code must read wallet connection state through `src/wallet/useWalletConnection.ts`. Do not import Wagmi account or connection-state hooks directly in feature components or feature hooks; keep Wagmi connection API changes contained in that project adapter.
+
 At runtime the app surfaces wallet setup diagnostics for:
 
 - invalid chain or RPC config, which blocks startup and reports the exact bad field;

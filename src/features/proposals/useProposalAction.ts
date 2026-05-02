@@ -7,10 +7,11 @@ import type {
 } from "@isonia/types";
 import { ProposalStatus } from "@isonia/types";
 import type { Hex, TransactionReceipt } from "viem";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { GOV_PROPOSALS_ABI } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import { useWalletConnection } from "../../wallet/useWalletConnection";
 
 export type ProposalActionKind =
   | "approve"
@@ -86,7 +87,7 @@ export function useProposalAction({
 } {
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
-  const account = useAccount();
+  const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const [transaction, setTransaction] = useState<ProposalActionTransaction>({

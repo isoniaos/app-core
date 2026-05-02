@@ -16,6 +16,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Setup execution now supports one-by-one `create_role` transactions after body indexing, including `RoleCreated` receipt parsing and indexed role ID resolution.
 - Setup execution now supports one-by-one `assign_mandate` transactions after role indexing, including `MandateAssigned` receipt parsing and indexed mandate ID resolution.
 - Setup execution now supports one-by-one `set_policy_rule` transactions after required bodies, roles, and mandates are indexed, including `PolicyRuleSet` receipt parsing and indexed policy version resolution.
+- Added a project wallet connection hook backed by Wagmi `useConnection` so feature code no longer imports deprecated account state directly.
 
 ## [0.5.0-alpha.2]
 
