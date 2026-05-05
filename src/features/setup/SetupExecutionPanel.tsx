@@ -10,8 +10,9 @@ import type {
 import { SetupActionKind } from "@isonia/types";
 import { Link } from "react-router-dom";
 import { buildOrganizationSlug } from "../../chain/setup-contracts";
+import { AddressDisplay, validateAddressInput } from "../../ui/address";
 import { StatusBadge } from "../../ui/StatusBadge";
-import { formatAddress, formatLabel, formatNumericString } from "../../utils/format";
+import { formatLabel, formatNumericString } from "../../utils/format";
 import type {
   SetupActionLifecycleStage,
   SetupActionReadiness,
@@ -317,7 +318,7 @@ function ResolvedOrganizationSummary({
       </div>
       <div>
         <dt>Admin</dt>
-        <dd>{formatAddress(organization.adminAddress)}</dd>
+        <dd>{renderSetupAddress(organization.adminAddress)}</dd>
       </div>
       <div>
         <dt>Created block</dt>
@@ -779,7 +780,7 @@ function AssignMandateActionCard({
           <div>
             <strong>{action.label}</strong>
             <span>
-              {formatAddress(action.holderAddress)};{" "}
+              {renderSetupAddress(action.holderAddress)};{" "}
               {resolvedMandateId
                 ? `resolved mandateId #${resolvedMandateId}`
                 : resolvedRoleId
@@ -844,7 +845,7 @@ function AssignMandateActionCard({
           </div>
           <div>
             <dt>Holder</dt>
-            <dd>{formatAddress(resolvedMandate.holderAddress)}</dd>
+            <dd>{renderSetupAddress(resolvedMandate.holderAddress)}</dd>
           </div>
           <div>
             <dt>Scope mask</dt>
@@ -1977,6 +1978,39 @@ function formatBodyIds(bodyIds: readonly string[]): string {
   return bodyIds.length === 0
     ? "None"
     : bodyIds.map((bodyId) => `Body #${bodyId}`).join(", ");
+}
+
+function renderSetupAddress(value: string): JSX.Element | string {
+  const validation = validateAddressInput(value, {
+    allowZeroAddress: false,
+    required: true,
+  });
+
+  if (validation.status === "empty") {
+    return "Not set";
+  }
+
+  if (validation.status === "zero_address") {
+    return (
+      <AddressDisplay
+        copyable
+        invalid
+        label="Zero address"
+        size="compact"
+        value={value}
+      />
+    );
+  }
+
+  return (
+    <AddressDisplay
+      copyable
+      invalid={!validation.isValid}
+      shorten={validation.isValid}
+      size="compact"
+      value={value}
+    />
+  );
 }
 
 function formatRoleReference(

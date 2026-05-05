@@ -1,3 +1,4 @@
+import { AddressInput, MultiAddressInput } from "../../ui/address";
 import type {
   SimpleDaoPlusDraftInputs,
   SimpleDaoPlusExecutorBodyChoice,
@@ -62,20 +63,14 @@ export function SimpleDaoPlusDraftForm({
           />
         </label>
 
-        <label className="form-field form-field-wide">
-          <span>Organization admin address</span>
-          <input
-            autoComplete="off"
-            className="mono-input"
-            disabled={disabled}
-            placeholder="0x..."
-            type="text"
-            value={inputs.organizationAdminAddress}
-            onChange={(event) =>
-              update("organizationAdminAddress", event.target.value)
-            }
-          />
-        </label>
+        <AddressInput
+          className="form-field-wide"
+          disabled={disabled}
+          label="Organization admin address"
+          required
+          value={inputs.organizationAdminAddress}
+          onChange={(value) => update("organizationAdminAddress", value)}
+        />
 
         <AddressListField
           disabled={disabled}
@@ -100,20 +95,13 @@ export function SimpleDaoPlusDraftForm({
           onChange={(value) => update("securityCouncilHolderAddresses", value)}
         />
 
-        <label className="form-field">
-          <span>Executor holder address</span>
-          <input
-            autoComplete="off"
-            className="mono-input"
-            disabled={disabled}
-            placeholder="0x..."
-            type="text"
-            value={inputs.executorHolderAddress}
-            onChange={(event) =>
-              update("executorHolderAddress", event.target.value)
-            }
-          />
-        </label>
+        <AddressInput
+          disabled={disabled}
+          label="Executor holder address"
+          required
+          value={inputs.executorHolderAddress}
+          onChange={(value) => update("executorHolderAddress", value)}
+        />
 
         <label className="form-field">
           <span>Standard and upgrade executor body</span>
@@ -176,18 +164,16 @@ function AddressListField({
   readonly value: readonly string[];
 }): JSX.Element {
   return (
-    <label className="form-field form-field-wide">
-      <span>{label}</span>
-      <textarea
-        autoComplete="off"
-        className="mono-input"
-        disabled={disabled}
-        placeholder={"0x...\n0x..."}
-        rows={3}
-        value={value.join("\n")}
-        onChange={(event) => onChange(parseAddressList(event.target.value))}
-      />
-    </label>
+    <MultiAddressInput
+      className="form-field-wide"
+      disabled={disabled}
+      label={label}
+      normalizeOutput={false}
+      placeholder="Paste or type addresses"
+      required
+      value={value}
+      onChange={onChange}
+    />
   );
 }
 
@@ -216,11 +202,4 @@ function TimelockField({
       />
     </label>
   );
-}
-
-function parseAddressList(value: string): readonly string[] {
-  return value
-    .split(/[\s,;]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
 }

@@ -1598,6 +1598,14 @@ td {
   font-size: 0.84rem;
 }
 
+.setup-action-summary {
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .setup-action-index {
   display: inline-grid;
   width: 28px;

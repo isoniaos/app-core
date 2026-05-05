@@ -25,6 +25,9 @@ All notable changes to `@isonia/app-core` are documented here.
 ### Changed
 
 - Prepared repository context for v0.6 alpha work after the closed v0.5 compatibility set.
+- Simple DAO+ setup now uses the reusable address input, multi-address holder
+  input, and address display primitives for organization admin, executor, holder,
+  draft review, and setup execution address surfaces.
 - Runtime config loading now falls through from `isonia.config.local.json` to `isonia.config.json` before using built-in defaults.
 - Updated README shared package examples to known-good v0.5 alpha GitHub tags.
 - Default TypeScript and Vite builds now resolve `@isonia/sdk` and `@isonia/types` through declared package dependencies.

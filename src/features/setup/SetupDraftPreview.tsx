@@ -12,12 +12,10 @@ import type {
   TemplateDescriptor,
 } from "@isonia/types";
 import { SetupActionKind, SetupDraftStatus } from "@isonia/types";
+import type { ReactNode } from "react";
+import { AddressDisplay, validateAddressInput } from "../../ui/address";
 import { StatusBadge } from "../../ui/StatusBadge";
-import {
-  formatAddress,
-  formatLabel,
-  formatNumericString,
-} from "../../utils/format";
+import { formatLabel, formatNumericString } from "../../utils/format";
 import type { SetupValidationSummary } from "./setup-validation";
 import { summarizeSetupValidationWarnings } from "./setup-validation";
 
@@ -175,9 +173,9 @@ export function SetupDraftPreview({
             </div>
             <div>
               <dt>Admin</dt>
-              <dd className="mono-value">
+              <dd>
                 {draft.organization.adminAddress
-                  ? formatDraftAddress(draft.organization.adminAddress)
+                  ? renderDraftAddress(draft.organization.adminAddress)
                   : "Not set"}
               </dd>
             </div>
@@ -463,7 +461,7 @@ function getWarningReasonClass(
   }
 }
 
-function getActionSummary(action: SetupAction): string {
+function getActionSummary(action: SetupAction): ReactNode {
   switch (action.kind) {
     case SetupActionKind.CreateOrganization:
       return getCreateOrganizationSummary(action);
@@ -480,11 +478,13 @@ function getActionSummary(action: SetupAction): string {
 
 function getCreateOrganizationSummary(
   action: CreateOrganizationSetupAction,
-): string {
-  const metadata = action.metadataUri ? `; metadata ${action.metadataUri}` : "";
-  return `${action.fallbackName}; admin ${formatDraftAddress(
-    action.adminAddress,
-  )}${metadata}`;
+): ReactNode {
+  return (
+    <span className="setup-action-summary">
+      {action.fallbackName}; admin {renderDraftAddress(action.adminAddress)}
+      {action.metadataUri ? `; metadata ${action.metadataUri}` : ""}
+    </span>
+  );
 }
 
 function getCreateBodySummary(action: CreateBodySetupAction): string {
@@ -497,11 +497,16 @@ function getCreateRoleSummary(action: CreateRoleSetupAction): string {
   return `${formatLabel(action.roleType)} in ${formatReference(action.bodyRef)}`;
 }
 
-function getAssignMandateSummary(action: AssignMandateSetupAction): string {
+function getAssignMandateSummary(
+  action: AssignMandateSetupAction,
+): ReactNode {
   const scopes = action.proposalTypes?.map(formatLabel).join(", ");
-  return `${formatDraftAddress(action.holderAddress)}; scope ${
-    scopes ?? `mask ${action.proposalTypeMask}`
-  }`;
+  return (
+    <span className="setup-action-summary">
+      {renderDraftAddress(action.holderAddress)}; scope{" "}
+      {scopes ?? `mask ${action.proposalTypeMask}`}
+    </span>
+  );
 }
 
 function getSetPolicyRuleSummary(action: SetPolicyRuleSetupAction): string {
@@ -531,10 +536,35 @@ function formatReference(reference: SetupEntityReference): string {
   return reference.draftId ?? "unresolved";
 }
 
-function formatDraftAddress(value: string): string {
-  if (value.toLowerCase() === "0x0000000000000000000000000000000000000000") {
-    return "Zero address";
+function renderDraftAddress(value: string): ReactNode {
+  const validation = validateAddressInput(value, {
+    allowZeroAddress: false,
+    required: true,
+  });
+
+  if (validation.status === "empty") {
+    return "Not set";
   }
 
-  return formatAddress(value);
+  if (validation.status === "zero_address") {
+    return (
+      <AddressDisplay
+        copyable
+        invalid
+        label="Zero address"
+        size="compact"
+        value={value}
+      />
+    );
+  }
+
+  return (
+    <AddressDisplay
+      copyable
+      invalid={!validation.isValid}
+      shorten={validation.isValid}
+      size="compact"
+      value={value}
+    />
+  );
 }
