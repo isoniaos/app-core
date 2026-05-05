@@ -8,6 +8,9 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Added
 
+- Added reusable address primitives for v0.6, including deterministic avatars,
+  address display, single and multi-address inputs, removable chips, parsing,
+  validation, normalization, deduplication utilities, and address utility tests.
 - Added v0.6 address component implementation preparation notes.
 - Added this changelog for release tracking and future release notes.
 - Runtime config now supports an ignored `isonia.config.local.json` override before falling back to `isonia.config.json`.

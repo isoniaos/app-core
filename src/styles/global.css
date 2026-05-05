@@ -385,6 +385,223 @@ td {
   font-size: 0.84rem;
 }
 
+.address-avatar {
+  display: block;
+  width: var(--iso-address-size, var(--iso-address-avatar-size, 22px));
+  height: var(--iso-address-size, var(--iso-address-avatar-size, 22px));
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--iso-address-avatar-radius, 2px);
+}
+
+.address-display,
+.address-chip,
+.address-input,
+.multi-address-input {
+  font-family: var(--iso-font-mono);
+  letter-spacing: var(--iso-address-letter-spacing, 0.004em);
+}
+
+.address-display {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--iso-state-color, var(--iso-color-foreground));
+  font-size: 1rem;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.address-display-compact {
+  gap: 0.3rem;
+  font-size: 0.84rem;
+}
+
+.address-display-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-display-invalid .address-display-value {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+.address-copy-button {
+  min-height: 26px;
+  border: 1px solid var(--iso-state-border, var(--iso-color-border));
+  border-radius: var(--iso-radius-sm);
+  padding: 0 0.45rem;
+  background: var(--iso-state-surface, var(--iso-color-surface-subtle));
+  color: var(--iso-state-color, var(--iso-color-muted));
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.address-copy-button:hover {
+  border-color: var(--iso-color-primary);
+  color: var(--iso-color-foreground);
+}
+
+.address-field {
+  display: grid;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.address-field-label {
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.address-input-shell,
+.multi-address-input-shell {
+  width: 100%;
+  border: 1px solid var(--iso-state-border, var(--iso-color-border));
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-background);
+  color: var(--iso-color-foreground);
+}
+
+.address-input-shell:focus-within,
+.multi-address-input-shell:focus-within {
+  outline: 2px solid var(--iso-state-color, var(--iso-color-primary));
+  outline-offset: 1px;
+}
+
+.address-input-shell {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.65rem;
+}
+
+.address-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  outline: 0;
+}
+
+.address-input::placeholder,
+.multi-address-input::placeholder {
+  color: var(--iso-color-muted);
+}
+
+.address-input-mark {
+  min-width: 1.65rem;
+  color: var(--iso-state-color, var(--iso-color-muted));
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.address-input-feedback {
+  color: var(--iso-state-color, var(--iso-color-muted));
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.address-field-compact .address-input-shell {
+  min-height: 34px;
+}
+
+.address-field-compact .address-input,
+.address-field-compact .multi-address-input {
+  font-size: 0.86rem;
+}
+
+.multi-address-input-shell {
+  display: flex;
+  min-height: 42px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem;
+}
+
+.multi-address-input {
+  min-width: min(16rem, 100%);
+  flex: 1 1 12rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  outline: 0;
+  padding: 0.32rem 0.25rem;
+}
+
+.address-chip {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid var(--iso-state-border, var(--iso-color-border));
+  border-radius: var(--iso-radius-sm);
+  padding: 0.22rem 0.32rem 0.22rem 0.4rem;
+  background: var(--iso-state-surface, var(--iso-color-surface-subtle));
+  color: var(--iso-state-color, var(--iso-color-foreground));
+  font-size: 0.86rem;
+}
+
+.address-chip-compact {
+  min-height: 28px;
+  font-size: 0.78rem;
+}
+
+.address-chip-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-chip-state {
+  flex: 0 0 auto;
+  border-radius: var(--iso-radius-sm);
+  padding: 0.08rem 0.28rem;
+  background: color-mix(in srgb, var(--iso-state-color, var(--iso-color-muted)) 12%, transparent);
+  font-family: var(--iso-font-sans);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.address-chip-remove {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--iso-radius-sm);
+  background: transparent;
+  color: var(--iso-state-color, var(--iso-color-muted));
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.address-chip-remove:hover,
+.address-chip-remove:focus-visible {
+  background: color-mix(in srgb, var(--iso-state-color, var(--iso-color-muted)) 16%, transparent);
+  outline: 0;
+}
+
 .segmented-control {
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

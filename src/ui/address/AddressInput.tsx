@@ -1,0 +1,159 @@
+import type { Address } from "@isonia/types";
+import type { ChangeEvent, FocusEvent } from "react";
+import { useEffect, useId, useMemo } from "react";
+import {
+  validateAddressInput,
+  type AddressValidationResult,
+} from "./address-utils";
+
+export interface AddressInputProps {
+  readonly allowZeroAddress?: boolean;
+  readonly autoComplete?: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly id?: string;
+  readonly label?: string;
+  readonly name?: string;
+  readonly normalizeOnBlur?: boolean;
+  readonly onChange: (
+    value: string,
+    validation: AddressValidationResult,
+  ) => void;
+  readonly onNormalizedAddressChange?: (
+    value: Address | undefined,
+    validation: AddressValidationResult,
+  ) => void;
+  readonly onValidationChange?: (validation: AddressValidationResult) => void;
+  readonly placeholder?: string;
+  readonly required?: boolean;
+  readonly size?: "normal" | "compact";
+  readonly value: string;
+}
+
+export function AddressInput({
+  allowZeroAddress = false,
+  autoComplete = "off",
+  className,
+  disabled = false,
+  id,
+  label,
+  name,
+  normalizeOnBlur = false,
+  onChange,
+  onNormalizedAddressChange,
+  onValidationChange,
+  placeholder = "0x...",
+  required = false,
+  size = "normal",
+  value,
+}: AddressInputProps): JSX.Element {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const feedbackId = `${inputId}-feedback`;
+  const validation = useMemo(
+    () => validateAddressInput(value, { allowZeroAddress, required }),
+    [allowZeroAddress, required, value],
+  );
+  const isInvalid =
+    validation.status !== "empty" && validation.status !== "valid";
+
+  useEffect(() => {
+    onValidationChange?.(validation);
+  }, [onValidationChange, validation]);
+
+  function handleChange(event: ChangeEvent<HTMLInputElement>): void {
+    const nextValue = event.target.value;
+    const nextValidation = validateAddressInput(nextValue, {
+      allowZeroAddress,
+      required,
+    });
+
+    onChange(nextValue, nextValidation);
+    onNormalizedAddressChange?.(
+      nextValidation.normalizedAddress,
+      nextValidation,
+    );
+  }
+
+  function handleBlur(event: FocusEvent<HTMLInputElement>): void {
+    if (!normalizeOnBlur || !validation.normalizedAddress) {
+      return;
+    }
+
+    if (event.target.value === validation.normalizedAddress) {
+      return;
+    }
+
+    const nextValidation = validateAddressInput(validation.normalizedAddress, {
+      allowZeroAddress,
+      required,
+    });
+
+    onChange(validation.normalizedAddress, nextValidation);
+    onNormalizedAddressChange?.(
+      nextValidation.normalizedAddress,
+      nextValidation,
+    );
+  }
+
+  return (
+    <div
+      className={[
+        "address-field",
+        `address-field-${size}`,
+        `iso-state-${validation.tone}`,
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {label ? (
+        <label className="address-field-label" htmlFor={inputId}>
+          {label}
+        </label>
+      ) : null}
+      <div
+        className={[
+          "address-input-shell",
+          `address-input-${validation.status}`,
+        ].join(" ")}
+      >
+        <input
+          aria-describedby={feedbackId}
+          aria-invalid={isInvalid}
+          autoComplete={autoComplete}
+          className="address-input"
+          disabled={disabled}
+          id={inputId}
+          name={name}
+          placeholder={placeholder}
+          required={required}
+          spellCheck={false}
+          type="text"
+          value={value}
+          onBlur={handleBlur}
+          onChange={handleChange}
+        />
+        <span aria-hidden="true" className="address-input-mark">
+          {getStatusMark(validation)}
+        </span>
+      </div>
+      <span className="address-input-feedback" id={feedbackId}>
+        {validation.message}
+      </span>
+    </div>
+  );
+}
+
+function getStatusMark(validation: AddressValidationResult): string {
+  switch (validation.status) {
+    case "valid":
+      return "OK";
+    case "empty":
+      return "";
+    case "invalid_checksum":
+    case "invalid_format":
+    case "zero_address":
+      return "!";
+  }
+}

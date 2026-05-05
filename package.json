@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "node scripts/typecheck-app.mjs --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
     "preview": "vite preview",
+    "test:address": "node scripts/test-address-utils.mjs",
     "typecheck": "node scripts/typecheck-app.mjs --noEmit --pretty false && tsc -p tsconfig.node.json --noEmit --pretty false"
   },
   "dependencies": {
