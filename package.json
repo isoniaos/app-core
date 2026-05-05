@@ -1,6 +1,6 @@
 {
   "name": "@isonia/app-core",
-  "version": "0.5.0-alpha.7",
+  "version": "0.6.0-alpha.1",
   "description": "Public self-hostable governance console foundation for IsoniaOS",
   "license": "MIT",
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.6",
-    "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.2",
+    "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.1",
     "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.5",
     "@reown/appkit": "1.8.19",
     "@reown/appkit-adapter-wagmi": "1.8.19",
