@@ -6,9 +6,17 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.5]
+
+### Added
+
+- Added app-core linting and CI lint/typecheck/address-test checks.
+
 ### Changed
 
 - Added repository line-ending policy with `.gitattributes` for v0.6 hardening.
+- Package version bumped to `0.6.0-alpha.5`.
+- Node engine baseline remains `>=22`.
 
 ## [0.6.0-alpha.4]
 
@@ -84,6 +92,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Default theme integration through `@isonia/theme-default`.
 
 [Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.4...HEAD
+[0.6.0-alpha.5]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.5
 [0.6.0-alpha.4]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.4
 [0.6.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.3
 [0.6.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.2
