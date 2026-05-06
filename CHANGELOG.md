@@ -6,6 +6,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Added repository line-ending policy with `.gitattributes` for v0.6 hardening.
+
 ## [0.6.0-alpha.4]
 
 ### Changed
