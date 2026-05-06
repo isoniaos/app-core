@@ -8,6 +8,13 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Added
 
+- Added a guided Simple DAO+ setup wizard shell over the existing browser-side draft flow, with template, identity, bodies, holders, policy route, and draft review steps.
+- Added a persistent v0.6 review backlog for release hygiene and non-blocking app-core review notes.
+
+## [0.6.0-alpha.1]
+
+### Added
+
 - Added reusable address primitives for v0.6, including deterministic avatars,
   address display, single and multi-address inputs, removable chips, parsing,
   validation, normalization, deduplication utilities, and address utility tests.
@@ -21,7 +28,6 @@ All notable changes to `@isonia/app-core` are documented here.
 - Setup execution now supports one-by-one `assign_mandate` transactions after role indexing, including `MandateAssigned` receipt parsing and indexed mandate ID resolution.
 - Setup execution now supports one-by-one `set_policy_rule` transactions after required bodies, roles, and mandates are indexed, including `PolicyRuleSet` receipt parsing and indexed policy version resolution.
 - Added a project wallet connection hook backed by Wagmi `useConnection` so feature code no longer imports deprecated account state directly.
-- Added a guided Simple DAO+ setup wizard shell over the existing browser-side draft flow, with template, identity, bodies, holders, policy route, and draft review steps.
 
 ### Changed
 
@@ -53,6 +59,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.5.0-alpha.7...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.1...HEAD
+[0.6.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.1
 [0.5.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.5.0-alpha.2
 [0.1.0]: https://github.com/isoniaos/app-core/releases/tag/v0.1.0
