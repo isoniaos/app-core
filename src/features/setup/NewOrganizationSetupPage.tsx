@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
-import { SimpleDaoPlusDraftForm } from "./SimpleDaoPlusDraftForm";
+import { SimpleDaoPlusSetupWizard } from "./SimpleDaoPlusSetupWizard";
 import {
   createSimpleDaoPlusDraft,
   DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS,
@@ -12,7 +12,6 @@ import {
 } from "./setup-templates";
 import { SetupCompletionSummary } from "./SetupCompletionSummary";
 import { SetupExecutionPanel } from "./SetupExecutionPanel";
-import { SetupDraftPreview, TemplateSelection } from "./SetupDraftPreview";
 import { verifySetupCompletion } from "./setup-completion-verification";
 import { useSetupCompletionReadModels } from "./useSetupCompletionReadModels";
 import { useSetupActionExecution } from "./useSetupActionExecution";
@@ -71,16 +70,14 @@ export function NewOrganizationSetupPage(): JSX.Element {
         </StatusBadge>
       </div>
 
-      <TemplateSelection
+      <SimpleDaoPlusSetupWizard
+        disabled={draftInputsLocked}
+        draft={draft}
+        inputs={inputs}
         selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
         templates={SETUP_TEMPLATES}
-      />
-      <SimpleDaoPlusDraftForm
-        disabled={draftInputsLocked}
-        inputs={inputs}
         onChange={setInputs}
       />
-      <SetupDraftPreview draft={draft} />
       <SetupExecutionPanel
         busy={execution.busy}
         draft={draft}

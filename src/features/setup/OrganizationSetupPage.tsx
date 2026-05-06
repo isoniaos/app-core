@@ -9,7 +9,7 @@ import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
 import { formatLabel, formatNumericString } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
-import { SimpleDaoPlusDraftForm } from "./SimpleDaoPlusDraftForm";
+import { SimpleDaoPlusSetupWizard } from "./SimpleDaoPlusSetupWizard";
 import {
   createSimpleDaoPlusDraft,
   DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS,
@@ -17,7 +17,6 @@ import {
   SIMPLE_DAO_PLUS_TEMPLATE_ID,
 } from "./setup-templates";
 import { SetupCompletionSummary } from "./SetupCompletionSummary";
-import { SetupDraftPreview, TemplateSelection } from "./SetupDraftPreview";
 import { verifySetupCompletion } from "./setup-completion-verification";
 import { useSetupCompletionReadModels } from "./useSetupCompletionReadModels";
 
@@ -70,12 +69,13 @@ export function OrganizationSetupPage(): JSX.Element {
         </StatusBadge>
       </div>
 
-      <TemplateSelection
+      <SimpleDaoPlusSetupWizard
+        draft={draft}
+        inputs={inputs}
         selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
         templates={SETUP_TEMPLATES}
+        onChange={setInputs}
       />
-      <SimpleDaoPlusDraftForm inputs={inputs} onChange={setInputs} />
-      <SetupDraftPreview draft={draft} />
       <SetupCompletionSummary
         completion={completion}
         error={completionReadModels.error}
