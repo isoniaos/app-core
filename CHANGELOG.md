@@ -6,6 +6,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Improved setup execution UX with clearer lifecycle labels, transaction hash visibility, Control Plane waiting guidance, failure recovery hints, and an execution summary.
+
 ## [0.6.0-alpha.2]
 
 ### Added

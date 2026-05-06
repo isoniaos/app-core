@@ -10,9 +10,14 @@ import type {
 import { SetupActionKind } from "@isonia/types";
 import { Link } from "react-router-dom";
 import { buildOrganizationSlug } from "../../chain/setup-contracts";
+import { useRuntimeConfig } from "../../config/runtime-config";
 import { AddressDisplay, validateAddressInput } from "../../ui/address";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel, formatNumericString } from "../../utils/format";
+import {
+  getSetupActionStageLabel,
+  SetupTransactionStatus,
+} from "./SetupTransactionStatus";
 import type {
   SetupActionLifecycleStage,
   SetupActionReadiness,
@@ -45,6 +50,7 @@ export function SetupExecutionPanel({
   reset,
   state,
 }: SetupExecutionPanelProps): JSX.Element {
+  const runtimeConfig = useRuntimeConfig();
   const createOrganizationAction = draft.actions.find(
     (action) => action.kind === SetupActionKind.CreateOrganization,
   );
@@ -67,6 +73,16 @@ export function SetupExecutionPanel({
     roleActions,
     state,
   });
+  const executionSummary = getSetupExecutionSummary({
+    bodyActions,
+    busy,
+    draft,
+    mandateActions,
+    policyActions,
+    readiness,
+    roleActions,
+    state,
+  });
 
   return (
     <section className="panel setup-execution-panel">
@@ -85,12 +101,15 @@ export function SetupExecutionPanel({
 
       {readiness ? <SetupReadinessNotice readiness={readiness} /> : null}
 
+      <SetupExecutionSummary summary={executionSummary} />
+
       {createOrganizationAction ? (
         <CreateOrganizationActionCard
           action={createOrganizationAction}
           busy={busy}
           disabled={submitDisabled}
           executeCreateOrganization={executeCreateOrganization}
+          readiness={readiness}
           resolvedOrgId={state.resolvedOrgId}
           transaction={state.createOrganization}
         />
@@ -103,7 +122,8 @@ export function SetupExecutionPanel({
         </div>
       )}
 
-      <SetupActionLifecycle
+      <SetupTransactionStatus
+        blockExplorerUrl={runtimeConfig.blockExplorerUrl}
         emittedIdLabel={
           state.createOrganization.orgId
             ? `Organization #${state.createOrganization.orgId}`
@@ -122,6 +142,7 @@ export function SetupExecutionPanel({
 
       <DependentActionsPanel
         actions={dependentActions}
+        blockExplorerUrl={runtimeConfig.blockExplorerUrl}
         busy={busy}
         executeAssignMandate={executeAssignMandate}
         executeCreateBody={executeCreateBody}
@@ -139,6 +160,7 @@ function CreateOrganizationActionCard({
   busy,
   disabled,
   executeCreateOrganization,
+  readiness,
   resolvedOrgId,
   transaction,
 }: {
@@ -146,6 +168,7 @@ function CreateOrganizationActionCard({
   readonly busy: boolean;
   readonly disabled: boolean;
   readonly executeCreateOrganization: () => Promise<void>;
+  readonly readiness: SetupActionReadiness | undefined;
   readonly resolvedOrgId: string | undefined;
   readonly transaction: SetupActionTransaction;
 }): JSX.Element {
@@ -166,8 +189,18 @@ function CreateOrganizationActionCard({
               : "Unsupported setup action"}
           </span>
         </div>
-        <StatusBadge tone={resolvedOrgId ? "success" : "warning"}>
-          {resolvedOrgId ? `Org #${resolvedOrgId}` : "Executable"}
+        <StatusBadge
+          tone={getCreateOrganizationActionTone({
+            readiness,
+            resolvedOrgId,
+            transaction,
+          })}
+        >
+          {getCreateOrganizationActionStatusLabel({
+            readiness,
+            resolvedOrgId,
+            transaction,
+          })}
         </StatusBadge>
       </div>
       <div className="action-row">
@@ -179,7 +212,12 @@ function CreateOrganizationActionCard({
             void executeCreateOrganization();
           }}
         >
-          {busy ? "Submitting" : "Create organization"}
+          {getCreateOrganizationButtonLabel({
+            busy,
+            disabled,
+            resolvedOrgId,
+            transaction,
+          })}
         </button>
         {resolvedOrgId ? (
           <Link className="button" to={`/orgs/${resolvedOrgId}`}>
@@ -204,94 +242,36 @@ function SetupReadinessNotice({
   );
 }
 
-function SetupActionLifecycle({
-  emittedIdLabel,
-  entityName,
-  idleDetail,
-  indexedDetail,
-  reset,
-  transaction,
+interface SetupExecutionSummaryCounts {
+  readonly active: number;
+  readonly blockedOrNotReady: number;
+  readonly failed: number;
+  readonly indexed: number;
+  readonly total: number;
+}
+
+function SetupExecutionSummary({
+  summary,
 }: {
-  readonly emittedIdLabel?: string;
-  readonly entityName: string;
-  readonly idleDetail: string;
-  readonly indexedDetail: string;
-  readonly reset?: () => void;
-  readonly transaction: SetupActionTransaction;
+  readonly summary: SetupExecutionSummaryCounts;
 }): JSX.Element {
-  const steps = [
-    {
-      id: "wallet_pending",
-      title: "Wallet pending",
-      detail: `Confirm or reject the ${entityName} transaction in the connected wallet.`,
-    },
-    {
-      id: "submitted",
-      title: "Submitted",
-      detail: transaction.txHash
-        ? `Hash ${transaction.txHash}`
-        : "Waiting for transaction hash.",
-    },
-    {
-      id: "confirming",
-      title: "Confirming",
-      detail: "Waiting for the on-chain receipt.",
-    },
-    {
-      id: "confirmed_waiting_indexer",
-      title: "Confirmed, waiting for indexer",
-      detail: emittedIdLabel
-        ? `${emittedIdLabel} was emitted on-chain.`
-        : "Receipt confirmed and Control Plane polling is active.",
-    },
-    {
-      id: "indexed",
-      title: "Indexed",
-      detail: indexedDetail,
-    },
-  ] satisfies readonly {
-    readonly detail: string;
-    readonly id: Exclude<SetupActionLifecycleStage, "idle" | "failed">;
-    readonly title: string;
-  }[];
+  const items = [
+    ["Total actions", summary.total],
+    ["Indexed", summary.indexed],
+    ["Failed", summary.failed],
+    ["Active", summary.active],
+    ["Blocked/not ready", summary.blockedOrNotReady],
+  ] satisfies readonly (readonly [string, number])[];
 
   return (
-    <section className="setup-action-lifecycle">
-      <div className="transaction-steps">
-        {transaction.stage === "idle" ? (
-          <TransactionStep
-            active
-            detail={idleDetail}
-            title="Idle"
-          />
-        ) : null}
-        {steps.map((step) => (
-          <TransactionStep
-            active={isTransactionStepActive(transaction.stage, step.id)}
-            complete={isTransactionStepComplete(transaction.stage, step.id)}
-            detail={step.detail}
-            key={step.id}
-            title={step.title}
-          />
-        ))}
-        {transaction.stage === "failed" ? (
-          <TransactionStep
-            active
-            danger
-            detail={transaction.error ?? "The setup action failed."}
-            title="Failed"
-          />
-        ) : null}
-      </div>
-      {reset &&
-      (transaction.stage === "failed" || transaction.stage === "indexed") ? (
-        <div className="setup-execution-footer">
-          <button className="button button-small" type="button" onClick={reset}>
-            Reset local execution state
-          </button>
+    <dl className="setup-execution-summary" aria-label="Setup execution summary">
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value.toLocaleString()}</dd>
         </div>
-      ) : null}
-    </section>
+      ))}
+    </dl>
   );
 }
 
@@ -334,6 +314,7 @@ function ResolvedOrganizationSummary({
 
 function DependentActionsPanel({
   actions,
+  blockExplorerUrl,
   busy,
   executeAssignMandate,
   executeCreateBody,
@@ -343,6 +324,7 @@ function DependentActionsPanel({
   state,
 }: {
   readonly actions: readonly SetupAction[];
+  readonly blockExplorerUrl?: string;
   readonly busy: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
@@ -390,6 +372,7 @@ function DependentActionsPanel({
           {bodyActions.map((action, index) => (
             <CreateBodyActionCard
               action={action}
+              blockExplorerUrl={blockExplorerUrl}
               busy={busy}
               executeCreateBody={executeCreateBody}
               index={index + 1}
@@ -414,6 +397,7 @@ function DependentActionsPanel({
           {roleActions.map((action, index) => (
             <CreateRoleActionCard
               action={action}
+              blockExplorerUrl={blockExplorerUrl}
               bodyActions={bodyActions}
               busy={busy}
               executeCreateRole={executeCreateRole}
@@ -439,6 +423,7 @@ function DependentActionsPanel({
           {mandateActions.map((action, index) => (
             <AssignMandateActionCard
               action={action}
+              blockExplorerUrl={blockExplorerUrl}
               busy={busy}
               executeAssignMandate={executeAssignMandate}
               index={index + 1}
@@ -464,6 +449,7 @@ function DependentActionsPanel({
           {policyActions.map((action, index) => (
             <SetPolicyRuleActionCard
               action={action}
+              blockExplorerUrl={blockExplorerUrl}
               bodyActions={bodyActions}
               busy={busy}
               executeSetPolicyRule={executeSetPolicyRule}
@@ -494,6 +480,7 @@ function DependentActionsPanel({
 
 function CreateBodyActionCard({
   action,
+  blockExplorerUrl,
   busy,
   executeCreateBody,
   index,
@@ -501,6 +488,7 @@ function CreateBodyActionCard({
   state,
 }: {
   readonly action: CreateBodySetupAction;
+  readonly blockExplorerUrl?: string;
   readonly busy: boolean;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
   readonly index: number;
@@ -563,7 +551,7 @@ function CreateBodyActionCard({
             void executeCreateBody(action.actionId);
           }}
         >
-          {getCreateBodyButtonLabel({ resolvedBodyId, transaction })}
+          {getCreateBodyButtonLabel({ blocker, resolvedBodyId, transaction })}
         </button>
         {resolvedOrgId && resolvedBodyId ? (
           <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
@@ -595,7 +583,8 @@ function CreateBodyActionCard({
       ) : null}
 
       {transaction.stage !== "idle" ? (
-        <SetupActionLifecycle
+        <SetupTransactionStatus
+          blockExplorerUrl={blockExplorerUrl}
           emittedIdLabel={emittedBodyId ? `Body #${emittedBodyId}` : undefined}
           entityName="body"
           idleDetail="Ready for this create body setup action."
@@ -609,6 +598,7 @@ function CreateBodyActionCard({
 
 function CreateRoleActionCard({
   action,
+  blockExplorerUrl,
   bodyActions,
   busy,
   executeCreateRole,
@@ -617,6 +607,7 @@ function CreateRoleActionCard({
   state,
 }: {
   readonly action: CreateRoleSetupAction;
+  readonly blockExplorerUrl?: string;
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly busy: boolean;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
@@ -689,7 +680,7 @@ function CreateRoleActionCard({
             void executeCreateRole(action.actionId);
           }}
         >
-          {getCreateRoleButtonLabel({ resolvedRoleId, transaction })}
+          {getCreateRoleButtonLabel({ blocker, resolvedRoleId, transaction })}
         </button>
         {resolvedOrgId && resolvedRoleId ? (
           <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
@@ -721,7 +712,8 @@ function CreateRoleActionCard({
       ) : null}
 
       {transaction.stage !== "idle" ? (
-        <SetupActionLifecycle
+        <SetupTransactionStatus
+          blockExplorerUrl={blockExplorerUrl}
           emittedIdLabel={emittedRoleId ? `Role #${emittedRoleId}` : undefined}
           entityName="role"
           idleDetail="Ready for this create role setup action."
@@ -735,6 +727,7 @@ function CreateRoleActionCard({
 
 function AssignMandateActionCard({
   action,
+  blockExplorerUrl,
   busy,
   executeAssignMandate,
   index,
@@ -743,6 +736,7 @@ function AssignMandateActionCard({
   state,
 }: {
   readonly action: AssignMandateSetupAction;
+  readonly blockExplorerUrl?: string;
   readonly busy: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly index: number;
@@ -819,7 +813,11 @@ function AssignMandateActionCard({
             void executeAssignMandate(action.actionId);
           }}
         >
-          {getAssignMandateButtonLabel({ resolvedMandateId, transaction })}
+          {getAssignMandateButtonLabel({
+            blocker,
+            resolvedMandateId,
+            transaction,
+          })}
         </button>
         {resolvedOrgId && resolvedMandateId ? (
           <Link className="button button-small" to={`/orgs/${resolvedOrgId}/governance`}>
@@ -859,7 +857,8 @@ function AssignMandateActionCard({
       ) : null}
 
       {transaction.stage !== "idle" ? (
-        <SetupActionLifecycle
+        <SetupTransactionStatus
+          blockExplorerUrl={blockExplorerUrl}
           emittedIdLabel={
             emittedMandateId ? `Mandate #${emittedMandateId}` : undefined
           }
@@ -875,6 +874,7 @@ function AssignMandateActionCard({
 
 function SetPolicyRuleActionCard({
   action,
+  blockExplorerUrl,
   bodyActions,
   busy,
   executeSetPolicyRule,
@@ -885,6 +885,7 @@ function SetPolicyRuleActionCard({
   state,
 }: {
   readonly action: SetPolicyRuleSetupAction;
+  readonly blockExplorerUrl?: string;
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly busy: boolean;
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
@@ -1027,7 +1028,11 @@ function SetPolicyRuleActionCard({
             void executeSetPolicyRule(action.actionId);
           }}
         >
-          {getSetPolicyRuleButtonLabel({ resolvedPolicyVersion, transaction })}
+          {getSetPolicyRuleButtonLabel({
+            blocker,
+            resolvedPolicyVersion,
+            transaction,
+          })}
         </button>
         {resolvedOrgId && resolvedPolicyVersion ? (
           <Link className="button button-small" to={`/orgs/${resolvedOrgId}/setup`}>
@@ -1067,7 +1072,8 @@ function SetPolicyRuleActionCard({
       ) : null}
 
       {transaction.stage !== "idle" ? (
-        <SetupActionLifecycle
+        <SetupTransactionStatus
+          blockExplorerUrl={blockExplorerUrl}
           emittedIdLabel={
             emittedPolicyVersion
               ? `${formatLabel(action.proposalType)} policy v${emittedPolicyVersion}`
@@ -1152,6 +1158,194 @@ type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
 interface PanelStatus {
   readonly label: string;
   readonly tone: BadgeTone;
+}
+
+function getSetupExecutionSummary({
+  bodyActions,
+  busy,
+  draft,
+  mandateActions,
+  policyActions,
+  readiness,
+  roleActions,
+  state,
+}: {
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly busy: boolean;
+  readonly draft: SetupDraft;
+  readonly mandateActions: readonly AssignMandateSetupAction[];
+  readonly policyActions: readonly SetPolicyRuleSetupAction[];
+  readonly readiness: SetupActionReadiness | undefined;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+  readonly state: SetupDraftExecutionState;
+}): SetupExecutionSummaryCounts {
+  const summary = {
+    active: 0,
+    blockedOrNotReady: 0,
+    failed: 0,
+    indexed: 0,
+    total: draft.actions.length,
+  };
+  const createOrganizationAction = draft.actions.find(
+    (action) => action.kind === SetupActionKind.CreateOrganization,
+  );
+
+  if (createOrganizationAction) {
+    countSummaryAction(summary, {
+      blocker: readiness?.message,
+      resolved: Boolean(state.resolvedOrgId),
+      transaction: state.createOrganization,
+    });
+  }
+
+  for (const action of bodyActions) {
+    const transaction = state.createBodies[action.actionId] ?? {
+      actionId: action.actionId,
+      actionKind: action.kind,
+      stage: "idle" satisfies SetupActionLifecycleStage,
+    };
+    const resolvedBodyId = state.resolvedBodyIds[action.actionId];
+    countSummaryAction(summary, {
+      blocker: getCreateBodyBlocker({
+        action,
+        busy,
+        resolvedBodyId,
+        resolvedOrgId: state.resolvedOrgId,
+        transaction,
+      }),
+      resolved: Boolean(resolvedBodyId),
+      transaction,
+    });
+  }
+
+  for (const action of roleActions) {
+    const transaction = state.createRoles[action.actionId] ?? {
+      actionId: action.actionId,
+      actionKind: action.kind,
+      stage: "idle" satisfies SetupActionLifecycleStage,
+    };
+    const resolvedBodyId = resolveBodyReference({
+      bodyActions,
+      reference: action.bodyRef,
+      resolvedBodyIds: state.resolvedBodyIds,
+    });
+    const resolvedRoleId = state.resolvedRoleIds[action.actionId];
+    countSummaryAction(summary, {
+      blocker: getCreateRoleBlocker({
+        action,
+        busy,
+        resolvedBodyId,
+        resolvedOrgId: state.resolvedOrgId,
+        resolvedRoleId,
+        transaction,
+      }),
+      resolved: Boolean(resolvedRoleId),
+      transaction,
+    });
+  }
+
+  for (const action of mandateActions) {
+    const transaction = state.assignMandates[action.actionId] ?? {
+      actionId: action.actionId,
+      actionKind: action.kind,
+      stage: "idle" satisfies SetupActionLifecycleStage,
+    };
+    const resolvedRoleId = resolveRoleReference({
+      reference: action.roleRef,
+      resolvedRoleIds: state.resolvedRoleIds,
+      roleActions,
+    });
+    const resolvedMandateId = state.resolvedMandateIds[action.actionId];
+    countSummaryAction(summary, {
+      blocker: getAssignMandateBlocker({
+        action,
+        busy,
+        resolvedMandateId,
+        resolvedOrgId: state.resolvedOrgId,
+        resolvedRoleId,
+        transaction,
+      }),
+      resolved: Boolean(resolvedMandateId),
+      transaction,
+    });
+  }
+
+  for (const action of policyActions) {
+    const transaction = state.setPolicyRules[action.actionId] ?? {
+      actionId: action.actionId,
+      actionKind: action.kind,
+      stage: "idle" satisfies SetupActionLifecycleStage,
+    };
+    const resolvedPolicyVersion = state.resolvedPolicyVersions[action.actionId];
+    countSummaryAction(summary, {
+      blocker: getSetPolicyRuleBlocker({
+        action,
+        bodyActions,
+        busy,
+        mandateActions,
+        resolvedBodyIds: state.resolvedBodyIds,
+        resolvedMandateIds: state.resolvedMandateIds,
+        resolvedOrgId: state.resolvedOrgId,
+        resolvedPolicyVersion,
+        resolvedRoleIds: state.resolvedRoleIds,
+        roleActions,
+        transaction,
+      }),
+      resolved: Boolean(resolvedPolicyVersion),
+      transaction,
+    });
+  }
+
+  const executableActionIds = new Set([
+    ...(createOrganizationAction ? [createOrganizationAction.actionId] : []),
+    ...bodyActions.map((action) => action.actionId),
+    ...roleActions.map((action) => action.actionId),
+    ...mandateActions.map((action) => action.actionId),
+    ...policyActions.map((action) => action.actionId),
+  ]);
+  const placeholderCount = draft.actions.filter(
+    (action) => !executableActionIds.has(action.actionId),
+  ).length;
+  summary.blockedOrNotReady += placeholderCount;
+
+  return summary;
+}
+
+function countSummaryAction(
+  summary: {
+    active: number;
+    blockedOrNotReady: number;
+    failed: number;
+    indexed: number;
+  },
+  {
+    blocker,
+    resolved,
+    transaction,
+  }: {
+    readonly blocker: string | undefined;
+    readonly resolved: boolean;
+    readonly transaction: SetupActionTransaction;
+  },
+): void {
+  if (resolved || transaction.stage === "indexed") {
+    summary.indexed += 1;
+    return;
+  }
+
+  if (transaction.stage === "failed") {
+    summary.failed += 1;
+    return;
+  }
+
+  if (isBusyStage(transaction.stage)) {
+    summary.active += 1;
+    return;
+  }
+
+  if (blocker) {
+    summary.blockedOrNotReady += 1;
+  }
 }
 
 function getPanelStatus({
@@ -1248,6 +1442,121 @@ function getPanelStatus({
   return { label: "Draft only", tone: "muted" };
 }
 
+function getCreateOrganizationActionTone({
+  readiness,
+  resolvedOrgId,
+  transaction,
+}: {
+  readonly readiness: SetupActionReadiness | undefined;
+  readonly resolvedOrgId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): BadgeTone {
+  if (resolvedOrgId || transaction.stage === "indexed") {
+    return "success";
+  }
+  if (transaction.stage === "failed") {
+    return "danger";
+  }
+  if (isBusyStage(transaction.stage) || readiness) {
+    return "warning";
+  }
+  return "default";
+}
+
+function getCreateOrganizationActionStatusLabel({
+  readiness,
+  resolvedOrgId,
+  transaction,
+}: {
+  readonly readiness: SetupActionReadiness | undefined;
+  readonly resolvedOrgId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedOrgId) {
+    return `Indexed: Org #${resolvedOrgId}`;
+  }
+  if (transaction.stage === "indexed" && transaction.orgId) {
+    return `Indexed: Org #${transaction.orgId}`;
+  }
+  if (transaction.stage === "failed") {
+    return "Failed";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return getSetupActionStageLabel(transaction.stage);
+  }
+  if (readiness) {
+    return "Not ready";
+  }
+  return "Ready to submit";
+}
+
+function getCreateOrganizationButtonLabel({
+  busy,
+  disabled,
+  resolvedOrgId,
+  transaction,
+}: {
+  readonly busy: boolean;
+  readonly disabled: boolean;
+  readonly resolvedOrgId: string | undefined;
+  readonly transaction: SetupActionTransaction;
+}): string {
+  if (resolvedOrgId || transaction.stage === "indexed") {
+    return "Organization indexed";
+  }
+  if (transaction.stage === "failed") {
+    return "Retry organization";
+  }
+  if (isBusyStage(transaction.stage)) {
+    return getBusyButtonLabel(transaction.stage);
+  }
+  if (disabled || busy) {
+    return "Not ready";
+  }
+  return "Create organization";
+}
+
+function getBusyButtonLabel(stage: SetupActionLifecycleStage): string {
+  switch (stage) {
+    case "wallet_pending":
+      return "Waiting for wallet";
+    case "submitted":
+      return "Transaction submitted";
+    case "confirming":
+      return "Waiting for receipt";
+    case "confirmed_waiting_indexer":
+      return "Waiting for Control Plane";
+    case "idle":
+    case "indexed":
+    case "failed":
+      return getSetupActionStageLabel(stage);
+  }
+}
+
+function getBlockedActionStatusLabel(blocker: string): string {
+  if (/blocked until|referenced|resolves|dependency/i.test(blocker)) {
+    return "Blocked by dependency";
+  }
+
+  if (/another setup transaction|already in progress/i.test(blocker)) {
+    return "Blocked by active action";
+  }
+
+  return "Not ready";
+}
+
+function getBlockedButtonLabel(blocker: string): string {
+  if (/another setup transaction|already in progress/i.test(blocker)) {
+    return "Action active";
+  }
+
+  if (/blocked until|referenced|resolves|dependency/i.test(blocker)) {
+    return "Waiting on dependency";
+  }
+
+  return "Not ready";
+}
+
 function getCreateBodyBlocker({
   action,
   busy,
@@ -1322,27 +1631,29 @@ function getBodyActionStatusLabel({
   readonly transaction: SetupActionTransaction;
 }): string {
   if (resolvedBodyId) {
-    return `Body #${resolvedBodyId}`;
+    return `Indexed: Body #${resolvedBodyId}`;
   }
   if (transaction.stage === "indexed" && transaction.bodyId) {
-    return `Body #${transaction.bodyId}`;
+    return `Indexed: Body #${transaction.bodyId}`;
   }
   if (transaction.stage === "failed") {
     return "Failed";
   }
   if (isBusyStage(transaction.stage)) {
-    return formatLabel(transaction.stage);
+    return getSetupActionStageLabel(transaction.stage);
   }
   if (blocker) {
-    return "Blocked";
+    return getBlockedActionStatusLabel(blocker);
   }
-  return "Executable";
+  return "Ready to submit";
 }
 
 function getCreateBodyButtonLabel({
+  blocker,
   resolvedBodyId,
   transaction,
 }: {
+  readonly blocker: string | undefined;
   readonly resolvedBodyId: string | undefined;
   readonly transaction: SetupActionTransaction;
 }): string {
@@ -1353,7 +1664,10 @@ function getCreateBodyButtonLabel({
     return "Retry body";
   }
   if (isBusyStage(transaction.stage)) {
-    return "Submitting body";
+    return getBusyButtonLabel(transaction.stage);
+  }
+  if (blocker) {
+    return getBlockedButtonLabel(blocker);
   }
   return "Create body";
 }
@@ -1438,27 +1752,29 @@ function getRoleActionStatusLabel({
   readonly transaction: SetupActionTransaction;
 }): string {
   if (resolvedRoleId) {
-    return `Role #${resolvedRoleId}`;
+    return `Indexed: Role #${resolvedRoleId}`;
   }
   if (transaction.stage === "indexed" && transaction.roleId) {
-    return `Role #${transaction.roleId}`;
+    return `Indexed: Role #${transaction.roleId}`;
   }
   if (transaction.stage === "failed") {
     return "Failed";
   }
   if (isBusyStage(transaction.stage)) {
-    return formatLabel(transaction.stage);
+    return getSetupActionStageLabel(transaction.stage);
   }
   if (blocker) {
-    return "Blocked";
+    return getBlockedActionStatusLabel(blocker);
   }
-  return "Executable";
+  return "Ready to submit";
 }
 
 function getCreateRoleButtonLabel({
+  blocker,
   resolvedRoleId,
   transaction,
 }: {
+  readonly blocker: string | undefined;
   readonly resolvedRoleId: string | undefined;
   readonly transaction: SetupActionTransaction;
 }): string {
@@ -1469,7 +1785,10 @@ function getCreateRoleButtonLabel({
     return "Retry role";
   }
   if (isBusyStage(transaction.stage)) {
-    return "Submitting role";
+    return getBusyButtonLabel(transaction.stage);
+  }
+  if (blocker) {
+    return getBlockedButtonLabel(blocker);
   }
   return "Create role";
 }
@@ -1550,27 +1869,29 @@ function getMandateActionStatusLabel({
   readonly transaction: SetupActionTransaction;
 }): string {
   if (resolvedMandateId) {
-    return `Mandate #${resolvedMandateId}`;
+    return `Indexed: Mandate #${resolvedMandateId}`;
   }
   if (transaction.stage === "indexed" && transaction.mandateId) {
-    return `Mandate #${transaction.mandateId}`;
+    return `Indexed: Mandate #${transaction.mandateId}`;
   }
   if (transaction.stage === "failed") {
     return "Failed";
   }
   if (isBusyStage(transaction.stage)) {
-    return formatLabel(transaction.stage);
+    return getSetupActionStageLabel(transaction.stage);
   }
   if (blocker) {
-    return "Blocked";
+    return getBlockedActionStatusLabel(blocker);
   }
-  return "Executable";
+  return "Ready to submit";
 }
 
 function getAssignMandateButtonLabel({
+  blocker,
   resolvedMandateId,
   transaction,
 }: {
+  readonly blocker: string | undefined;
   readonly resolvedMandateId: string | undefined;
   readonly transaction: SetupActionTransaction;
 }): string {
@@ -1581,7 +1902,10 @@ function getAssignMandateButtonLabel({
     return "Retry mandate";
   }
   if (isBusyStage(transaction.stage)) {
-    return "Submitting mandate";
+    return getBusyButtonLabel(transaction.stage);
+  }
+  if (blocker) {
+    return getBlockedButtonLabel(blocker);
   }
   return "Assign mandate";
 }
@@ -1700,27 +2024,29 @@ function getPolicyActionStatusLabel({
   readonly transaction: SetupActionTransaction;
 }): string {
   if (resolvedPolicyVersion) {
-    return `Policy v${resolvedPolicyVersion}`;
+    return `Indexed: Policy v${resolvedPolicyVersion}`;
   }
   if (transaction.stage === "indexed" && transaction.policyVersion) {
-    return `Policy v${transaction.policyVersion}`;
+    return `Indexed: Policy v${transaction.policyVersion}`;
   }
   if (transaction.stage === "failed") {
     return "Failed";
   }
   if (isBusyStage(transaction.stage)) {
-    return formatLabel(transaction.stage);
+    return getSetupActionStageLabel(transaction.stage);
   }
   if (blocker) {
-    return "Blocked";
+    return getBlockedActionStatusLabel(blocker);
   }
-  return "Executable";
+  return "Ready to submit";
 }
 
 function getSetPolicyRuleButtonLabel({
+  blocker,
   resolvedPolicyVersion,
   transaction,
 }: {
+  readonly blocker: string | undefined;
   readonly resolvedPolicyVersion: string | undefined;
   readonly transaction: SetupActionTransaction;
 }): string {
@@ -1731,7 +2057,10 @@ function getSetPolicyRuleButtonLabel({
     return "Retry policy";
   }
   if (isBusyStage(transaction.stage)) {
-    return "Submitting policy";
+    return getBusyButtonLabel(transaction.stage);
+  }
+  if (blocker) {
+    return getBlockedButtonLabel(blocker);
   }
   return "Set policy";
 }
@@ -2063,62 +2392,5 @@ function isBusyStage(stage: SetupActionLifecycleStage): boolean {
     stage === "submitted" ||
     stage === "confirming" ||
     stage === "confirmed_waiting_indexer"
-  );
-}
-
-function TransactionStep({
-  active,
-  complete,
-  danger,
-  detail,
-  title,
-}: {
-  readonly active?: boolean;
-  readonly complete?: boolean;
-  readonly danger?: boolean;
-  readonly detail: string;
-  readonly title: string;
-}): JSX.Element {
-  const className = [
-    "transaction-step",
-    active ? "transaction-step-active" : "",
-    complete ? "transaction-step-complete" : "",
-    danger ? "transaction-step-danger" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <div className={className}>
-      <strong>{title}</strong>
-      <span>{detail}</span>
-    </div>
-  );
-}
-
-function isTransactionStepActive(
-  current: SetupActionLifecycleStage,
-  step: Exclude<SetupActionLifecycleStage, "idle" | "failed">,
-): boolean {
-  return current === step;
-}
-
-function isTransactionStepComplete(
-  current: SetupActionLifecycleStage,
-  step: Exclude<SetupActionLifecycleStage, "idle" | "failed">,
-): boolean {
-  const order: Record<
-    Exclude<SetupActionLifecycleStage, "idle" | "failed">,
-    number
-  > = {
-    wallet_pending: 1,
-    submitted: 2,
-    confirming: 3,
-    confirmed_waiting_indexer: 4,
-    indexed: 5,
-  };
-
-  return (
-    current !== "failed" && current !== "idle" && order[current] > order[step]
   );
 }
