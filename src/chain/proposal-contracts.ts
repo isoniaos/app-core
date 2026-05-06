@@ -97,6 +97,27 @@ export const GOV_PROPOSALS_ABI = [
 export const DEMO_TARGET_ABI = [
   {
     type: "function",
+    name: "lastOrgId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint64" }],
+  },
+  {
+    type: "function",
+    name: "number",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "lastActionHash",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    type: "function",
     name: "setNumber",
     stateMutability: "payable",
     inputs: [

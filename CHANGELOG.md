@@ -6,6 +6,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Improved proposal lifecycle demo UX with clearer route explanation, contextual proposal actions, local Hardhat time controls, transaction status guidance, and final DemoTarget result visibility.
+
 ## [0.6.0-alpha.3]
 
 ### Changed

@@ -104,12 +104,28 @@ export function ProposalDetailsPage(): JSX.Element {
                 </div>
                 <dl className="detail-list detail-list-wide">
                   <div>
+                    <dt>Proposal ID</dt>
+                    <dd>{proposal.proposalId}</dd>
+                  </div>
+                  <div>
+                    <dt>Organization ID</dt>
+                    <dd>{proposal.orgId}</dd>
+                  </div>
+                  <div>
                     <dt>Type</dt>
                     <dd>{formatLabel(proposal.proposalType)}</dd>
                   </div>
                   <div>
+                    <dt>Status</dt>
+                    <dd>{formatLabel(proposal.status)}</dd>
+                  </div>
+                  <div>
                     <dt>Policy version</dt>
                     <dd>Snapshot v{proposal.policyVersion}</dd>
+                  </div>
+                  <div>
+                    <dt>Metadata fallback label</dt>
+                    <dd>{proposalText.title}</dd>
                   </div>
                   <div>
                     <dt>Creator</dt>
@@ -132,12 +148,24 @@ export function ProposalDetailsPage(): JSX.Element {
                     <dd>{formatChainTime(proposal.createdAtChain)}</dd>
                   </div>
                   <div>
+                    <dt>Created tx</dt>
+                    <dd className="mono-value">{proposal.createdTxHash}</dd>
+                  </div>
+                  <div>
+                    <dt>Queued</dt>
+                    <dd>{formatChainTime(proposal.queuedAtChain)}</dd>
+                  </div>
+                  <div>
                     <dt>Executable</dt>
                     <dd>
                       {proposal.executableAtChain
                         ? formatChainTime(proposal.executableAtChain)
                         : "Not queued"}
                     </dd>
+                  </div>
+                  <div>
+                    <dt>Executed</dt>
+                    <dd>{formatChainTime(proposal.executedAtChain)}</dd>
                   </div>
                   <div>
                     <dt>Data status</dt>
@@ -177,18 +205,19 @@ export function ProposalDetailsPage(): JSX.Element {
                 ) : null}
               </section>
 
+              <RouteExplanationPanel
+                fallback={routeFallback}
+                route={route}
+                routeError={routeError}
+              />
+
               <ProposalActionsPanel
                 metadata={metadata.record}
                 proposal={proposal}
                 route={route}
                 routeError={routeError}
                 onIndexed={() => details.reload()}
-              />
-
-              <RouteExplanationPanel
-                fallback={routeFallback}
-                route={route}
-                routeError={routeError}
+                onRefresh={() => details.reload()}
               />
             </>
           );

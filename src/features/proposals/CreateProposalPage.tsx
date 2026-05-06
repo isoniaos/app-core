@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type { Address, Bytes32Hash, ProposalDto } from "@isonia/types";
@@ -20,6 +20,7 @@ import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatAddress, formatLabel } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
+import { SetupTransactionHash } from "../setup/SetupTransactionStatus";
 import {
   useWalletConnection,
   type WalletConnection,
@@ -397,12 +398,15 @@ export function CreateProposalPage(): JSX.Element {
           </div>
         </section>
 
-        <TransactionLifecycle transaction={transaction} />
+        <TransactionLifecycle
+          blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+          transaction={transaction}
+        />
 
         <div className="action-row proposal-form-actions">
           <button
             className="button button-primary"
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(blockingNotice)}
             type="submit"
           >
             {isSubmitting ? "Submitting" : "Create proposal"}
@@ -419,44 +423,53 @@ export function CreateProposalPage(): JSX.Element {
 }
 
 function TransactionLifecycle({
+  blockExplorerUrl,
   transaction,
 }: {
+  readonly blockExplorerUrl?: string;
   readonly transaction: TransactionState;
 }): JSX.Element {
   const steps = [
     {
       id: "wallet_pending",
-      title: "Wallet pending",
-      detail: "Transaction request is open in the connected wallet.",
+      title: "Waiting for wallet",
+      detail: "Confirm or reject the create proposal transaction in the connected wallet.",
     },
     {
       id: "submitted",
-      title: "Submitted",
-      detail: transaction.txHash
-        ? `Hash ${transaction.txHash}`
-        : "Waiting for transaction hash.",
+      title: "Transaction submitted",
+      detail: (
+        <CreateProposalSubmittedDetail
+          blockExplorerUrl={blockExplorerUrl}
+          txHash={transaction.txHash}
+        />
+      ),
     },
     {
       id: "confirming",
-      title: "Confirming",
-      detail: "Waiting for an on-chain receipt.",
+      title: "Waiting for receipt",
+      detail: "App Core submitted the transaction and is waiting for the chain receipt.",
     },
     {
       id: "confirmed_waiting_indexer",
-      title: "Confirmed, waiting for indexer",
-      detail: transaction.proposalId
-        ? `Proposal #${transaction.proposalId} was emitted on-chain.`
-        : "Receipt confirmed and indexer polling is active.",
+      title: "Mined, waiting for Control Plane",
+      detail: (
+        <CreateProposalControlPlaneWaitingDetail
+          blockExplorerUrl={blockExplorerUrl}
+          proposalId={transaction.proposalId}
+          txHash={transaction.txHash}
+        />
+      ),
     },
     {
       id: "indexed",
-      title: "Indexed",
+      title: "Indexed and projected",
       detail: "Control Plane returned the new proposal.",
     },
   ] satisfies readonly {
     readonly id: Exclude<TransactionStage, "idle" | "failed">;
+    readonly detail: ReactNode;
     readonly title: string;
-    readonly detail: string;
   }[];
 
   return (
@@ -491,7 +504,12 @@ function TransactionLifecycle({
           <TransactionStep
             active
             danger
-            detail={transaction.error ?? "The proposal transaction failed."}
+            detail={
+              <CreateProposalFailedDetail
+                blockExplorerUrl={blockExplorerUrl}
+                transaction={transaction}
+              />
+            }
             title="Failed"
           />
         ) : null}
@@ -510,7 +528,7 @@ function TransactionStep({
   readonly active?: boolean;
   readonly complete?: boolean;
   readonly danger?: boolean;
-  readonly detail: string;
+  readonly detail: ReactNode;
   readonly title: string;
 }): JSX.Element {
   const className = [
@@ -525,7 +543,87 @@ function TransactionStep({
   return (
     <div className={className}>
       <strong>{title}</strong>
-      <span>{detail}</span>
+      <div className="transaction-step-detail">{detail}</div>
+    </div>
+  );
+}
+
+function CreateProposalSubmittedDetail({
+  blockExplorerUrl,
+  txHash,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly txHash?: `0x${string}`;
+}): JSX.Element {
+  return (
+    <div className="setup-transaction-status-detail">
+      <span>
+        App Core has the transaction hash. The transaction may still be waiting
+        to be mined.
+      </span>
+      <SetupTransactionHash
+        blockExplorerUrl={blockExplorerUrl}
+        txHash={txHash}
+      />
+    </div>
+  );
+}
+
+function CreateProposalControlPlaneWaitingDetail({
+  blockExplorerUrl,
+  proposalId,
+  txHash,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly proposalId?: string;
+  readonly txHash?: `0x${string}`;
+}): JSX.Element {
+  return (
+    <div className="setup-transaction-status-detail">
+      <span>
+        The transaction is mined and ProposalCreated was found in the receipt.
+        App Core is waiting for Control Plane indexing, projection, and proposal
+        read model updates.
+      </span>
+      {proposalId ? <span>Proposal #{proposalId} was emitted on-chain.</span> : null}
+      <SetupTransactionHash
+        blockExplorerUrl={blockExplorerUrl}
+        txHash={txHash}
+      />
+      <span>
+        Local Hardhat restarts, a stopped indexer, or stale runtime config can
+        delay this step.
+      </span>
+      <Link className="button button-small" to="/diagnostics">
+        Open diagnostics
+      </Link>
+    </div>
+  );
+}
+
+function CreateProposalFailedDetail({
+  blockExplorerUrl,
+  transaction,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly transaction: TransactionState;
+}): JSX.Element {
+  const errorMessage = transaction.error ?? "Unknown transaction error.";
+
+  return (
+    <div className="setup-transaction-status-detail">
+      <span>{errorMessage}</span>
+      <SetupTransactionHash
+        blockExplorerUrl={blockExplorerUrl}
+        txHash={transaction.txHash}
+      />
+      <span>
+        If the transaction was mined but the proposal does not appear, check
+        Control Plane/indexer health, local Hardhat state, and runtime config.
+      </span>
+      <Link className="button button-small" to="/diagnostics">
+        Open diagnostics
+      </Link>
     </div>
   );
 }

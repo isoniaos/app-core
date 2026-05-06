@@ -37,6 +37,7 @@ export function RouteExplanationPanel({
   const vetoCounts = getVetoCounts(route.vetoBodies);
   const blockedReasons = route.execution.blockedReasons;
   const executionTone = getExecutionTone(route);
+  const nextAction = getNextActionSummary(route);
 
   return (
     <section className="panel route-panel">
@@ -75,7 +76,7 @@ export function RouteExplanationPanel({
 
       <RouteSection
         title="Route Summary"
-        description="Current proposal route state from the indexed policy snapshot."
+        description="Read-only route state from the indexed policy snapshot."
       >
         <div className="route-summary-grid">
           <RouteSummaryItem
@@ -105,6 +106,20 @@ export function RouteExplanationPanel({
             label="Timelock"
             value={route.timelock.required ? "Required" : "None"}
             detail={getTimelockSummary(route)}
+          />
+          <RouteSummaryItem
+            label="Executor"
+            value={
+              route.execution.executorBody
+                ? `Body #${route.execution.executorBody}`
+                : "Not reported"
+            }
+            detail="Body allowed to execute when the route is eligible"
+          />
+          <RouteSummaryItem
+            label="Next blocker"
+            value={nextAction.value}
+            detail={nextAction.detail}
           />
         </div>
       </RouteSection>
@@ -502,6 +517,90 @@ function getTimelockSummary(route: ProposalRouteExplanationDto): string {
   return route.timelock.satisfied
     ? `${formatDuration(route.timelock.seconds)} satisfied`
     : `${formatDuration(route.timelock.seconds)} pending`;
+}
+
+function getNextActionSummary(route: ProposalRouteExplanationDto): {
+  readonly detail: string;
+  readonly value: string;
+} {
+  if (route.execution.executable) {
+    return {
+      value: "Execute",
+      detail: route.execution.executorBody
+        ? `Executor body #${route.execution.executorBody} can execute`
+        : "Route is executable",
+    };
+  }
+
+  const firstReason = route.execution.blockedReasons[0];
+  if (!firstReason) {
+    return {
+      value: "Check route",
+      detail:
+        "Execution is false, but the route explainer did not report a blocker",
+    };
+  }
+
+  if (firstReason.code === "missing_approval") {
+    return {
+      value: "Approval needed",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "vetoed") {
+    return {
+      value: "Vetoed",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "not_queued") {
+    return {
+      value: "Queue needed",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "timelock_not_satisfied") {
+    return {
+      value: "Timelock active",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "policy_snapshot_missing") {
+    return {
+      value: "Policy snapshot missing",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "already_executed") {
+    return {
+      value: "Already executed",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "cancelled") {
+    return {
+      value: "Cancelled",
+      detail: firstReason.message,
+    };
+  }
+
+  if (firstReason.code === "expired") {
+    return {
+      value: "Expired",
+      detail: firstReason.message,
+    };
+  }
+
+  return {
+    value: "Blocked",
+    detail: firstReason.message,
+  };
 }
 
 function formatDuration(value: string): string {
