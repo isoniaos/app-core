@@ -6,9 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.3]
+
 ### Changed
 
 - Improved setup execution UX with clearer lifecycle labels, transaction hash visibility, Control Plane waiting guidance, failure recovery hints, and an execution summary.
+- Package version bumped to `0.6.0-alpha.3`.
 
 ## [0.6.0-alpha.2]
 
@@ -69,7 +72,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.2...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.3...HEAD
+[0.6.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.3
 [0.6.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.2
 [0.6.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.1
 [0.5.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.5.0-alpha.2
