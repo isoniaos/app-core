@@ -118,6 +118,43 @@ td {
   font-weight: 800;
 }
 
+.iso-logo {
+  --iso-logo-accent: #2563eb;
+  --iso-logo-main: currentColor;
+  --iso-logo-top: var(--iso-logo-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+  color: inherit;
+  line-height: 1;
+}
+
+.iso-logo-light {
+  --iso-logo-main: #050505;
+  --iso-logo-top: var(--iso-logo-accent);
+}
+
+.iso-logo-dark {
+  --iso-logo-main: #ffffff;
+  --iso-logo-top: #ffffff;
+}
+
+.iso-logo-mark {
+  display: block;
+  width: var(--iso-logo-size);
+  height: var(--iso-logo-size);
+  flex: 0 0 var(--iso-logo-size);
+}
+
+.iso-logo-text {
+  font-weight: 800;
+}
+
+.brand-logo {
+  color: var(--iso-color-foreground);
+}
+
 .brand-mark {
   display: inline-grid;
   width: 32px;

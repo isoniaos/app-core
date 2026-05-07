@@ -1,4 +1,10 @@
 export { IsoProvider } from "./IsoProvider";
+export { IsoLogo } from "./brand/IsoLogo";
+export type {
+  IsoLogoProps,
+  IsoLogoSize,
+  IsoLogoVariant,
+} from "./brand/IsoLogo";
 export { IsoToaster, isoToaster } from "./feedback/IsoToaster";
 export { useIsoToast } from "./feedback/useIsoToast";
 export type { IsoToastApi, IsoToastStatus } from "./feedback/useIsoToast";

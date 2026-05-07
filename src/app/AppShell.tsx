@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useRuntimeConfig } from "../config/runtime-config";
 import { DiagnosticsStatusIndicator } from "../features/diagnostics/DiagnosticsStatusIndicator";
+import { IsoLogo } from "../ui-kit";
 import { WalletStatus } from "../wallet/WalletStatus";
 
 export function AppShell({ children }: PropsWithChildren): JSX.Element {
@@ -18,9 +19,13 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
           className="brand-link"
           aria-label={`${defaultThemeBrand.productName} home`}
         >
-          <span className="brand-mark" aria-hidden="true">
-            {defaultThemeBrand.mark}
-          </span>
+          <IsoLogo
+            className="brand-logo"
+            decorative
+            markOnly
+            size="sm"
+            variant="auto"
+          />
           <span>{runtimeConfig.appName}</span>
         </NavLink>
         <div className="topbar-actions">

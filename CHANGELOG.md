@@ -8,6 +8,7 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Added
 
+- Added IsoLogo brand component using IsoniaOS logo assets.
 - Added UI kit foundation with Chakra abstraction layer.
 - Replaced address avatar with local DiceBear identicon generation.
 - Improved address copy UX with click-to-copy and toast feedback.
