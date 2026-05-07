@@ -7,6 +7,23 @@ const env =
 
 const workspaceSourcesEnabled = env.ISONIA_WORKSPACE_SOURCES === "true";
 
+function getManualChunk(id: string): string | undefined {
+  const normalizedId = id.replace(/\\/g, "/");
+
+  if (
+    normalizedId.indexOf("/node_modules/viem/") !== -1 ||
+    normalizedId.indexOf("/node_modules/wagmi/") !== -1 ||
+    normalizedId.indexOf("/node_modules/@wagmi/") !== -1 ||
+    normalizedId.indexOf("/node_modules/@reown/") !== -1 ||
+    normalizedId.indexOf("/node_modules/@walletconnect/") !== -1 ||
+    normalizedId.indexOf("/node_modules/ox/") !== -1
+  ) {
+    return "web3-vendor";
+  }
+
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [react()],
   resolve: workspaceSourcesEnabled
@@ -17,6 +34,13 @@ export default defineConfig({
         },
       }
     : undefined,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk,
+      },
+    },
+  },
 });
 
 function fromConfigFile(relativePath: string): string {

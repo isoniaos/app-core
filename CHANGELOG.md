@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.6]
+
+### Fixed
+
+- Fixed production preview startup by stabilizing web3 dependency chunking for the Docker/demo build.
+
 ## [0.6.0-alpha.5]
 
 ### Added
@@ -92,7 +98,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.4...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.6...HEAD
+[0.6.0-alpha.6]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.5...v0.6.0-alpha.6
 [0.6.0-alpha.5]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.5
 [0.6.0-alpha.4]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.4
 [0.6.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.3
