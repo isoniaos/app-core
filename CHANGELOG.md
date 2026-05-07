@@ -17,6 +17,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Added repository line-ending policy with `.gitattributes` for v0.6 hardening.
 - Package version bumped to `0.6.0-alpha.5`.
 - Node engine baseline remains `>=22`.
+- Dependencies updated.
 
 ## [0.6.0-alpha.4]
 
