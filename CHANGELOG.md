@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.7]
+
 ### Added
 
 - Added IsoLogo brand component using IsoniaOS logo assets.

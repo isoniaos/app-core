@@ -1,6 +1,6 @@
 {
   "name": "@isonia/app-core",
-  "version": "0.6.0-alpha.6",
+  "version": "0.6.0-alpha.7",
   "description": "Public self-hostable governance console foundation for IsoniaOS",
   "license": "MIT",
   "type": "module",
@@ -20,7 +20,7 @@
     "@dicebear/core": "9.4.2",
     "@emotion/react": "11.14.0",
     "@isonia/sdk": "github:isoniaos/sdk#v0.6.0-alpha.4",
-    "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.2",
+    "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3",
     "@isonia/types": "github:isoniaos/types#v0.6.0-alpha.2",
     "@reown/appkit": "1.8.19",
     "@reown/appkit-adapter-wagmi": "1.8.19",
