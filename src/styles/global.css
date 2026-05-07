@@ -938,6 +938,191 @@ button.address-display {
   overflow: hidden;
 }
 
+.transaction-modal-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.transaction-modal-current,
+.transaction-modal-serial-summary,
+.transaction-modal-item-header,
+.transaction-modal-footer,
+.transaction-modal-item-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.transaction-modal-current div,
+.transaction-modal-item-header div,
+.transaction-modal-detail,
+.transaction-modal-serial-summary {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.transaction-modal-current span,
+.transaction-modal-detail span,
+.transaction-modal-serial-summary span,
+.transaction-modal-item p,
+.transaction-modal-item-header span {
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+}
+
+.transaction-modal-stage-list,
+.transaction-modal-item-list {
+  display: grid;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0;
+  background: var(--iso-color-surface);
+  list-style: none;
+}
+
+.transaction-modal-stage,
+.transaction-modal-item {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  border-bottom: 1px solid var(--iso-color-border);
+  padding: 0.85rem;
+}
+
+.transaction-modal-stage {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.transaction-modal-stage:last-child,
+.transaction-modal-item:last-child {
+  border-bottom: 0;
+}
+
+.transaction-modal-stage div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.transaction-modal-stage strong,
+.transaction-modal-item strong {
+  overflow-wrap: anywhere;
+}
+
+.transaction-modal-stage span:not(.transaction-modal-stage-marker) {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.transaction-modal-stage-marker {
+  width: 12px;
+  height: 12px;
+  margin-top: 0.24rem;
+  border: 2px solid var(--iso-color-border);
+  border-radius: 999px;
+  background: var(--iso-color-surface);
+}
+
+.transaction-modal-stage-active,
+.transaction-modal-item-active {
+  background: var(--iso-color-warning-surface);
+}
+
+.transaction-modal-stage-active .transaction-modal-stage-marker {
+  border-color: var(--iso-color-warning);
+  background: var(--iso-color-warning);
+}
+
+.transaction-modal-stage-complete .transaction-modal-stage-marker {
+  border-color: var(--iso-color-success);
+  background: var(--iso-color-success);
+}
+
+.transaction-modal-stage-danger .transaction-modal-stage-marker {
+  border-color: var(--iso-color-danger);
+  background: var(--iso-color-danger);
+}
+
+.transaction-modal-detail {
+  justify-items: start;
+  border: 1px dashed var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.transaction-modal-item {
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+
+.transaction-modal-item-main {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.transaction-modal-item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.transaction-modal-item-index {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.transaction-modal-item-complete {
+  border-left: 4px solid var(--iso-color-success);
+}
+
+.transaction-modal-item-danger {
+  border-left: 4px solid var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
+}
+
+.transaction-modal-error {
+  width: 100%;
+}
+
+.transaction-modal-error summary {
+  color: var(--iso-color-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.transaction-modal-error code {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface);
+  color: var(--iso-color-foreground);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.transaction-modal-footer {
+  width: 100%;
+  justify-content: flex-end;
+}
+
 .transaction-steps {
   display: grid;
 }
@@ -2148,6 +2333,7 @@ button.address-display {
   gap: 0.45rem;
 }
 
+.iso-transaction-hash,
 .setup-transaction-hash {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2156,6 +2342,7 @@ button.address-display {
   max-width: 100%;
 }
 
+.iso-transaction-hash-label,
 .setup-transaction-hash-label {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
@@ -2163,6 +2350,7 @@ button.address-display {
   text-transform: uppercase;
 }
 
+.iso-transaction-hash-value,
 .setup-transaction-hash-value {
   color: var(--iso-color-primary-strong);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;

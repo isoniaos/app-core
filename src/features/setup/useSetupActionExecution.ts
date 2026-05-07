@@ -1,8 +1,12 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SetupDraft } from "@isonia/types";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import {
+  useTransactionModal,
+  type TransactionFlowStage,
+} from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
 import { executeAssignMandateAction } from "./assign-mandate-executor";
 import { executeCreateBodyAction } from "./create-body-executor";
@@ -19,8 +23,10 @@ import {
 } from "./setup-action-execution-helpers";
 import {
   createInitialSetupDraftExecutionState,
+  type SetupActionLifecycleStage,
   type SetupActionExecutorContext,
   type SetupActionReadiness,
+  type SetupActionTransaction,
   type SetupDraftExecutionState,
 } from "./setup-action-execution-types";
 import { getReadiness } from "./setup-action-readiness";
@@ -54,6 +60,13 @@ export function useSetupActionExecution({
   const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
+  const {
+    openSingle: openTransactionModal,
+    reset: resetTransactionModal,
+    state: transactionModalState,
+    updateItem: updateTransactionModalItem,
+  } = useTransactionModal();
+  const activeTransactionModalItemId = useRef<string | undefined>(undefined);
   const [state, setState] = useState<SetupDraftExecutionState>(
     createInitialSetupDraftExecutionState,
   );
@@ -88,6 +101,36 @@ export function useSetupActionExecution({
   );
   const setupWritesEnabled =
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
+
+  useEffect(() => {
+    const activeItemId = activeTransactionModalItemId.current;
+    if (!transactionModalState.open || !activeItemId) {
+      return;
+    }
+
+    const transaction = getSetupTransactionByModalItemId(
+      activeItemId,
+      returnedState,
+    );
+    if (!transaction) {
+      return;
+    }
+
+    updateTransactionModalItem(activeItemId, {
+      blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+      error: transaction.error,
+      stage: mapSetupLifecycleStageToTransactionFlowStage(
+        transaction.stage,
+        "preparing",
+      ),
+      txHash: transaction.txHash,
+    });
+  }, [
+    returnedState,
+    runtimeConfig.blockExplorerUrl,
+    transactionModalState.open,
+    updateTransactionModalItem,
+  ]);
 
   const executorContext = useMemo<SetupActionExecutorContext>(
     () => ({
@@ -155,17 +198,67 @@ export function useSetupActionExecution({
     );
 
   const reset = useCallback(() => {
+    activeTransactionModalItemId.current = undefined;
+    resetTransactionModal();
     setState(createInitialSetupDraftExecutionState());
-  }, []);
+  }, [resetTransactionModal]);
 
-  const executeCreateOrganization = useCallback(async (): Promise<void> => {
+  const openSetupTransactionModal = useCallback(
+    ({
+      description,
+      itemId,
+      retry,
+      title,
+      transaction,
+    }: {
+      readonly description: string;
+      readonly itemId: string;
+      readonly retry: () => Promise<void>;
+      readonly title: string;
+      readonly transaction: SetupActionTransaction;
+    }) => {
+      activeTransactionModalItemId.current = itemId;
+      openTransactionModal({
+        description,
+        item: {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          description,
+          error: transaction.error,
+          id: itemId,
+          retry,
+          stage: mapSetupLifecycleStageToTransactionFlowStage(
+            transaction.stage,
+            "preparing",
+          ),
+          title,
+          txHash: transaction.txHash,
+        },
+        title,
+      });
+    },
+    [openTransactionModal, runtimeConfig.blockExplorerUrl],
+  );
+
+  const retrySetupTransaction = useCallback(
+    async (itemId: string, run: () => Promise<void>): Promise<void> => {
+      activeTransactionModalItemId.current = itemId;
+      updateTransactionModalItem(itemId, {
+        error: undefined,
+        stage: "preparing",
+      });
+      await run();
+    },
+    [updateTransactionModalItem],
+  );
+
+  const runCreateOrganizationAction = useCallback(async (): Promise<void> => {
     await executeCreateOrganizationAction({
       action: createOrganizationAction,
       context: executorContext,
     });
   }, [createOrganizationAction, executorContext]);
 
-  const executeCreateBody = useCallback(
+  const runCreateBodyAction = useCallback(
     async (actionId: string): Promise<void> => {
       await executeCreateBodyAction({
         actionId,
@@ -183,7 +276,7 @@ export function useSetupActionExecution({
     ],
   );
 
-  const executeCreateRole = useCallback(
+  const runCreateRoleAction = useCallback(
     async (actionId: string): Promise<void> => {
       await executeCreateRoleAction({
         actionId,
@@ -207,7 +300,7 @@ export function useSetupActionExecution({
     ],
   );
 
-  const executeAssignMandate = useCallback(
+  const runAssignMandateAction = useCallback(
     async (actionId: string): Promise<void> => {
       await executeAssignMandateAction({
         actionId,
@@ -233,7 +326,7 @@ export function useSetupActionExecution({
     ],
   );
 
-  const executeSetPolicyRule = useCallback(
+  const runSetPolicyRuleAction = useCallback(
     async (actionId: string): Promise<void> => {
       await executeSetPolicyRuleAction({
         actionId,
@@ -263,6 +356,139 @@ export function useSetupActionExecution({
     ],
   );
 
+  const executeCreateOrganization = useCallback(async (): Promise<void> => {
+    const itemId = SETUP_CREATE_ORGANIZATION_MODAL_ITEM_ID;
+    openSetupTransactionModal({
+      description:
+        "Submit the organization setup action, wait for the chain receipt, then wait for Control Plane to index the organization read model.",
+      itemId,
+      retry: () => retrySetupTransaction(itemId, runCreateOrganizationAction),
+      title: createOrganizationAction?.label ?? "Create organization",
+      transaction: state.createOrganization,
+    });
+    await runCreateOrganizationAction();
+  }, [
+    createOrganizationAction?.label,
+    openSetupTransactionModal,
+    retrySetupTransaction,
+    runCreateOrganizationAction,
+    state.createOrganization,
+  ]);
+
+  const executeCreateBody = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = createBodyActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      const itemId = buildSetupTransactionModalItemId("create-body", actionId);
+      openSetupTransactionModal({
+        description:
+          "Submit the body setup action, wait for the chain receipt, then wait for Control Plane to index the body read model.",
+        itemId,
+        retry: () => retrySetupTransaction(itemId, () => runCreateBodyAction(actionId)),
+        title: action?.label ?? "Create body",
+        transaction:
+          state.createBodies[actionId] ??
+          createIdleSetupActionTransaction(actionId, action?.kind),
+      });
+      await runCreateBodyAction(actionId);
+    },
+    [
+      createBodyActions,
+      openSetupTransactionModal,
+      retrySetupTransaction,
+      runCreateBodyAction,
+      state.createBodies,
+    ],
+  );
+
+  const executeCreateRole = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = createRoleActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      const itemId = buildSetupTransactionModalItemId("create-role", actionId);
+      openSetupTransactionModal({
+        description:
+          "Submit the role setup action, wait for the chain receipt, then wait for Control Plane to index the role read model.",
+        itemId,
+        retry: () => retrySetupTransaction(itemId, () => runCreateRoleAction(actionId)),
+        title: action?.label ?? "Create role",
+        transaction:
+          state.createRoles[actionId] ??
+          createIdleSetupActionTransaction(actionId, action?.kind),
+      });
+      await runCreateRoleAction(actionId);
+    },
+    [
+      createRoleActions,
+      openSetupTransactionModal,
+      retrySetupTransaction,
+      runCreateRoleAction,
+      state.createRoles,
+    ],
+  );
+
+  const executeAssignMandate = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = assignMandateActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      const itemId = buildSetupTransactionModalItemId(
+        "assign-mandate",
+        actionId,
+      );
+      openSetupTransactionModal({
+        description:
+          "Submit the mandate setup action, wait for the chain receipt, then wait for Control Plane to index the mandate read model.",
+        itemId,
+        retry: () => retrySetupTransaction(itemId, () => runAssignMandateAction(actionId)),
+        title: action?.label ?? "Assign mandate",
+        transaction:
+          state.assignMandates[actionId] ??
+          createIdleSetupActionTransaction(actionId, action?.kind),
+      });
+      await runAssignMandateAction(actionId);
+    },
+    [
+      assignMandateActions,
+      openSetupTransactionModal,
+      retrySetupTransaction,
+      runAssignMandateAction,
+      state.assignMandates,
+    ],
+  );
+
+  const executeSetPolicyRule = useCallback(
+    async (actionId: string): Promise<void> => {
+      const action = setPolicyRuleActions.find(
+        (candidate) => candidate.actionId === actionId,
+      );
+      const itemId = buildSetupTransactionModalItemId(
+        "set-policy-rule",
+        actionId,
+      );
+      openSetupTransactionModal({
+        description:
+          "Submit the policy setup action, wait for the chain receipt, then wait for Control Plane to index the policy read model.",
+        itemId,
+        retry: () => retrySetupTransaction(itemId, () => runSetPolicyRuleAction(actionId)),
+        title: action?.label ?? "Set policy rule",
+        transaction:
+          state.setPolicyRules[actionId] ??
+          createIdleSetupActionTransaction(actionId, action?.kind),
+      });
+      await runSetPolicyRuleAction(actionId);
+    },
+    [
+      openSetupTransactionModal,
+      retrySetupTransaction,
+      runSetPolicyRuleAction,
+      setPolicyRuleActions,
+      state.setPolicyRules,
+    ],
+  );
+
   return {
     busy,
     executeAssignMandate,
@@ -274,4 +500,88 @@ export function useSetupActionExecution({
     reset,
     state: returnedState,
   };
+}
+
+const SETUP_CREATE_ORGANIZATION_MODAL_ITEM_ID = "setup:create-organization";
+
+type SetupModalActionKind =
+  | "assign-mandate"
+  | "create-body"
+  | "create-role"
+  | "set-policy-rule";
+
+function buildSetupTransactionModalItemId(
+  kind: SetupModalActionKind,
+  actionId: string,
+): string {
+  return `setup:${kind}:${actionId}`;
+}
+
+function createIdleSetupActionTransaction(
+  actionId: string,
+  actionKind: SetupActionTransaction["actionKind"],
+): SetupActionTransaction {
+  return {
+    actionId,
+    actionKind,
+    stage: "idle",
+  };
+}
+
+function getSetupTransactionByModalItemId(
+  itemId: string,
+  state: SetupDraftExecutionState,
+): SetupActionTransaction | undefined {
+  if (itemId === SETUP_CREATE_ORGANIZATION_MODAL_ITEM_ID) {
+    return state.createOrganization;
+  }
+
+  const bodyActionId = parseSetupTransactionModalItemId(itemId, "create-body");
+  if (bodyActionId) {
+    return state.createBodies[bodyActionId];
+  }
+
+  const roleActionId = parseSetupTransactionModalItemId(itemId, "create-role");
+  if (roleActionId) {
+    return state.createRoles[roleActionId];
+  }
+
+  const mandateActionId = parseSetupTransactionModalItemId(
+    itemId,
+    "assign-mandate",
+  );
+  if (mandateActionId) {
+    return state.assignMandates[mandateActionId];
+  }
+
+  const policyActionId = parseSetupTransactionModalItemId(
+    itemId,
+    "set-policy-rule",
+  );
+  if (policyActionId) {
+    return state.setPolicyRules[policyActionId];
+  }
+
+  return undefined;
+}
+
+function parseSetupTransactionModalItemId(
+  itemId: string,
+  kind: SetupModalActionKind,
+): string | undefined {
+  const prefix = `setup:${kind}:`;
+  return itemId.startsWith(prefix) ? itemId.slice(prefix.length) : undefined;
+}
+
+function mapSetupLifecycleStageToTransactionFlowStage(
+  stage: SetupActionLifecycleStage,
+  idleFallback: TransactionFlowStage = "idle",
+): TransactionFlowStage {
+  if (stage === "idle") {
+    return idleFallback;
+  }
+  if (stage === "indexed") {
+    return "completed";
+  }
+  return stage;
 }

@@ -8,6 +8,8 @@ export type {
 export { IsoToaster, isoToaster } from "./feedback/IsoToaster";
 export { useIsoToast } from "./feedback/useIsoToast";
 export type { IsoToastApi, IsoToastStatus } from "./feedback/useIsoToast";
+export { IsoTransactionHash } from "./data/IsoTransactionHash";
+export type { IsoTransactionHashProps } from "./data/IsoTransactionHash";
 export { IsoCheckbox } from "./forms/IsoCheckbox";
 export type { IsoCheckboxProps } from "./forms/IsoCheckbox";
 export { IsoField } from "./forms/IsoField";

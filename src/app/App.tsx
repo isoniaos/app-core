@@ -10,35 +10,38 @@ import { ProposalDetailsPage } from "../features/proposals/ProposalDetailsPage";
 import { ProposalsPage } from "../features/proposals/ProposalsPage";
 import { NewOrganizationSetupPage } from "../features/setup/NewOrganizationSetupPage";
 import { OrganizationSetupPage } from "../features/setup/OrganizationSetupPage";
+import { TransactionModalProvider } from "../transactions";
 import { AppShell } from "./AppShell";
 import { NotFoundPage } from "./NotFoundPage";
 
 export function App(): JSX.Element {
   return (
     <BrowserRouter>
-      <AppShell>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/orgs" element={<OrganizationsPage />} />
-          <Route path="/orgs/new" element={<NewOrganizationSetupPage />} />
-          <Route path="/diagnostics" element={<DiagnosticsPage />} />
-          <Route path="/orgs/:orgId" element={<OrganizationOverviewPage />} />
-          <Route path="/orgs/:orgId/setup" element={<OrganizationSetupPage />} />
-          <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
-          <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
-          <Route
-            path="/orgs/:orgId/proposals/new"
-            element={<CreateProposalPage />}
-          />
-          <Route
-            path="/orgs/:orgId/proposals/:proposalId"
-            element={<ProposalDetailsPage />}
-          />
-          <Route path="/orgs/:orgId/graph" element={<GraphPage />} />
-          <Route path="/organizations" element={<Navigate to="/orgs" replace />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </AppShell>
+      <TransactionModalProvider>
+        <AppShell>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/orgs" element={<OrganizationsPage />} />
+            <Route path="/orgs/new" element={<NewOrganizationSetupPage />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
+            <Route path="/orgs/:orgId" element={<OrganizationOverviewPage />} />
+            <Route path="/orgs/:orgId/setup" element={<OrganizationSetupPage />} />
+            <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
+            <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
+            <Route
+              path="/orgs/:orgId/proposals/new"
+              element={<CreateProposalPage />}
+            />
+            <Route
+              path="/orgs/:orgId/proposals/:proposalId"
+              element={<ProposalDetailsPage />}
+            />
+            <Route path="/orgs/:orgId/graph" element={<GraphPage />} />
+            <Route path="/organizations" element={<Navigate to="/orgs" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </AppShell>
+      </TransactionModalProvider>
     </BrowserRouter>
   );
 }

@@ -6,6 +6,11 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added reusable transaction modal foundation for single and serial transaction UX.
+- Started setup execution integration with transaction modal status guidance.
+
 ## [0.6.0-alpha.8]
 
 ### Added
