@@ -13,7 +13,8 @@ import type {
 } from "@isonia/types";
 import { SetupActionKind, SetupDraftStatus } from "@isonia/types";
 import type { ReactNode } from "react";
-import { AddressDisplay, validateAddressInput } from "../../ui/address";
+import { validateAddressInput } from "../../ui/address";
+import { IsoAddressDisplay } from "../../ui-kit";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel, formatNumericString } from "../../utils/format";
 import type { SetupValidationSummary } from "./setup-validation";
@@ -548,7 +549,7 @@ function renderDraftAddress(value: string): ReactNode {
 
   if (validation.status === "zero_address") {
     return (
-      <AddressDisplay
+      <IsoAddressDisplay
         copyable
         invalid
         label="Zero address"
@@ -559,7 +560,7 @@ function renderDraftAddress(value: string): ReactNode {
   }
 
   return (
-    <AddressDisplay
+    <IsoAddressDisplay
       copyable
       invalid={!validation.isValid}
       shorten={validation.isValid}

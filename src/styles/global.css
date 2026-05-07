@@ -392,6 +392,7 @@ td {
   flex: 0 0 auto;
   overflow: hidden;
   border-radius: var(--iso-address-avatar-radius, 2px);
+  background: var(--iso-color-surface-subtle);
 }
 
 .address-display,
@@ -407,10 +408,20 @@ td {
   max-width: 100%;
   align-items: center;
   gap: 0.4rem;
+  border: 0;
+  border-radius: var(--iso-radius-sm);
+  background: transparent;
   color: var(--iso-state-color, var(--iso-color-foreground));
+  cursor: default;
   font-size: 1rem;
   line-height: 1.2;
+  padding: 0;
+  text-align: left;
   vertical-align: middle;
+}
+
+button.address-display {
+  cursor: pointer;
 }
 
 .address-display-compact {
@@ -423,6 +434,19 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.address-display-copyable:hover .address-display-value,
+.address-display-copyable:focus-visible .address-display-value {
+  color: var(--iso-color-foreground);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.16em;
+}
+
+.address-display-copyable:focus-visible {
+  outline: 2px solid var(--iso-color-primary);
+  outline-offset: 2px;
 }
 
 .address-display-invalid .address-display-value {

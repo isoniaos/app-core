@@ -11,7 +11,8 @@ import { SetupActionKind } from "@isonia/types";
 import { Link } from "react-router-dom";
 import { buildOrganizationSlug } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
-import { AddressDisplay, validateAddressInput } from "../../ui/address";
+import { validateAddressInput } from "../../ui/address";
+import { IsoAddressDisplay } from "../../ui-kit";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel, formatNumericString } from "../../utils/format";
 import {
@@ -2321,7 +2322,7 @@ function renderSetupAddress(value: string): JSX.Element | string {
 
   if (validation.status === "zero_address") {
     return (
-      <AddressDisplay
+      <IsoAddressDisplay
         copyable
         invalid
         label="Zero address"
@@ -2332,7 +2333,7 @@ function renderSetupAddress(value: string): JSX.Element | string {
   }
 
   return (
-    <AddressDisplay
+    <IsoAddressDisplay
       copyable
       invalid={!validation.isValid}
       shorten={validation.isValid}

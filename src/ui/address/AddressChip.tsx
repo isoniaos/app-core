@@ -1,4 +1,4 @@
-import { AddressAvatar } from "./AddressAvatar";
+import { IsoAddressAvatar } from "../../ui-kit/identity/IsoAddressAvatar";
 import {
   getAddressValidationTone,
   shortenAddress,
@@ -48,7 +48,7 @@ export function AddressChip({
         .join(" ")}
       title={message ? `${title}: ${message}` : title}
     >
-      <AddressAvatar value={value} />
+      <IsoAddressAvatar value={value} />
       <span className="address-chip-value">{displayValue}</span>
       {stateLabel ? <span className="address-chip-state">{stateLabel}</span> : null}
       {onRemove ? (

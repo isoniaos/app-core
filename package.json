@@ -15,6 +15,10 @@
     "typecheck": "node scripts/typecheck-app.mjs --noEmit --pretty false && tsc -p tsconfig.node.json --noEmit --pretty false"
   },
   "dependencies": {
+    "@chakra-ui/react": "3.35.0",
+    "@dicebear/collection": "9.4.2",
+    "@dicebear/core": "9.4.2",
+    "@emotion/react": "11.14.0",
     "@isonia/sdk": "github:isoniaos/sdk#v0.6.0-alpha.4",
     "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.2",
     "@isonia/types": "github:isoniaos/types#v0.6.0-alpha.2",

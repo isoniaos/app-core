@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added UI kit foundation with Chakra abstraction layer.
+- Replaced address avatar with local DiceBear identicon generation.
+- Improved address copy UX with click-to-copy and toast feedback.
+
 ## [0.6.0-alpha.6]
 
 ### Fixed

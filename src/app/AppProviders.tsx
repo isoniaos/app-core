@@ -8,6 +8,7 @@ import {
 import { DiagnosticsProvider } from "../features/diagnostics/DiagnosticsProvider";
 import { MetadataProvider } from "../metadata/MetadataProvider";
 import { ThemeProvider } from "../theme/ThemeProvider";
+import { IsoProvider } from "../ui-kit";
 import { WalletProvider } from "../wallet/WalletProvider";
 
 interface AppProvidersProps extends PropsWithChildren {
@@ -23,13 +24,15 @@ export function AppProviders({
   return (
     <RuntimeConfigProvider config={runtimeConfig}>
       <ThemeProvider>
-        <MetadataProvider config={runtimeConfig.metadata}>
-          <IsoniaClientProvider apiBaseUrl={runtimeConfig.apiBaseUrl}>
-            <DiagnosticsProvider>
-              <WalletProvider setup={walletSetup}>{children}</WalletProvider>
-            </DiagnosticsProvider>
-          </IsoniaClientProvider>
-        </MetadataProvider>
+        <IsoProvider>
+          <MetadataProvider config={runtimeConfig.metadata}>
+            <IsoniaClientProvider apiBaseUrl={runtimeConfig.apiBaseUrl}>
+              <DiagnosticsProvider>
+                <WalletProvider setup={walletSetup}>{children}</WalletProvider>
+              </DiagnosticsProvider>
+            </IsoniaClientProvider>
+          </MetadataProvider>
+        </IsoProvider>
       </ThemeProvider>
     </RuntimeConfigProvider>
   );
