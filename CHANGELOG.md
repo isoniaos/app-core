@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.11]
+
 ### Added
 
 - Added sequential organization activation flow with step unlocking and group progress.
@@ -158,7 +160,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.10...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.11...HEAD
+[0.6.0-alpha.11]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.11
 [0.6.0-alpha.10]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.10
 [0.6.0-alpha.9]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.9
 [0.6.0-alpha.8]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.8
