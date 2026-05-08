@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import {
   IsoAlert,
   IsoBadge,
-  IsoButton,
   IsoHelpTerm,
   IsoTransactionHash,
 } from "../ui-kit";
@@ -51,7 +50,6 @@ export function SingleTransactionView({
         </IsoBadge>
       </div>
       <TransactionStageList item={item} />
-      <TransactionDetail item={item} />
     </div>
   );
 }
@@ -69,12 +67,13 @@ function TransactionStageList({
         <TransactionStageListItem
           active={normalizedStage === stage}
           complete={isSingleStageComplete(normalizedStage, stage)}
+          item={item}
           key={stage}
           stage={stage}
         />
       ))}
       {normalizedStage === "failed" ? (
-        <TransactionStageListItem active danger stage="failed" />
+        <TransactionStageListItem active danger item={item} stage="failed" />
       ) : null}
     </ol>
   );
@@ -84,11 +83,13 @@ function TransactionStageListItem({
   active,
   complete,
   danger,
+  item,
   stage,
 }: {
   readonly active?: boolean;
   readonly complete?: boolean;
   readonly danger?: boolean;
+  readonly item: TransactionFlowItem;
   readonly stage: TransactionFlowStage;
 }): JSX.Element {
   const copy = getTransactionStageCopy(stage);
@@ -107,47 +108,51 @@ function TransactionStageListItem({
       <div>
         <strong>{copy.label}</strong>
         <span>{copy.detail}</span>
+        <TransactionStageMeta item={item} stage={stage} />
       </div>
     </li>
   );
 }
 
-function TransactionDetail({
+function TransactionStageMeta({
   item,
+  stage,
 }: {
   readonly item: TransactionFlowItem;
-}): JSX.Element {
-  const copy = getTransactionStageCopy(item.stage);
+  readonly stage: TransactionFlowStage;
+}): JSX.Element | null {
   const showDiagnostics =
-    isControlPlaneWaitingStage(item.stage) || item.stage === "failed";
+    isControlPlaneWaitingStage(stage) || stage === "failed";
+  const showHash =
+    stage === "submitted" ||
+    stage === "confirmed_waiting_indexer" ||
+    stage === "failed";
+  const showError = stage === "failed" && item.error;
+
+  if (!showHash && !showDiagnostics && !showError) {
+    return null;
+  }
 
   return (
-    <section className="transaction-modal-detail">
-      <div>
-        <strong>{copy.label}</strong>
-        <span>{copy.detail}</span>
-      </div>
-      <IsoTransactionHash
-        blockExplorerUrl={item.blockExplorerUrl}
-        txHash={item.txHash}
-      />
+    <div className="transaction-modal-stage-meta">
+      {showHash ? (
+        <IsoTransactionHash
+          blockExplorerUrl={item.blockExplorerUrl}
+          txHash={item.txHash}
+        />
+      ) : null}
       {showDiagnostics ? (
         <Link className="button button-small" to="/diagnostics">
           Open diagnostics
         </Link>
       ) : null}
-      {item.stage === "failed" && item.retry ? (
-        <IsoButton size="sm" onClick={() => void item.retry?.()}>
-          Retry
-        </IsoButton>
-      ) : null}
-      {item.error ? (
+      {showError ? (
         <details className="transaction-modal-error">
           <summary>Raw error</summary>
           <code>{item.error}</code>
         </details>
       ) : null}
-    </section>
+    </div>
   );
 }
 

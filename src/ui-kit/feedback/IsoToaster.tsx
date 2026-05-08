@@ -16,14 +16,15 @@ export function IsoToaster(): JSX.Element {
             borderColor="var(--iso-color-border)"
             borderRadius="var(--iso-radius-md)"
             borderWidth="1px"
-            boxShadow="0 12px 34px rgba(23, 32, 42, 0.16)"
+            background="var(--iso-color-surface)"
+            boxShadow="0 10px 28px rgba(11, 18, 32, 0.12)"
             color="var(--iso-color-foreground)"
             minW={{ base: "min(320px, calc(100vw - 32px))", md: "340px" }}
             px="0.85rem"
             py="0.75rem"
           >
             <Toast.Indicator />
-            <Toast.Title fontSize="0.9rem" fontWeight="800">
+            <Toast.Title fontSize="0.9rem" fontWeight="500">
               {toast.title}
             </Toast.Title>
             {toast.description ? (

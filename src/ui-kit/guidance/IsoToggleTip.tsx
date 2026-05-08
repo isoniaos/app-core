@@ -1,5 +1,6 @@
 import { CloseButton, Popover, Portal, Stack, Text } from "@chakra-ui/react";
 import type { ReactElement, ReactNode } from "react";
+import { useState } from "react";
 
 export interface IsoToggleTipProps {
   readonly children: ReactElement;
@@ -18,11 +19,22 @@ export function IsoToggleTip({
   open,
   title,
 }: IsoToggleTipProps): JSX.Element {
+  const controlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const currentOpen = controlled ? open : internalOpen;
+
+  function setOpen(nextOpen: boolean): void {
+    if (!controlled) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  }
+
   return (
     <Popover.Root
       lazyMount
-      onOpenChange={(details) => onOpenChange?.(details.open)}
-      open={open}
+      onOpenChange={(details) => setOpen(details.open)}
+      open={currentOpen}
     >
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Portal>
@@ -47,6 +59,10 @@ export function IsoToggleTip({
                 right="2"
                 size="sm"
                 top="2"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpen(false);
+                }}
               />
             </Popover.CloseTrigger>
           </Popover.Content>

@@ -1,7 +1,14 @@
-import type { SetupDraft, TemplateDescriptor } from "@isonia/types";
-import { SetupDraftStatus } from "@isonia/types";
+import type {
+  SetupDraft,
+  SetupValidationWarning,
+  SetupValidationWarningSeverity,
+  TemplateDescriptor,
+} from "@isonia/types";
+import { SetupActionKind, SetupValidationWarningCode } from "@isonia/types";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../../ui/StatusBadge";
+import { formatLabel } from "../../utils/format";
 import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
 import { SIMPLE_DAO_PLUS_TEMPLATE_ID } from "./setup-templates";
 import { SetupDraftPreview } from "./SetupDraftPreview";
@@ -10,13 +17,8 @@ import {
   HoldersStep,
   IdentityStep,
   PolicyRoutesStep,
-  ReviewStep,
   TemplateStep,
 } from "./SimpleDaoPlusSetupWizardSteps";
-import {
-  summarizeSetupValidationWarnings,
-  type SetupValidationSummary,
-} from "./setup-validation";
 
 type SetupWizardStepId =
   | "template"
@@ -60,7 +62,7 @@ const WIZARD_STEPS: readonly SetupWizardStep[] = [
   },
   {
     id: "review",
-    summary: "Inspect validation and low-level setup actions.",
+    summary: "Validate setup and execute when ready.",
     title: "Review setup draft",
   },
 ];
@@ -70,6 +72,7 @@ interface SimpleDaoPlusSetupWizardProps {
   readonly draft: SetupDraft;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
+  readonly reviewSupplement?: ReactNode;
   readonly selectedTemplateId?: string;
   readonly templates: readonly TemplateDescriptor[];
 }
@@ -79,6 +82,7 @@ export function SimpleDaoPlusSetupWizard({
   draft,
   inputs,
   onChange,
+  reviewSupplement,
   selectedTemplateId = SIMPLE_DAO_PLUS_TEMPLATE_ID,
   templates,
 }: SimpleDaoPlusSetupWizardProps): JSX.Element {
@@ -88,10 +92,12 @@ export function SimpleDaoPlusSetupWizard({
     (step) => step.id === currentStepId,
   );
   const currentStep = WIZARD_STEPS[currentStepIndex] ?? WIZARD_STEPS[0];
-  const validationSummary = useMemo(
-    () => summarizeSetupValidationWarnings(draft.warnings),
-    [draft.warnings],
+  const stepIssues = useMemo(
+    () => groupValidationWarningsByStep(draft),
+    [draft],
   );
+  const currentStepIssues = stepIssues[currentStep.id] ?? [];
+  const blocked = draft.warnings.some((warning) => warning.severity === "error");
 
   function update<Key extends keyof SimpleDaoPlusDraftInputs>(
     key: Key,
@@ -125,12 +131,12 @@ export function SimpleDaoPlusSetupWizard({
           <div>
             <h2>Simple DAO+ Setup Wizard</h2>
             <p className="panel-subtitle">
-              A guided shell over the same browser-side draft, validation,
-              preview, and execution flow.
+              Guided setup for the organization root, governing bodies,
+              holders, and policy routes.
             </p>
           </div>
-          <StatusBadge tone={validationSummary.blocked ? "danger" : "success"}>
-            {validationSummary.blocked ? "Draft blocked" : "Draft reviewable"}
+          <StatusBadge tone={blocked ? "warning" : "success"}>
+            {blocked ? "Needs review" : "Ready"}
           </StatusBadge>
         </div>
 
@@ -142,16 +148,18 @@ export function SimpleDaoPlusSetupWizard({
           />
 
           <div className="setup-wizard-main">
-            <DraftValidationStrip
-              draftStatus={draft.status}
-              summary={validationSummary}
-            />
-
             <div className="setup-wizard-step-heading">
               <span className="eyebrow">Step {currentStepIndex + 1}</span>
               <h3>{currentStep.title}</h3>
               <p>{currentStep.summary}</p>
             </div>
+
+            {currentStepId !== "review" ? (
+              <StepValidationNotice
+                issues={currentStepIssues}
+                step={currentStep}
+              />
+            ) : null}
 
             {currentStepId === "template" ? (
               <TemplateStep
@@ -181,7 +189,14 @@ export function SimpleDaoPlusSetupWizard({
                 onUpdate={update}
               />
             ) : null}
-            {currentStepId === "review" ? <ReviewStep /> : null}
+            {currentStepId === "review" ? (
+              <ReviewStep
+                draft={draft}
+                reviewSupplement={reviewSupplement}
+                stepIssues={stepIssues}
+                onFixStep={goToStep}
+              />
+            ) : null}
 
             <WizardNavigation
               currentStepIndex={currentStepIndex}
@@ -192,8 +207,6 @@ export function SimpleDaoPlusSetupWizard({
           </div>
         </div>
       </section>
-
-      {currentStepId === "review" ? <SetupDraftPreview draft={draft} /> : null}
     </section>
   );
 }
@@ -236,53 +249,6 @@ function WizardStepList({
   );
 }
 
-function DraftValidationStrip({
-  draftStatus,
-  summary,
-}: {
-  readonly draftStatus: SetupDraftStatus;
-  readonly summary: SetupValidationSummary;
-}): JSX.Element {
-  const blocked = summary.blocked || draftStatus === SetupDraftStatus.Blocked;
-
-  return (
-    <div
-      className={`setup-validation-state ${
-        blocked
-          ? "setup-validation-state-danger"
-          : "setup-validation-state-success"
-      }`}
-    >
-      <div>
-        <strong>
-          {blocked ? "Draft blocked before execution" : "Draft ready for review"}
-        </strong>
-        <span>
-          Navigation remains open so incomplete drafts can still be reviewed.
-          Execution readiness comes from the setup validation warnings.
-        </span>
-      </div>
-      <ul className="setup-wizard-validation-badges">
-        <li>
-          <StatusBadge tone={summary.errors > 0 ? "danger" : "muted"}>
-            {summary.errors} errors
-          </StatusBadge>
-        </li>
-        <li>
-          <StatusBadge tone={summary.warnings > 0 ? "warning" : "muted"}>
-            {summary.warnings} warnings
-          </StatusBadge>
-        </li>
-        <li>
-          <StatusBadge tone={summary.info > 0 ? "default" : "muted"}>
-            {summary.info} info
-          </StatusBadge>
-        </li>
-      </ul>
-    </div>
-  );
-}
-
 function WizardNavigation({
   currentStepIndex,
   onBack,
@@ -317,4 +283,241 @@ function WizardNavigation({
       </button>
     </div>
   );
+}
+
+type WizardStepIssueMap = Readonly<Record<SetupWizardStepId, readonly SetupValidationWarning[]>>;
+
+function StepValidationNotice({
+  issues,
+  step,
+}: {
+  readonly issues: readonly SetupValidationWarning[];
+  readonly step: SetupWizardStep;
+}): JSX.Element | null {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  const tone = getIssueTone(issues);
+  const visibleIssues = issues.slice(0, 3);
+  const hiddenCount = issues.length - visibleIssues.length;
+
+  return (
+    <div className={`setup-step-validation setup-step-validation-${tone}`}>
+      <div>
+        <strong>{step.title} needs attention</strong>
+        <span>{formatIssueCounts(issues)} on this step.</span>
+      </div>
+      <ul>
+        {visibleIssues.map((issue, index) => (
+          <li key={`${issue.code}:${issue.message}:${index}`}>
+            {issue.message}
+          </li>
+        ))}
+        {hiddenCount > 0 ? <li>{hiddenCount} more in review.</li> : null}
+      </ul>
+    </div>
+  );
+}
+
+function ReviewStep({
+  draft,
+  onFixStep,
+  reviewSupplement,
+  stepIssues,
+}: {
+  readonly draft: SetupDraft;
+  readonly onFixStep: (stepId: SetupWizardStepId) => void;
+  readonly reviewSupplement?: ReactNode;
+  readonly stepIssues: WizardStepIssueMap;
+}): JSX.Element {
+  const issueSteps = WIZARD_STEPS.filter(
+    (step) => (stepIssues[step.id]?.length ?? 0) > 0,
+  );
+  const totalErrors = draft.warnings.filter(
+    (warning) => warning.severity === "error",
+  ).length;
+
+  return (
+    <div className="setup-wizard-review">
+      <ReviewValidationPanel
+        issueSteps={issueSteps}
+        stepIssues={stepIssues}
+        totalErrors={totalErrors}
+        onFixStep={onFixStep}
+      />
+
+      {reviewSupplement}
+
+      <details className="setup-technical-disclosure">
+        <summary>Technical details</summary>
+        <SetupDraftPreview draft={draft} />
+      </details>
+    </div>
+  );
+}
+
+function ReviewValidationPanel({
+  issueSteps,
+  onFixStep,
+  stepIssues,
+  totalErrors,
+}: {
+  readonly issueSteps: readonly SetupWizardStep[];
+  readonly onFixStep: (stepId: SetupWizardStepId) => void;
+  readonly stepIssues: WizardStepIssueMap;
+  readonly totalErrors: number;
+}): JSX.Element {
+  if (issueSteps.length === 0) {
+    return (
+      <div className="inline-state inline-state-success setup-wizard-note">
+        <strong>Draft ready for execution</strong>
+        <span>No blocking validation issues were found in this draft.</span>
+      </div>
+    );
+  }
+
+  return (
+    <section
+      className={`setup-review-validation ${
+        totalErrors > 0
+          ? "setup-review-validation-error"
+          : "setup-review-validation-warning"
+      }`}
+    >
+      <div className="setup-review-validation-header">
+        <div>
+          <strong>
+            {totalErrors > 0
+              ? "Resolve setup issues before execution"
+              : "Review setup notes before execution"}
+          </strong>
+          <span>
+            {issueSteps.length} {pluralize("step", issueSteps.length)}{" "}
+            {issueSteps.length === 1 ? "needs" : "need"} attention.{" "}
+            {totalErrors > 0
+              ? "Execution remains blocked while error-level issues exist."
+              : "These notes do not block execution, but should be reviewed."}
+          </span>
+        </div>
+        <StatusBadge tone={totalErrors > 0 ? "danger" : "warning"}>
+          {totalErrors > 0 ? `${totalErrors} errors` : "Review notes"}
+        </StatusBadge>
+      </div>
+
+      <div className="setup-review-validation-list">
+        {issueSteps.map((step) => {
+          const issues = stepIssues[step.id] ?? [];
+          return (
+            <article className="setup-review-validation-row" key={step.id}>
+              <div>
+                <strong>{step.title}</strong>
+                <span>{formatIssueCounts(issues)}</span>
+                <small>{issues[0]?.message}</small>
+              </div>
+              <button
+                className="button button-small"
+                type="button"
+                onClick={() => onFixStep(step.id)}
+              >
+                Fix
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function groupValidationWarningsByStep(draft: SetupDraft): WizardStepIssueMap {
+  const groups: Record<SetupWizardStepId, SetupValidationWarning[]> = {
+    bodies: [],
+    holders: [],
+    identity: [],
+    review: [],
+    routes: [],
+    template: [],
+  };
+
+  for (const warning of draft.warnings) {
+    groups[getValidationWarningStep(warning, draft)].push(warning);
+  }
+
+  return groups;
+}
+
+function getValidationWarningStep(
+  warning: SetupValidationWarning,
+  draft: SetupDraft,
+): SetupWizardStepId {
+  const action = draft.actions.find(
+    (candidate) => candidate.actionId === warning.actionId,
+  );
+
+  if (warning.code === SetupValidationWarningCode.InvalidTimelock) {
+    return "routes";
+  }
+
+  if (!action) {
+    return "review";
+  }
+
+  switch (action.kind) {
+    case SetupActionKind.CreateOrganization:
+      return "identity";
+    case SetupActionKind.CreateBody:
+      return isHolderWarning(warning) ? "holders" : "bodies";
+    case SetupActionKind.CreateRole:
+    case SetupActionKind.AssignMandate:
+      return "holders";
+    case SetupActionKind.SetPolicyRule:
+      return isRouteShapeWarning(warning) ? "routes" : "holders";
+  }
+}
+
+function isHolderWarning(warning: SetupValidationWarning): boolean {
+  return (
+    warning.code === SetupValidationWarningCode.MissingApproverMandate ||
+    warning.code === SetupValidationWarningCode.MissingExecutorMandate ||
+    warning.code === SetupValidationWarningCode.MissingVetoMandate ||
+    warning.code === SetupValidationWarningCode.PolicyRouteWithoutEligibleHolder ||
+    warning.code === SetupValidationWarningCode.ProposalTypeScopeMismatch ||
+    /holder|mandate|eligible/i.test(warning.message)
+  );
+}
+
+function isRouteShapeWarning(warning: SetupValidationWarning): boolean {
+  return (
+    warning.code === SetupValidationWarningCode.EmptyRequiredApprovals ||
+    warning.code === SetupValidationWarningCode.InvalidTimelock ||
+    /policy has no|timelock/i.test(warning.message)
+  );
+}
+
+function getIssueTone(
+  issues: readonly SetupValidationWarning[],
+): SetupValidationWarningSeverity {
+  if (issues.some((issue) => issue.severity === "error")) {
+    return "error";
+  }
+  if (issues.some((issue) => issue.severity === "warning")) {
+    return "warning";
+  }
+  return "info";
+}
+
+function formatIssueCounts(issues: readonly SetupValidationWarning[]): string {
+  const counts = (["error", "warning", "info"] as const)
+    .map((severity) => {
+      const count = issues.filter((issue) => issue.severity === severity).length;
+      return count > 0 ? `${count} ${formatLabel(pluralize(severity, count))}` : "";
+    })
+    .filter(Boolean);
+
+  return counts.length > 0 ? counts.join(", ") : "No issues";
+}
+
+function pluralize(value: string, count: number): string {
+  return count === 1 ? value : `${value}s`;
 }

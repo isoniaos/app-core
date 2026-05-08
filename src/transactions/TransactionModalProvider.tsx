@@ -115,7 +115,7 @@ export function TransactionModalProvider({
   return (
     <TransactionModalContext.Provider value={value}>
       {children}
-      <TransactionModal onClose={close} onReset={reset} state={state} />
+      <TransactionModal onClose={close} state={state} />
     </TransactionModalContext.Provider>
   );
 }

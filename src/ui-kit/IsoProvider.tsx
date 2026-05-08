@@ -4,11 +4,11 @@ import {
   defaultConfig,
   defineConfig,
 } from "@chakra-ui/react";
-import { defaultTheme } from "@isonia/theme-default";
 import type { PropsWithChildren } from "react";
+import { appCoreTheme } from "../theme/isonia-theme";
 import { IsoToaster } from "./feedback/IsoToaster";
 
-const { colors, radius, typography } = defaultTheme.tokens;
+const { colors, radius, typography } = appCoreTheme.tokens;
 
 const isoChakraConfig = defineConfig({
   preflight: false,

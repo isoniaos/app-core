@@ -6,6 +6,17 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified transaction modal presentation and help popover behavior.
+- Applied Isonia palette and IBM Plex font stacks.
+
+### Fixed
+
+- Fixed setup wizard UX regressions and reduced early validation noise.
+- Fixed multi-address holder input click/paste behavior.
+- Improved non-Latin organization name slug fallback.
+
 ## [0.6.0-alpha.9]
 
 ### Added

@@ -12,6 +12,7 @@ import {
   type Abi,
   type TransactionReceipt,
 } from "viem";
+export { buildOrganizationSlug } from "./slug";
 
 export const GOV_CORE_ABI = [
   {
@@ -454,16 +455,6 @@ export function getProposalTypeChainCode(
 
 export function getRoleTypeChainCode(roleType: RoleType): number | undefined {
   return ROLE_TYPE_TO_CHAIN_CODE[roleType];
-}
-
-export function buildOrganizationSlug(fallbackName: string): string {
-  const slug = fallbackName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return slug || "organization";
 }
 
 function getBodyKindFromChainCode(value: bigint | number): BodyKind | undefined {

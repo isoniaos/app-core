@@ -5,27 +5,38 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const sourcePath = new URL("../src/ui/address/address-utils.ts", import.meta.url);
-const outputUrl = new URL(
+const addressSourcePath = new URL("../src/ui/address/address-utils.ts", import.meta.url);
+const slugSourcePath = new URL("../src/chain/slug.ts", import.meta.url);
+const addressOutputUrl = new URL(
   "../node_modules/.cache/address-utils-tests/address-utils.mjs",
   import.meta.url,
 );
+const slugOutputUrl = new URL(
+  "../node_modules/.cache/address-utils-tests/slug.mjs",
+  import.meta.url,
+);
 
-await mkdir(dirname(fileURLToPath(outputUrl)), { recursive: true });
+await mkdir(dirname(fileURLToPath(addressOutputUrl)), { recursive: true });
 
-const source = await readFile(sourcePath, "utf8");
-const transpiled = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.ES2022,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    target: ts.ScriptTarget.ES2022,
-  },
-  fileName: fileURLToPath(sourcePath),
-});
+async function transpileModule(sourcePath, outputUrl) {
+  const source = await readFile(sourcePath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: fileURLToPath(sourcePath),
+  });
 
-await writeFile(outputUrl, transpiled.outputText, "utf8");
+  await writeFile(outputUrl, transpiled.outputText, "utf8");
+}
 
-const utils = await import(`${pathToFileURL(fileURLToPath(outputUrl)).href}?t=${Date.now()}`);
+await transpileModule(addressSourcePath, addressOutputUrl);
+await transpileModule(slugSourcePath, slugOutputUrl);
+
+const utils = await import(`${pathToFileURL(fileURLToPath(addressOutputUrl)).href}?t=${Date.now()}`);
+const slug = await import(`${pathToFileURL(fileURLToPath(slugOutputUrl)).href}?t=${Date.now()}`);
 
 const checksumAddress = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 const lowercaseAddress = checksumAddress.toLowerCase();
@@ -81,6 +92,16 @@ assert.equal(duplicateResult.duplicateCount, 1);
 assert.equal(duplicateResult.removedDuplicateCount, 1);
 assert.deepEqual(duplicateResult.normalizedAddresses, [checksumAddress]);
 
-await rm(fileURLToPath(outputUrl), { force: true });
+assert.equal(slug.buildOrganizationSlug("Acme Governance"), "acme-governance");
+assert.equal(slug.buildOrganizationSlug("  Cafe Governance  "), "cafe-governance");
+assert.match(slug.buildOrganizationSlug("абв тест"), /^org-[a-z0-9]{6,8}$/);
+assert.equal(
+  slug.buildOrganizationSlug("абв тест"),
+  slug.buildOrganizationSlug("абв тест"),
+);
+assert.notEqual(slug.buildOrganizationSlug("абв тест"), "organization");
+
+await rm(fileURLToPath(addressOutputUrl), { force: true });
+await rm(fileURLToPath(slugOutputUrl), { force: true });
 
 console.log(`Address utility tests passed from ${scriptDir}.`);

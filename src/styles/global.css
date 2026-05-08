@@ -1,4 +1,25 @@
 :root {
+  --iso-color-accent: #3B82F6;
+  --iso-color-accent-surface: color-mix(in srgb, #3B82F6 12%, #FAFAF7);
+  --iso-color-background: #F8F7F2;
+  --iso-color-border: color-mix(in srgb, #64748B 36%, #F8F7F2);
+  --iso-color-danger: #DC2626;
+  --iso-color-danger-surface: color-mix(in srgb, #DC2626 11%, #FAFAF7);
+  --iso-color-foreground: #0B1220;
+  --iso-color-info-surface: color-mix(in srgb, #2563EB 10%, #FAFAF7);
+  --iso-color-muted: #475569;
+  --iso-color-primary: #2563EB;
+  --iso-color-primary-foreground: #FAFAF7;
+  --iso-color-primary-strong: #2F6FED;
+  --iso-color-success: #10B981;
+  --iso-color-success-surface: color-mix(in srgb, #10B981 12%, #FAFAF7);
+  --iso-color-surface: #FAFAF7;
+  --iso-color-surface-subtle: #F5F1E8;
+  --iso-color-warning: #D97706;
+  --iso-color-warning-surface: color-mix(in srgb, #F59E0B 15%, #FAFAF7);
+  --iso-font-condensed: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  --iso-font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --iso-font-sans: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--iso-color-foreground);
   background: var(--iso-color-background);
   font-family: var(--iso-font-sans);
@@ -119,7 +140,7 @@ td {
 }
 
 .iso-logo {
-  --iso-logo-accent: #2563eb;
+  --iso-logo-accent: #2563EB;
   --iso-logo-main: currentColor;
   --iso-logo-top: var(--iso-logo-accent);
   display: inline-flex;
@@ -131,13 +152,13 @@ td {
 }
 
 .iso-logo-light {
-  --iso-logo-main: #050505;
+  --iso-logo-main: #0B1220;
   --iso-logo-top: var(--iso-logo-accent);
 }
 
 .iso-logo-dark {
-  --iso-logo-main: #ffffff;
-  --iso-logo-top: #ffffff;
+  --iso-logo-main: #FAFAF7;
+  --iso-logo-top: #FAFAF7;
 }
 
 .iso-logo-mark {
@@ -585,16 +606,18 @@ button.address-display {
 
 .multi-address-input-shell {
   display: flex;
-  min-height: 42px;
+  min-height: 44px;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem;
+  padding: 0.4rem;
+  cursor: text;
 }
 
 .multi-address-input {
-  min-width: min(16rem, 100%);
-  flex: 1 1 12rem;
+  min-width: min(18rem, 100%);
+  min-height: 30px;
+  flex: 1 1 18rem;
   border: 0;
   background: transparent;
   color: inherit;
@@ -938,6 +961,29 @@ button.address-display {
   overflow: hidden;
 }
 
+.iso-dialog-header {
+  display: grid;
+  gap: 0.35rem;
+  padding-bottom: 0.75rem;
+}
+
+.iso-dialog-title,
+.iso-dialog-description {
+  display: block;
+}
+
+.iso-dialog-title {
+  color: var(--iso-color-foreground);
+  font-weight: 700;
+}
+
+.iso-dialog-description {
+  max-width: 640px;
+  color: var(--iso-color-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .transaction-modal-stack {
   display: grid;
   gap: 1rem;
@@ -957,7 +1003,6 @@ button.address-display {
 
 .transaction-modal-current div,
 .transaction-modal-item-header div,
-.transaction-modal-detail,
 .transaction-modal-serial-summary {
   display: grid;
   gap: 0.25rem;
@@ -965,7 +1010,6 @@ button.address-display {
 }
 
 .transaction-modal-current span,
-.transaction-modal-detail span,
 .transaction-modal-serial-summary span,
 .transaction-modal-item p,
 .transaction-modal-item-header span {
@@ -1005,7 +1049,7 @@ button.address-display {
 
 .transaction-modal-stage div {
   display: grid;
-  gap: 0.18rem;
+  gap: 0.24rem;
   min-width: 0;
 }
 
@@ -1049,12 +1093,13 @@ button.address-display {
   background: var(--iso-color-danger);
 }
 
-.transaction-modal-detail {
-  justify-items: start;
-  border: 1px dashed var(--iso-color-border);
-  border-radius: var(--iso-radius-md);
-  padding: 0.85rem;
-  background: var(--iso-color-surface-subtle);
+.transaction-modal-stage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.18rem;
+  min-width: 0;
 }
 
 .transaction-modal-item {
@@ -1441,6 +1486,21 @@ button.address-display {
 
 .inline-state-muted {
   background: var(--iso-color-surface-subtle);
+}
+
+.inline-state-success {
+  border-left-color: var(--iso-color-success);
+  background: var(--iso-color-success-surface);
+}
+
+.inline-state-warning {
+  border-left-color: var(--iso-color-warning);
+  background: var(--iso-color-warning-surface);
+}
+
+.inline-state-danger {
+  border-left-color: var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
 }
 
 .diagnostics-panel {
@@ -1922,6 +1982,117 @@ button.address-display {
   gap: 1rem;
 }
 
+.setup-step-validation,
+.setup-review-validation {
+  display: grid;
+  gap: 0.65rem;
+  border-left: 3px solid var(--iso-color-warning);
+  border-radius: var(--iso-radius-md);
+  padding: 0.75rem 0.85rem;
+  background: var(--iso-color-warning-surface);
+}
+
+.setup-step-validation-error,
+.setup-review-validation-error {
+  border-left-color: var(--iso-color-danger);
+  background: var(--iso-color-danger-surface);
+}
+
+.setup-step-validation-warning,
+.setup-review-validation-warning {
+  border-left-color: var(--iso-color-warning);
+  background: var(--iso-color-warning-surface);
+}
+
+.setup-step-validation-info {
+  border-left-color: var(--iso-color-primary);
+  background: var(--iso-color-info-surface);
+}
+
+.setup-step-validation div,
+.setup-review-validation-header > div,
+.setup-review-validation-row div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.setup-step-validation strong,
+.setup-review-validation strong {
+  color: var(--iso-color-foreground);
+}
+
+.setup-step-validation span,
+.setup-step-validation li,
+.setup-review-validation span,
+.setup-review-validation small {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.setup-step-validation ul {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.setup-wizard-review {
+  display: grid;
+  gap: 1rem;
+}
+
+.setup-review-validation-header,
+.setup-review-validation-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.setup-review-validation-list {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface);
+}
+
+.setup-review-validation-row {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-review-validation-row:last-child {
+  border-bottom: 0;
+}
+
+.setup-technical-disclosure {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface);
+}
+
+.setup-technical-disclosure > summary {
+  cursor: pointer;
+  padding: 0.8rem 0.9rem;
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.setup-technical-disclosure[open] > summary {
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.setup-technical-disclosure > .panel {
+  border: 0;
+  border-radius: 0;
+}
+
 .setup-wizard-template-grid,
 .setup-wizard-form-grid {
   padding: 0;
@@ -2245,6 +2416,22 @@ button.address-display {
   margin: 1rem;
 }
 
+.setup-execution-panel {
+  display: grid;
+  overflow: hidden;
+  border-top: 1px solid var(--iso-color-border);
+  border-bottom: 1px solid var(--iso-color-border);
+  background: var(--iso-color-surface);
+}
+
+.setup-inline-actions {
+  margin-top: 0.35rem;
+}
+
+.setup-execution-technical {
+  margin: 0 1rem 1rem;
+}
+
 .setup-execution-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -2353,7 +2540,7 @@ button.address-display {
 .iso-transaction-hash-value,
 .setup-transaction-hash-value {
   color: var(--iso-color-primary-strong);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-family: var(--iso-font-mono);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
 }
@@ -2665,6 +2852,8 @@ button.address-display {
   .proposal-demo-result-footer,
   .local-hardhat-header,
   .setup-action-row-top,
+  .setup-review-validation-header,
+  .setup-review-validation-row,
   .setup-validation-state,
   .setup-action-group-header,
   .proposal-action-note,

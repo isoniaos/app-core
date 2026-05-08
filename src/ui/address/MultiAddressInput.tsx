@@ -4,8 +4,9 @@ import type {
   ClipboardEvent,
   KeyboardEvent,
   FocusEvent,
+  MouseEvent,
 } from "react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AddressChip } from "./AddressChip";
 import {
   deduplicateAddressItems,
@@ -69,6 +70,7 @@ export function MultiAddressInput({
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const summaryId = `${inputId}-summary`;
+  const inputRef = useRef<HTMLInputElement>(null);
   const [draftValue, setDraftValue] = useState("");
   const parsedItems = useMemo(
     () => parseAddressListInput(value, { allowZeroAddress, required: false }),
@@ -194,11 +196,33 @@ export function MultiAddressInput({
     setDraftValue(event.target.value);
   }
 
+  function handleShellClick(event: MouseEvent<HTMLDivElement>): void {
+    if (disabled) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (target.closest("button, a, input, select, textarea, [role='button']")) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }
+
   function handleBlur(_: FocusEvent<HTMLInputElement>): void {
     commitDraft();
   }
 
-  function handlePaste(event: ClipboardEvent<HTMLInputElement>): void {
+  function handlePaste(event: ClipboardEvent<HTMLDivElement>): void {
+    if (disabled) {
+      return;
+    }
+
     const pastedText = event.clipboardData.getData("text");
 
     if (!pastedText) {
@@ -244,6 +268,8 @@ export function MultiAddressInput({
           "multi-address-input-shell",
           summary.isValid ? "multi-address-input-valid" : "multi-address-input-invalid",
         ].join(" ")}
+        onClick={handleShellClick}
+        onPaste={handlePaste}
       >
         {displayItems.map((item) => (
           <AddressChip
@@ -267,6 +293,7 @@ export function MultiAddressInput({
           className="multi-address-input"
           disabled={disabled}
           id={inputId}
+          ref={inputRef}
           placeholder={displayItems.length > 0 ? "" : placeholder}
           spellCheck={false}
           type="text"
@@ -274,7 +301,6 @@ export function MultiAddressInput({
           onBlur={handleBlur}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
         />
       </div>
       <span className="address-input-feedback" id={summaryId}>

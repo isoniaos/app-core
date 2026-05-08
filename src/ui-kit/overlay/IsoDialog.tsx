@@ -32,10 +32,12 @@ export function IsoDialog({
         <Dialog.Backdrop />
         <Dialog.Positioner>
           <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>{title}</Dialog.Title>
+            <Dialog.Header className="iso-dialog-header">
+              <Dialog.Title className="iso-dialog-title">{title}</Dialog.Title>
               {description ? (
-                <Dialog.Description>{description}</Dialog.Description>
+                <Dialog.Description className="iso-dialog-description">
+                  {description}
+                </Dialog.Description>
               ) : null}
             </Dialog.Header>
             <Dialog.Body>{body ?? children}</Dialog.Body>

@@ -5,13 +5,11 @@ import type { TransactionModalState } from "./transactionFlowTypes";
 
 export interface TransactionModalProps {
   readonly onClose: () => void;
-  readonly onReset: () => void;
   readonly state: TransactionModalState;
 }
 
 export function TransactionModal({
   onClose,
-  onReset,
   state,
 }: TransactionModalProps): JSX.Element {
   const body =
@@ -28,12 +26,10 @@ export function TransactionModal({
       description={state.description}
       footer={
         <div className="transaction-modal-footer">
-          <IsoButton onClick={onClose}>Close</IsoButton>
-          {isTerminalModalState(state) ? (
-            <IsoButton variant="outline" onClick={onReset}>
-              Clear
-            </IsoButton>
-          ) : null}
+          <IsoButton variant="outline" onClick={onClose}>
+            Close
+          </IsoButton>
+          <TransactionModalPrimaryAction state={state} onClose={onClose} />
         </div>
       }
       open={state.open}
@@ -47,11 +43,40 @@ export function TransactionModal({
   );
 }
 
-function isTerminalModalState(state: TransactionModalState): boolean {
+function TransactionModalPrimaryAction({
+  onClose,
+  state,
+}: {
+  readonly onClose: () => void;
+  readonly state: TransactionModalState;
+}): JSX.Element {
+  const failedItem = state.items.find(
+    (item) => item.stage === "failed" && item.retry,
+  );
+
+  if (failedItem?.retry) {
+    return (
+      <IsoButton onClick={() => void failedItem.retry?.()}>
+        Retry
+      </IsoButton>
+    );
+  }
+
+  if (isCompletedModalState(state)) {
+    return <IsoButton onClick={onClose}>Done</IsoButton>;
+  }
+
+  if (state.items.some((item) => item.stage === "failed")) {
+    return <IsoButton disabled>Failed</IsoButton>;
+  }
+
+  return <IsoButton disabled>In progress</IsoButton>;
+}
+
+function isCompletedModalState(state: TransactionModalState): boolean {
   return state.items.every(
     (item) =>
       item.stage === "completed" ||
-      item.stage === "failed" ||
       item.stage === "skipped",
   );
 }

@@ -17,6 +17,7 @@ import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel, formatNumericString } from "../../utils/format";
 import {
   getSetupActionStageLabel,
+  SetupTransactionHash,
   SetupTransactionStatus,
 } from "./SetupTransactionStatus";
 import type {
@@ -62,10 +63,14 @@ export function SetupExecutionPanel({
   const roleActions = dependentActions.filter(isCreateRoleAction);
   const mandateActions = dependentActions.filter(isAssignMandateAction);
   const policyActions = dependentActions.filter(isSetPolicyRuleAction);
+  const draftBlocked = draft.warnings.some(
+    (warning) => warning.severity === "error",
+  );
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
-    readiness !== undefined;
+    readiness !== undefined ||
+    draftBlocked;
   const panelStatus = getPanelStatus({
     bodyActions,
     busy,
@@ -86,13 +91,13 @@ export function SetupExecutionPanel({
   });
 
   return (
-    <section className="panel setup-execution-panel">
+    <section className="setup-execution-panel">
       <div className="panel-header">
         <div>
-          <h2>Setup Execution</h2>
+          <h2>Execution</h2>
           <p className="panel-subtitle">
-            Submit setup transactions one at a time. Draft topology remains
-            non-authoritative until each action is confirmed and indexed.
+            Submit the organization root first. Detailed transaction progress
+            appears in the modal.
           </p>
         </div>
         <StatusBadge tone={panelStatus.tone}>
@@ -100,7 +105,10 @@ export function SetupExecutionPanel({
         </StatusBadge>
       </div>
 
-      {readiness ? <SetupReadinessNotice readiness={readiness} /> : null}
+      {draftBlocked ? <SetupDraftBlockedNotice /> : null}
+      {!draftBlocked && readiness ? (
+        <SetupReadinessNotice readiness={readiness} />
+      ) : null}
 
       <SetupExecutionSummary summary={executionSummary} />
 
@@ -123,35 +131,30 @@ export function SetupExecutionPanel({
         </div>
       )}
 
-      <SetupTransactionStatus
+      <CreateOrganizationInlineStatus
         blockExplorerUrl={runtimeConfig.blockExplorerUrl}
-        emittedIdLabel={
-          state.createOrganization.orgId
-            ? `Organization #${state.createOrganization.orgId}`
-            : undefined
-        }
-        entityName="organization"
-        idleDetail="Ready for the create organization setup action."
-        indexedDetail="Control Plane returned the organization read model."
         reset={reset}
+        resolvedOrgId={state.resolvedOrgId}
         transaction={state.createOrganization}
       />
 
-      {state.resolvedOrganization ? (
-        <ResolvedOrganizationSummary organization={state.resolvedOrganization} />
-      ) : null}
-
-      <DependentActionsPanel
-        actions={dependentActions}
-        blockExplorerUrl={runtimeConfig.blockExplorerUrl}
-        busy={busy}
-        executeAssignMandate={executeAssignMandate}
-        executeCreateBody={executeCreateBody}
-        executeCreateRole={executeCreateRole}
-        executeSetPolicyRule={executeSetPolicyRule}
-        resolvedOrgId={state.resolvedOrgId}
-        state={state}
-      />
+      <details className="setup-technical-disclosure setup-execution-technical">
+        <summary>Technical setup actions</summary>
+        {state.resolvedOrganization ? (
+          <ResolvedOrganizationSummary organization={state.resolvedOrganization} />
+        ) : null}
+        <DependentActionsPanel
+          actions={dependentActions}
+          blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+          busy={busy}
+          executeAssignMandate={executeAssignMandate}
+          executeCreateBody={executeCreateBody}
+          executeCreateRole={executeCreateRole}
+          executeSetPolicyRule={executeSetPolicyRule}
+          resolvedOrgId={state.resolvedOrgId}
+          state={state}
+        />
+      </details>
     </section>
   );
 }
@@ -241,6 +244,118 @@ function SetupReadinessNotice({
       <span>{readiness.message}</span>
     </div>
   );
+}
+
+function SetupDraftBlockedNotice(): JSX.Element {
+  return (
+    <div className="inline-state inline-state-warning setup-execution-inline">
+      <strong>Review step needs attention</strong>
+      <span>
+        Fix the grouped review issues above before submitting setup
+        transactions.
+      </span>
+    </div>
+  );
+}
+
+function CreateOrganizationInlineStatus({
+  blockExplorerUrl,
+  reset,
+  resolvedOrgId,
+  transaction,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly reset: () => void;
+  readonly resolvedOrgId?: string;
+  readonly transaction: SetupActionTransaction;
+}): JSX.Element | null {
+  if (transaction.stage === "idle" && !resolvedOrgId) {
+    return null;
+  }
+
+  const tone = getInlineExecutionTone(transaction.stage, resolvedOrgId);
+
+  return (
+    <div className={`inline-state inline-state-${tone} setup-execution-inline`}>
+      <strong>{getInlineExecutionTitle(transaction.stage, resolvedOrgId)}</strong>
+      <span>{getInlineExecutionDetail(transaction.stage, resolvedOrgId)}</span>
+      <div className="action-row setup-inline-actions">
+        <SetupTransactionHash
+          blockExplorerUrl={blockExplorerUrl}
+          txHash={transaction.txHash}
+        />
+        {resolvedOrgId ? (
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}`}>
+            Open organization
+          </Link>
+        ) : null}
+        {transaction.stage === "confirmed_waiting_indexer" ||
+        transaction.stage === "failed" ? (
+          <Link className="button button-small" to="/diagnostics">
+            Diagnostics
+          </Link>
+        ) : null}
+        {transaction.stage === "failed" || transaction.stage === "indexed" ? (
+          <button className="button button-small" type="button" onClick={reset}>
+            Reset local state
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function getInlineExecutionTone(
+  stage: SetupActionLifecycleStage,
+  resolvedOrgId?: string,
+): "success" | "warning" | "danger" | "muted" {
+  if (resolvedOrgId || stage === "indexed") {
+    return "success";
+  }
+  if (stage === "failed") {
+    return "danger";
+  }
+  if (stage === "idle") {
+    return "muted";
+  }
+  return "warning";
+}
+
+function getInlineExecutionTitle(
+  stage: SetupActionLifecycleStage,
+  resolvedOrgId?: string,
+): string {
+  if (resolvedOrgId || stage === "indexed") {
+    return resolvedOrgId
+      ? `Organization #${resolvedOrgId} indexed`
+      : "Organization indexed";
+  }
+  if (stage === "failed") {
+    return "Create organization failed";
+  }
+  return getSetupActionStageLabel(stage);
+}
+
+function getInlineExecutionDetail(
+  stage: SetupActionLifecycleStage,
+  resolvedOrgId?: string,
+): string {
+  if (resolvedOrgId || stage === "indexed") {
+    return "Control Plane returned the organization read model. Continue with the next setup actions when ready.";
+  }
+  if (stage === "submitted") {
+    return "The transaction hash is available; the modal tracks confirmation progress.";
+  }
+  if (stage === "confirmed_waiting_indexer") {
+    return "The transaction is mined; waiting for Control Plane indexing and projection.";
+  }
+  if (stage === "failed") {
+    return "Use the modal retry action or inspect diagnostics before trying again.";
+  }
+  if (stage === "idle") {
+    return "Ready for the create organization setup action.";
+  }
+  return "The transaction modal is tracking the current wallet and chain state.";
 }
 
 interface SetupExecutionSummaryCounts {

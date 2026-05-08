@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { PageHeader } from "../../ui/PageHeader";
-import { StatusBadge } from "../../ui/StatusBadge";
 import { SimpleDaoPlusSetupWizard } from "./SimpleDaoPlusSetupWizard";
 import {
   createSimpleDaoPlusDraft,
@@ -49,52 +47,41 @@ export function NewOrganizationSetupPage(): JSX.Element {
       <PageHeader
         eyebrow="Organization setup"
         title="New Organization"
-        description="Start from a reviewable setup draft before the first setup transaction is signed and indexed in App Core."
+        description="Create a browser-side setup draft, review it, then submit the first setup transaction when the draft is ready."
       />
-
-      <div className="action-row">
-        <Link className="button" to="/diagnostics">
-          Diagnostics
-        </Link>
-        <Link className="button" to="/orgs">
-          Indexed organizations
-        </Link>
-        <StatusBadge
-          tone={
-            execution.state.createOrganization.stage === "indexed"
-              ? "success"
-              : "warning"
-          }
-        >
-          Organization and bodies
-        </StatusBadge>
-      </div>
 
       <SimpleDaoPlusSetupWizard
         disabled={draftInputsLocked}
         draft={draft}
         inputs={inputs}
+        reviewSupplement={
+          <>
+            <SetupExecutionPanel
+              busy={execution.busy}
+              draft={draft}
+              executeAssignMandate={execution.executeAssignMandate}
+              executeCreateBody={execution.executeCreateBody}
+              executeCreateOrganization={execution.executeCreateOrganization}
+              executeCreateRole={execution.executeCreateRole}
+              executeSetPolicyRule={execution.executeSetPolicyRule}
+              readiness={execution.readiness}
+              reset={execution.reset}
+              state={execution.state}
+            />
+            <details className="setup-technical-disclosure">
+              <summary>Indexed completion check</summary>
+              <SetupCompletionSummary
+                completion={completion}
+                error={completionReadModels.error}
+                loading={Boolean(completionOrgId) && completionReadModels.loading}
+                reload={completionReadModels.reload}
+              />
+            </details>
+          </>
+        }
         selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
         templates={SETUP_TEMPLATES}
         onChange={setInputs}
-      />
-      <SetupExecutionPanel
-        busy={execution.busy}
-        draft={draft}
-        executeAssignMandate={execution.executeAssignMandate}
-        executeCreateBody={execution.executeCreateBody}
-        executeCreateOrganization={execution.executeCreateOrganization}
-        executeCreateRole={execution.executeCreateRole}
-        executeSetPolicyRule={execution.executeSetPolicyRule}
-        readiness={execution.readiness}
-        reset={execution.reset}
-        state={execution.state}
-      />
-      <SetupCompletionSummary
-        completion={completion}
-        error={completionReadModels.error}
-        loading={Boolean(completionOrgId) && completionReadModels.loading}
-        reload={completionReadModels.reload}
       />
     </section>
   );
