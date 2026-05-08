@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.10]
+
 ### Changed
 
 - Refined setup creation wizard after alpha.10 review.
@@ -16,6 +18,7 @@ All notable changes to `@isonia/app-core` are documented here.
 - Applied Isonia palette and IBM Plex font stacks.
 - Reworked Simple DAO+ setup wizard flow with sequential step unlocking, local field validation, slug input handling, calmer policy route previews, and collapsed activation action details.
 - Added Hugeicons free icon dependencies behind the UI kit icon wrapper.
+- Package version bumped to `0.6.0-alpha.10`.
 
 ### Fixed
 
@@ -142,7 +145,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.9...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.10...HEAD
+[0.6.0-alpha.10]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.10
 [0.6.0-alpha.9]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.9
 [0.6.0-alpha.8]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.8
 [0.6.0-alpha.7]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.7
