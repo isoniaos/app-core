@@ -6,11 +6,14 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.12]
+
 ### Changed
 
 - Consolidated diagnostics into the app home and diagnostics surface.
 - Removed scattered Diagnostics buttons from normal setup, activation, and proposal flows.
 - Cleaned AppShell diagnostics navigation and status access.
+- Package version bumped to `0.6.0-alpha.12`.
 
 ## [0.6.0-alpha.11]
 
@@ -166,7 +169,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.11...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.12...HEAD
+[0.6.0-alpha.12]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.12
 [0.6.0-alpha.11]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.11
 [0.6.0-alpha.10]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.10
 [0.6.0-alpha.9]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.9
