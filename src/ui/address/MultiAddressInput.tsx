@@ -31,6 +31,7 @@ export interface MultiAddressInputProps {
   readonly className?: string;
   readonly deduplicate?: boolean;
   readonly disabled?: boolean;
+  readonly error?: string;
   readonly id?: string;
   readonly label?: string;
   readonly max?: number;
@@ -40,11 +41,13 @@ export interface MultiAddressInputProps {
     value: readonly string[],
     summary: MultiAddressValidationSummary,
   ) => void;
+  readonly onBlur?: () => void;
   readonly onValidationChange?: (
     summary: MultiAddressValidationSummary,
   ) => void;
   readonly placeholder?: string;
   readonly required?: boolean;
+  readonly showFeedback?: boolean;
   readonly size?: "normal" | "compact";
   readonly value: readonly string[];
 }
@@ -55,15 +58,18 @@ export function MultiAddressInput({
   className,
   deduplicate = true,
   disabled = false,
+  error,
   id,
   label,
   max,
   min,
   normalizeOutput = true,
+  onBlur,
   onChange,
   onValidationChange,
   placeholder = "Paste or type addresses",
   required = false,
+  showFeedback = true,
   size = "normal",
   value,
 }: MultiAddressInputProps): JSX.Element {
@@ -102,7 +108,7 @@ export function MultiAddressInput({
       required,
     ],
   );
-  const inputTone = summary.isValid ? "neutral" : "warning";
+  const inputTone = error ? "danger" : summary.isValid ? "neutral" : "warning";
 
   useEffect(() => {
     onValidationChange?.(summary);
@@ -215,6 +221,7 @@ export function MultiAddressInput({
   }
 
   function handleBlur(_: FocusEvent<HTMLInputElement>): void {
+    onBlur?.();
     commitDraft();
   }
 
@@ -253,6 +260,7 @@ export function MultiAddressInput({
         "multi-address-field",
         `address-field-${size}`,
         `iso-state-${inputTone}`,
+        error ? "address-field-invalid" : undefined,
         className,
       ]
         .filter(Boolean)
@@ -261,6 +269,11 @@ export function MultiAddressInput({
       {label ? (
         <label className="address-field-label" htmlFor={inputId}>
           {label}
+          {required ? (
+            <span aria-hidden="true" className="field-required-marker">
+              *
+            </span>
+          ) : null}
         </label>
       ) : null}
       <div
@@ -304,7 +317,7 @@ export function MultiAddressInput({
         />
       </div>
       <span className="address-input-feedback" id={summaryId}>
-        {formatSummary(summary)}
+        {showFeedback ? error ?? formatSummary(summary) : ""}
       </span>
     </div>
   );

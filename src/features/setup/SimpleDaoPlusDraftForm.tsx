@@ -50,6 +50,25 @@ export function SimpleDaoPlusDraftForm({
         </label>
 
         <label className="form-field">
+          <span>
+            Organization slug
+            <span aria-hidden="true" className="field-required-marker">
+              *
+            </span>
+          </span>
+          <input
+            autoComplete="off"
+            disabled={disabled}
+            placeholder="acme-governance"
+            type="text"
+            value={inputs.organizationSlug}
+            onChange={(event) =>
+              update("organizationSlug", event.target.value)
+            }
+          />
+        </label>
+
+        <label className="form-field">
           <span>Organization metadata URI</span>
           <input
             autoComplete="off"
@@ -122,28 +141,28 @@ export function SimpleDaoPlusDraftForm({
 
         <TimelockField
           disabled={disabled}
-          label="Standard timelock"
+          label="Standard delay in seconds"
           value={inputs.standardTimelockSeconds}
           onChange={(value) => update("standardTimelockSeconds", value)}
         />
 
         <TimelockField
           disabled={disabled}
-          label="Treasury timelock"
+          label="Treasury delay in seconds"
           value={inputs.treasuryTimelockSeconds}
           onChange={(value) => update("treasuryTimelockSeconds", value)}
         />
 
         <TimelockField
           disabled={disabled}
-          label="Upgrade timelock"
+          label="Upgrade delay in seconds"
           value={inputs.upgradeTimelockSeconds}
           onChange={(value) => update("upgradeTimelockSeconds", value)}
         />
 
         <TimelockField
           disabled={disabled}
-          label="Emergency timelock"
+          label="Emergency delay in seconds"
           value={inputs.emergencyTimelockSeconds}
           onChange={(value) => update("emergencyTimelockSeconds", value)}
         />

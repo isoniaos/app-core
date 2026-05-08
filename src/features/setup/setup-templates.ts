@@ -14,6 +14,11 @@ import type {
   TemplateDescriptor,
 } from "@isonia/types";
 import {
+  buildOrganizationSlug,
+  normalizeOrganizationSlug,
+  validateOrganizationSlug,
+} from "../../chain/slug";
+import {
   BodyKind,
   ProposalType,
   RoleType,
@@ -31,6 +36,7 @@ export type SimpleDaoPlusExecutorBodyChoice =
 
 export interface SimpleDaoPlusDraftInputs {
   readonly organizationName: string;
+  readonly organizationSlug: string;
   readonly organizationMetadataUri: string;
   readonly organizationAdminAddress: string;
   readonly generalCouncilHolderAddresses: readonly string[];
@@ -60,6 +66,7 @@ export const DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS: SimpleDaoPlusDraftInputs = {
   organizationAdminAddress: "",
   organizationMetadataUri: "",
   organizationName: "",
+  organizationSlug: "",
   securityCouncilHolderAddresses: [],
   standardTimelockSeconds: DEFAULT_STANDARD_TIMELOCK_SECONDS,
   treasuryCommitteeHolderAddresses: [],
@@ -161,6 +168,7 @@ export const SIMPLE_DAO_PLUS_TEMPLATE: TemplateDescriptor = {
       organizationAdminAddress: "",
       organizationMetadataUri: "",
       organizationName: "",
+      organizationSlug: "",
       securityCouncilHolderAddresses: [],
       standardTimelockSeconds: DEFAULT_STANDARD_TIMELOCK_SECONDS,
       treasuryCommitteeHolderAddresses: [],
@@ -176,6 +184,13 @@ export const SIMPLE_DAO_PLUS_TEMPLATE: TemplateDescriptor = {
       kind: "text",
       label: "Organization name",
       placeholder: "Acme Governance",
+      required: true,
+    },
+    {
+      inputId: "organizationSlug",
+      kind: "text",
+      label: "Organization slug",
+      placeholder: "acme-governance",
       required: true,
     },
     {
@@ -242,28 +257,28 @@ export const SIMPLE_DAO_PLUS_TEMPLATE: TemplateDescriptor = {
       defaultValue: Number(DEFAULT_STANDARD_TIMELOCK_SECONDS),
       inputId: "standardTimelockSeconds",
       kind: "timelock_seconds",
-      label: "Standard timelock",
+      label: "Standard delay in seconds",
       required: true,
     },
     {
       defaultValue: Number(DEFAULT_TREASURY_TIMELOCK_SECONDS),
       inputId: "treasuryTimelockSeconds",
       kind: "timelock_seconds",
-      label: "Treasury timelock",
+      label: "Treasury delay in seconds",
       required: true,
     },
     {
       defaultValue: Number(DEFAULT_UPGRADE_TIMELOCK_SECONDS),
       inputId: "upgradeTimelockSeconds",
       kind: "timelock_seconds",
-      label: "Upgrade timelock",
+      label: "Upgrade delay in seconds",
       required: true,
     },
     {
       defaultValue: Number(DEFAULT_EMERGENCY_TIMELOCK_SECONDS),
       inputId: "emergencyTimelockSeconds",
       kind: "timelock_seconds",
-      label: "Emergency timelock",
+      label: "Emergency delay in seconds",
       required: true,
     },
   ],
@@ -400,6 +415,7 @@ function normalizeSimpleDaoPlusInputs(
       "",
     ),
     organizationName: normalizeText(inputs?.organizationName, ""),
+    organizationSlug: normalizeText(inputs?.organizationSlug, ""),
     securityCouncilHolderAddresses: normalizeAddressList(
       inputs?.securityCouncilHolderAddresses,
     ),
@@ -531,6 +547,7 @@ function createOrganizationActions({
 
   const adminAddress = maybeAddress(inputs.organizationAdminAddress);
   const fallbackName = inputs.organizationName || "New organization";
+  const slug = buildDraftOrganizationSlug(inputs, fallbackName);
 
   return [
     {
@@ -548,9 +565,22 @@ function createOrganizationActions({
       metadataUri: optionalString(inputs.organizationMetadataUri),
       organizationDraftId: ORGANIZATION_DRAFT_ID,
       requiredSignerAddress: adminAddress,
+      slug,
       warnings: [],
-    },
+    } as CreateOrganizationSetupAction & { readonly slug: string },
   ];
+}
+
+function buildDraftOrganizationSlug(
+  inputs: SimpleDaoPlusDraftInputs,
+  fallbackName: string,
+): string {
+  const manualSlug = normalizeOrganizationSlug(inputs.organizationSlug);
+  if (!validateOrganizationSlug(manualSlug)) {
+    return manualSlug;
+  }
+
+  return buildOrganizationSlug(fallbackName);
 }
 
 function createBodyActions({

@@ -1,13 +1,7 @@
 import { Link } from "react-router-dom";
-import {
-  IsoAlert,
-  IsoBadge,
-  IsoHelpTerm,
-  IsoTransactionHash,
-} from "../ui-kit";
+import { IsoAlert, IsoHelpTerm, IsoTransactionHash } from "../ui-kit";
 import {
   getTransactionStageCopy,
-  getTransactionStageTone,
   isControlPlaneWaitingStage,
   normalizeSingleTransactionStage,
   SINGLE_TRANSACTION_STAGE_ORDER,
@@ -40,15 +34,6 @@ export function SingleTransactionView({
   return (
     <div className="transaction-modal-stack">
       <TransactionAuthorityNotice />
-      <div className="transaction-modal-current">
-        <div>
-          <strong>{item.title}</strong>
-          {item.description ? <span>{item.description}</span> : null}
-        </div>
-        <IsoBadge className={`badge badge-${getTransactionStageTone(item.stage)}`}>
-          {getTransactionStageCopy(item.stage).label}
-        </IsoBadge>
-      </div>
       <TransactionStageList item={item} />
     </div>
   );
@@ -66,7 +51,10 @@ function TransactionStageList({
       {SINGLE_TRANSACTION_STAGE_ORDER.map((stage) => (
         <TransactionStageListItem
           active={normalizedStage === stage}
-          complete={isSingleStageComplete(normalizedStage, stage)}
+          complete={
+            isSingleStageComplete(normalizedStage, stage) ||
+            (normalizedStage === "completed" && stage === "completed")
+          }
           item={item}
           key={stage}
           stage={stage}
@@ -108,7 +96,11 @@ function TransactionStageListItem({
       <div>
         <strong>{copy.label}</strong>
         <span>{copy.detail}</span>
-        <TransactionStageMeta item={item} stage={stage} />
+        <TransactionStageMeta
+          item={item}
+          stage={stage}
+          visible={Boolean(active || complete || danger)}
+        />
       </div>
     </li>
   );
@@ -117,15 +109,23 @@ function TransactionStageListItem({
 function TransactionStageMeta({
   item,
   stage,
+  visible,
 }: {
   readonly item: TransactionFlowItem;
   readonly stage: TransactionFlowStage;
+  readonly visible: boolean;
 }): JSX.Element | null {
+  if (!visible) {
+    return null;
+  }
+
   const showDiagnostics =
     isControlPlaneWaitingStage(stage) || stage === "failed";
   const showHash =
     stage === "submitted" ||
+    stage === "confirming" ||
     stage === "confirmed_waiting_indexer" ||
+    stage === "completed" ||
     stage === "failed";
   const showError = stage === "failed" && item.error;
 

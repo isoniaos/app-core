@@ -10,12 +10,15 @@ All notable changes to `@isonia/app-core` are documented here.
 
 - Simplified transaction modal presentation and help popover behavior.
 - Applied Isonia palette and IBM Plex font stacks.
+- Reworked Simple DAO+ setup wizard flow with sequential step unlocking, local field validation, slug input handling, calmer policy route previews, and collapsed activation action details.
+- Added Hugeicons free icon dependencies behind the UI kit icon wrapper.
 
 ### Fixed
 
 - Fixed setup wizard UX regressions and reduced early validation noise.
 - Fixed multi-address holder input click/paste behavior.
 - Improved non-Latin organization name slug fallback.
+- Fixed setup transaction modal execution so opening the modal no longer starts the transaction automatically.
 
 ## [0.6.0-alpha.9]
 

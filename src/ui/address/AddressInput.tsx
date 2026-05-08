@@ -11,6 +11,7 @@ export interface AddressInputProps {
   readonly autoComplete?: string;
   readonly className?: string;
   readonly disabled?: boolean;
+  readonly error?: string;
   readonly id?: string;
   readonly label?: string;
   readonly name?: string;
@@ -23,9 +24,11 @@ export interface AddressInputProps {
     value: Address | undefined,
     validation: AddressValidationResult,
   ) => void;
+  readonly onBlur?: () => void;
   readonly onValidationChange?: (validation: AddressValidationResult) => void;
   readonly placeholder?: string;
   readonly required?: boolean;
+  readonly showFeedback?: boolean;
   readonly size?: "normal" | "compact";
   readonly value: string;
 }
@@ -35,15 +38,18 @@ export function AddressInput({
   autoComplete = "off",
   className,
   disabled = false,
+  error,
   id,
   label,
   name,
   normalizeOnBlur = false,
+  onBlur,
   onChange,
   onNormalizedAddressChange,
   onValidationChange,
   placeholder = "0x...",
   required = false,
+  showFeedback = true,
   size = "normal",
   value,
 }: AddressInputProps): JSX.Element {
@@ -54,8 +60,11 @@ export function AddressInput({
     () => validateAddressInput(value, { allowZeroAddress, required }),
     [allowZeroAddress, required, value],
   );
-  const isInvalid =
-    validation.status !== "empty" && validation.status !== "valid";
+  const isInvalid = Boolean(error) || (
+    validation.status !== "empty" && validation.status !== "valid"
+  );
+  const tone = error ? "danger" : validation.tone;
+  const feedback = error ?? validation.message;
 
   useEffect(() => {
     onValidationChange?.(validation);
@@ -76,6 +85,8 @@ export function AddressInput({
   }
 
   function handleBlur(event: FocusEvent<HTMLInputElement>): void {
+    onBlur?.();
+
     if (!normalizeOnBlur || !validation.normalizedAddress) {
       return;
     }
@@ -101,7 +112,8 @@ export function AddressInput({
       className={[
         "address-field",
         `address-field-${size}`,
-        `iso-state-${validation.tone}`,
+        `iso-state-${tone}`,
+        error ? "address-field-invalid" : undefined,
         className,
       ]
         .filter(Boolean)
@@ -110,6 +122,11 @@ export function AddressInput({
       {label ? (
         <label className="address-field-label" htmlFor={inputId}>
           {label}
+          {required ? (
+            <span aria-hidden="true" className="field-required-marker">
+              *
+            </span>
+          ) : null}
         </label>
       ) : null}
       <div
@@ -139,7 +156,7 @@ export function AddressInput({
         </span>
       </div>
       <span className="address-input-feedback" id={feedbackId}>
-        {validation.message}
+        {showFeedback ? feedback : ""}
       </span>
     </div>
   );

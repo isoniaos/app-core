@@ -17,6 +17,7 @@ export interface TransactionStageCopy {
 }
 
 export const SINGLE_TRANSACTION_STAGE_ORDER: readonly TransactionFlowStage[] = [
+  "idle",
   "preparing",
   "wallet_pending",
   "submitted",

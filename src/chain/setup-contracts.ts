@@ -12,7 +12,11 @@ import {
   type Abi,
   type TransactionReceipt,
 } from "viem";
-export { buildOrganizationSlug } from "./slug";
+export {
+  buildOrganizationSlug,
+  normalizeOrganizationSlug,
+  validateOrganizationSlug,
+} from "./slug";
 
 export const GOV_CORE_ABI = [
   {

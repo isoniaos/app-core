@@ -1,16 +1,23 @@
 import type {
   SetupDraft,
   SetupValidationWarning,
-  SetupValidationWarningSeverity,
   TemplateDescriptor,
 } from "@isonia/types";
 import { SetupActionKind, SetupValidationWarningCode } from "@isonia/types";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { StatusBadge } from "../../ui/StatusBadge";
+import { buildOrganizationSlug, normalizeOrganizationSlug } from "../../chain/setup-contracts";
 import { formatLabel } from "../../utils/format";
 import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
 import { SIMPLE_DAO_PLUS_TEMPLATE_ID } from "./setup-templates";
+import {
+  getStepFieldIds,
+  toFieldIssueMap,
+  validateSetupWizardStep,
+  type SetupWizardFieldId,
+  type SetupWizardStepId,
+  type SetupWizardTouchedFields,
+} from "./setup-wizard-validation";
 import { SetupDraftPreview } from "./SetupDraftPreview";
 import {
   GovernanceBodiesStep,
@@ -19,14 +26,6 @@ import {
   PolicyRoutesStep,
   TemplateStep,
 } from "./SimpleDaoPlusSetupWizardSteps";
-
-type SetupWizardStepId =
-  | "template"
-  | "identity"
-  | "bodies"
-  | "holders"
-  | "routes"
-  | "review";
 
 interface SetupWizardStep {
   readonly id: SetupWizardStepId;
@@ -41,14 +40,14 @@ const WIZARD_STEPS: readonly SetupWizardStep[] = [
     title: "Choose template",
   },
   {
+    id: "bodies",
+    summary: "Preview the fixed Simple DAO+ governance structure.",
+    title: "Governance structure",
+  },
+  {
     id: "identity",
     summary: "Name the organization and set initial admin authority.",
     title: "Organization identity",
-  },
-  {
-    id: "bodies",
-    summary: "Review the fixed Simple DAO+ governance bodies.",
-    title: "Governance bodies",
   },
   {
     id: "holders",
@@ -88,6 +87,15 @@ export function SimpleDaoPlusSetupWizard({
 }: SimpleDaoPlusSetupWizardProps): JSX.Element {
   const [currentStepId, setCurrentStepId] =
     useState<SetupWizardStepId>("template");
+  const [highestUnlockedStepIndex, setHighestUnlockedStepIndex] = useState(0);
+  const [attemptedStepIds, setAttemptedStepIds] = useState<
+    ReadonlySet<SetupWizardStepId>
+  >(new Set());
+  const [touchedFields, setTouchedFields] =
+    useState<SetupWizardTouchedFields>({});
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(
+    inputs.organizationSlug.trim().length > 0,
+  );
   const currentStepIndex = WIZARD_STEPS.findIndex(
     (step) => step.id === currentStepId,
   );
@@ -96,18 +104,75 @@ export function SimpleDaoPlusSetupWizard({
     () => groupValidationWarningsByStep(draft),
     [draft],
   );
-  const currentStepIssues = stepIssues[currentStep.id] ?? [];
-  const blocked = draft.warnings.some((warning) => warning.severity === "error");
+  const currentStepFieldIssues = useMemo(
+    () => validateSetupWizardStep(currentStep.id, inputs),
+    [currentStep.id, inputs],
+  );
+  const visibleFieldIssues = useMemo(
+    () =>
+      toFieldIssueMap(
+        currentStepFieldIssues.filter(
+          (issue) =>
+            Boolean(touchedFields[issue.fieldId]) ||
+            attemptedStepIds.has(currentStep.id),
+        ),
+      ),
+    [attemptedStepIds, currentStep.id, currentStepFieldIssues, touchedFields],
+  );
 
   function update<Key extends keyof SimpleDaoPlusDraftInputs>(
     key: Key,
     value: SimpleDaoPlusDraftInputs[Key],
   ): void {
+    if (key === "organizationName") {
+      const organizationName = String(value);
+      onChange({
+        ...inputs,
+        organizationName,
+        organizationSlug: slugManuallyEdited
+          ? inputs.organizationSlug
+          : buildDraftSlugFromName(organizationName),
+      });
+      return;
+    }
+
+    if (key === "organizationSlug") {
+      const organizationSlug = String(value);
+      const manual = organizationSlug.trim().length > 0;
+      setSlugManuallyEdited(manual);
+      onChange({
+        ...inputs,
+        organizationSlug: manual
+          ? normalizeOrganizationSlug(organizationSlug)
+          : buildDraftSlugFromName(inputs.organizationName),
+      });
+      return;
+    }
+
     onChange({ ...inputs, [key]: value });
   }
 
   function goToStep(stepId: SetupWizardStepId): void {
+    const stepIndex = WIZARD_STEPS.findIndex((step) => step.id === stepId);
+    if (stepIndex > highestUnlockedStepIndex) {
+      return;
+    }
     setCurrentStepId(stepId);
+  }
+
+  function markFieldTouched(fieldId: SetupWizardFieldId): void {
+    setTouchedFields((current) => ({ ...current, [fieldId]: true }));
+  }
+
+  function markStepAttempted(stepId: SetupWizardStepId): void {
+    setAttemptedStepIds((current) => new Set(current).add(stepId));
+    setTouchedFields((current) => {
+      const next = { ...current };
+      for (const fieldId of getStepFieldIds(stepId)) {
+        next[fieldId] = true;
+      }
+      return next;
+    });
   }
 
   function goBack(): void {
@@ -118,8 +183,17 @@ export function SimpleDaoPlusSetupWizard({
   }
 
   function goNext(): void {
+    const issues = validateSetupWizardStep(currentStep.id, inputs);
+    if (issues.some((issue) => issue.severity === "error")) {
+      markStepAttempted(currentStep.id);
+      return;
+    }
+
     const nextStep = WIZARD_STEPS[currentStepIndex + 1];
     if (nextStep) {
+      setHighestUnlockedStepIndex((current) =>
+        Math.max(current, currentStepIndex + 1),
+      );
       setCurrentStepId(nextStep.id);
     }
   }
@@ -135,14 +209,12 @@ export function SimpleDaoPlusSetupWizard({
               holders, and policy routes.
             </p>
           </div>
-          <StatusBadge tone={blocked ? "warning" : "success"}>
-            {blocked ? "Needs review" : "Ready"}
-          </StatusBadge>
         </div>
 
         <div className="setup-wizard-layout">
           <WizardStepList
             currentStepId={currentStepId}
+            highestUnlockedStepIndex={highestUnlockedStepIndex}
             steps={WIZARD_STEPS}
             onStepSelect={goToStep}
           />
@@ -154,13 +226,6 @@ export function SimpleDaoPlusSetupWizard({
               <p>{currentStep.summary}</p>
             </div>
 
-            {currentStepId !== "review" ? (
-              <StepValidationNotice
-                issues={currentStepIssues}
-                step={currentStep}
-              />
-            ) : null}
-
             {currentStepId === "template" ? (
               <TemplateStep
                 selectedTemplateId={selectedTemplateId}
@@ -170,7 +235,17 @@ export function SimpleDaoPlusSetupWizard({
             {currentStepId === "identity" ? (
               <IdentityStep
                 disabled={disabled}
+                fieldIssues={visibleFieldIssues}
                 inputs={inputs}
+                slugManuallyEdited={slugManuallyEdited}
+                onFieldBlur={markFieldTouched}
+                onResetSlug={() => {
+                  setSlugManuallyEdited(false);
+                  onChange({
+                    ...inputs,
+                    organizationSlug: buildDraftSlugFromName(inputs.organizationName),
+                  });
+                }}
                 onUpdate={update}
               />
             ) : null}
@@ -178,14 +253,18 @@ export function SimpleDaoPlusSetupWizard({
             {currentStepId === "holders" ? (
               <HoldersStep
                 disabled={disabled}
+                fieldIssues={visibleFieldIssues}
                 inputs={inputs}
+                onFieldBlur={markFieldTouched}
                 onUpdate={update}
               />
             ) : null}
             {currentStepId === "routes" ? (
               <PolicyRoutesStep
                 disabled={disabled}
+                fieldIssues={visibleFieldIssues}
                 inputs={inputs}
+                onFieldBlur={markFieldTouched}
                 onUpdate={update}
               />
             ) : null}
@@ -213,10 +292,12 @@ export function SimpleDaoPlusSetupWizard({
 
 function WizardStepList({
   currentStepId,
+  highestUnlockedStepIndex,
   onStepSelect,
   steps,
 }: {
   readonly currentStepId: SetupWizardStepId;
+  readonly highestUnlockedStepIndex: number;
   readonly onStepSelect: (stepId: SetupWizardStepId) => void;
   readonly steps: readonly SetupWizardStep[];
 }): JSX.Element {
@@ -225,13 +306,16 @@ function WizardStepList({
       <ol>
         {steps.map((step, index) => {
           const current = step.id === currentStepId;
+          const locked = index > highestUnlockedStepIndex;
           return (
             <li key={step.id}>
               <button
                 aria-current={current ? "step" : undefined}
+                aria-disabled={locked}
                 className={`setup-wizard-step-button${
                   current ? " setup-wizard-step-button-current" : ""
-                }`}
+                }${locked ? " setup-wizard-step-button-locked" : ""}`}
+                disabled={locked}
                 type="button"
                 onClick={() => onStepSelect(step.id)}
               >
@@ -264,7 +348,7 @@ function WizardNavigation({
   const nextStep = steps[currentStepIndex + 1];
 
   return (
-    <div className="setup-wizard-navigation">
+    <footer className="setup-wizard-navigation">
       <button
         className="button"
         disabled={currentStepIndex === 0}
@@ -279,46 +363,13 @@ function WizardNavigation({
         type="button"
         onClick={onNext}
       >
-        {nextStep?.id === "review" ? "Review setup draft" : "Next"}
+        {nextStep?.id === "review" ? "Review execution" : "Next"}
       </button>
-    </div>
+    </footer>
   );
 }
 
 type WizardStepIssueMap = Readonly<Record<SetupWizardStepId, readonly SetupValidationWarning[]>>;
-
-function StepValidationNotice({
-  issues,
-  step,
-}: {
-  readonly issues: readonly SetupValidationWarning[];
-  readonly step: SetupWizardStep;
-}): JSX.Element | null {
-  if (issues.length === 0) {
-    return null;
-  }
-
-  const tone = getIssueTone(issues);
-  const visibleIssues = issues.slice(0, 3);
-  const hiddenCount = issues.length - visibleIssues.length;
-
-  return (
-    <div className={`setup-step-validation setup-step-validation-${tone}`}>
-      <div>
-        <strong>{step.title} needs attention</strong>
-        <span>{formatIssueCounts(issues)} on this step.</span>
-      </div>
-      <ul>
-        {visibleIssues.map((issue, index) => (
-          <li key={`${issue.code}:${issue.message}:${index}`}>
-            {issue.message}
-          </li>
-        ))}
-        {hiddenCount > 0 ? <li>{hiddenCount} more in review.</li> : null}
-      </ul>
-    </div>
-  );
-}
 
 function ReviewStep({
   draft,
@@ -340,6 +391,14 @@ function ReviewStep({
 
   return (
     <div className="setup-wizard-review">
+      <div className="inline-state inline-state-muted setup-wizard-note">
+        <strong>Review setup notes before execution</strong>
+        <span>
+          Review grouped issues, then use the execution panel in this final
+          step. Technical action details stay collapsed until needed.
+        </span>
+      </div>
+
       <ReviewValidationPanel
         issueSteps={issueSteps}
         stepIssues={stepIssues}
@@ -390,7 +449,7 @@ function ReviewValidationPanel({
           <strong>
             {totalErrors > 0
               ? "Resolve setup issues before execution"
-              : "Review setup notes before execution"}
+              : "Setup notes before execution"}
           </strong>
           <span>
             {issueSteps.length} {pluralize("step", issueSteps.length)}{" "}
@@ -400,9 +459,6 @@ function ReviewValidationPanel({
               : "These notes do not block execution, but should be reviewed."}
           </span>
         </div>
-        <StatusBadge tone={totalErrors > 0 ? "danger" : "warning"}>
-          {totalErrors > 0 ? `${totalErrors} errors` : "Review notes"}
-        </StatusBadge>
       </div>
 
       <div className="setup-review-validation-list">
@@ -495,18 +551,6 @@ function isRouteShapeWarning(warning: SetupValidationWarning): boolean {
   );
 }
 
-function getIssueTone(
-  issues: readonly SetupValidationWarning[],
-): SetupValidationWarningSeverity {
-  if (issues.some((issue) => issue.severity === "error")) {
-    return "error";
-  }
-  if (issues.some((issue) => issue.severity === "warning")) {
-    return "warning";
-  }
-  return "info";
-}
-
 function formatIssueCounts(issues: readonly SetupValidationWarning[]): string {
   const counts = (["error", "warning", "info"] as const)
     .map((severity) => {
@@ -520,4 +564,9 @@ function formatIssueCounts(issues: readonly SetupValidationWarning[]): string {
 
 function pluralize(value: string, count: number): string {
   return count === 1 ? value : `${value}s`;
+}
+
+function buildDraftSlugFromName(organizationName: string): string {
+  const trimmed = organizationName.trim();
+  return trimmed.length > 0 ? buildOrganizationSlug(trimmed) : "";
 }

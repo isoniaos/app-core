@@ -69,7 +69,6 @@ export function SetupExecutionPanel({
   const submitDisabled =
     busy ||
     state.createOrganization.stage === "indexed" ||
-    readiness !== undefined ||
     draftBlocked;
   const panelStatus = getPanelStatus({
     bodyActions,
@@ -140,6 +139,14 @@ export function SetupExecutionPanel({
 
       <details className="setup-technical-disclosure setup-execution-technical">
         <summary>Technical setup actions</summary>
+        <div className="inline-state inline-state-muted setup-execution-inline">
+          <strong>Governance activation continues after the root</strong>
+          <span>
+            Body, role, mandate, and policy setup actions remain available here
+            for the alpha flow. Additional setup actions may require the correct
+            signer. Contracts remain authoritative.
+          </span>
+        </div>
         {state.resolvedOrganization ? (
           <ResolvedOrganizationSummary organization={state.resolvedOrganization} />
         ) : null}
@@ -179,7 +186,7 @@ function CreateOrganizationActionCard({
   const slug =
     transaction.slug ??
     (action.kind === SetupActionKind.CreateOrganization
-      ? buildOrganizationSlug(action.fallbackName)
+      ? getCreateOrganizationActionSlug(action)
       : undefined);
 
   return (
@@ -224,13 +231,22 @@ function CreateOrganizationActionCard({
           })}
         </button>
         {resolvedOrgId ? (
-          <Link className="button" to={`/orgs/${resolvedOrgId}`}>
-            Open organization
+          <Link className="button" to={`/orgs/${resolvedOrgId}/setup`}>
+            Continue activation
           </Link>
         ) : null}
       </div>
     </div>
   );
+}
+
+function getCreateOrganizationActionSlug(action: SetupAction): string {
+  if (action.kind !== SetupActionKind.CreateOrganization) {
+    return "";
+  }
+
+  const explicitSlug = (action as typeof action & { readonly slug?: string }).slug;
+  return explicitSlug ?? buildOrganizationSlug(action.fallbackName);
 }
 
 function SetupReadinessNotice({
@@ -285,8 +301,8 @@ function CreateOrganizationInlineStatus({
           txHash={transaction.txHash}
         />
         {resolvedOrgId ? (
-          <Link className="button button-small" to={`/orgs/${resolvedOrgId}`}>
-            Open organization
+          <Link className="button button-small" to={`/orgs/${resolvedOrgId}/setup`}>
+            Continue activation
           </Link>
         ) : null}
         {transaction.stage === "confirmed_waiting_indexer" ||
@@ -327,8 +343,8 @@ function getInlineExecutionTitle(
 ): string {
   if (resolvedOrgId || stage === "indexed") {
     return resolvedOrgId
-      ? `Organization #${resolvedOrgId} indexed`
-      : "Organization indexed";
+      ? `Organization #${resolvedOrgId} root created`
+      : "Organization root created";
   }
   if (stage === "failed") {
     return "Create organization failed";
@@ -341,7 +357,7 @@ function getInlineExecutionDetail(
   resolvedOrgId?: string,
 ): string {
   if (resolvedOrgId || stage === "indexed") {
-    return "Control Plane returned the organization read model. Continue with the next setup actions when ready.";
+    return "Creating the organization root is not the same as fully activating all governance bodies and routes. Continue activation from the setup page; additional setup actions may require the correct signer, and contracts remain authoritative.";
   }
   if (stage === "submitted") {
     return "The transaction hash is available; the modal tracks confirmation progress.";

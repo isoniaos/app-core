@@ -40,6 +40,8 @@ export { IsoTooltip } from "./guidance/IsoTooltip";
 export type { IsoTooltipProps } from "./guidance/IsoTooltip";
 export { glossary } from "./guidance/glossary";
 export type { IsoGlossaryEntry, IsoGlossaryTerm } from "./guidance/glossary";
+export { IsoIcon } from "./icons/IsoIcon";
+export type { IsoIconName, IsoIconProps } from "./icons/IsoIcon";
 export { IsoAddressAvatar } from "./identity/IsoAddressAvatar";
 export type { IsoAddressAvatarProps } from "./identity/IsoAddressAvatar";
 export { IsoAddressDisplay } from "./identity/IsoAddressDisplay";

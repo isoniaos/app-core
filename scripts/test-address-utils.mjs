@@ -94,6 +94,12 @@ assert.deepEqual(duplicateResult.normalizedAddresses, [checksumAddress]);
 
 assert.equal(slug.buildOrganizationSlug("Acme Governance"), "acme-governance");
 assert.equal(slug.buildOrganizationSlug("  Cafe Governance  "), "cafe-governance");
+assert.equal(slug.normalizeOrganizationSlug("Alpha Setup 01"), "alpha-setup-01");
+assert.equal(slug.validateOrganizationSlug("alpha-setup-01"), undefined);
+assert.equal(
+  slug.validateOrganizationSlug("Alpha Setup 01"),
+  "Use lowercase Latin letters, numbers, and single hyphens.",
+);
 assert.match(slug.buildOrganizationSlug("абв тест"), /^org-[a-z0-9]{6,8}$/);
 assert.equal(
   slug.buildOrganizationSlug("абв тест"),

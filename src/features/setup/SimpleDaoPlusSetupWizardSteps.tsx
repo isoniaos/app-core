@@ -1,7 +1,14 @@
 import type { TemplateDescriptor } from "@isonia/types";
 import { AddressInput, MultiAddressInput } from "../../ui/address";
 import { StatusBadge } from "../../ui/StatusBadge";
+import { IsoIcon } from "../../ui-kit";
 import { formatNumericString } from "../../utils/format";
+import { RoutePreviewCard } from "./RoutePreviewCard";
+import type {
+  SetupWizardFieldId,
+  SetupWizardFieldIssue,
+  SetupWizardFieldIssueMap,
+} from "./setup-wizard-validation";
 import type {
   SimpleDaoPlusDraftInputs,
   SimpleDaoPlusExecutorBodyChoice,
@@ -14,6 +21,11 @@ export type SimpleDaoPlusInputUpdate = <
   key: Key,
   value: SimpleDaoPlusDraftInputs[Key],
 ) => void;
+
+export interface SetupWizardFieldProps {
+  readonly fieldIssues: SetupWizardFieldIssueMap;
+  readonly onFieldBlur: (fieldId: SetupWizardFieldId) => void;
+}
 
 export function TemplateStep({
   selectedTemplateId,
@@ -70,27 +82,81 @@ export function TemplateStep({
 
 export function IdentityStep({
   disabled,
+  fieldIssues,
   inputs,
+  slugManuallyEdited,
+  onFieldBlur,
+  onResetSlug,
   onUpdate,
 }: {
   readonly disabled: boolean;
+  readonly fieldIssues: SetupWizardFieldIssueMap;
   readonly inputs: SimpleDaoPlusDraftInputs;
+  readonly slugManuallyEdited: boolean;
+  readonly onFieldBlur: (fieldId: SetupWizardFieldId) => void;
+  readonly onResetSlug: () => void;
   readonly onUpdate: SimpleDaoPlusInputUpdate;
 }): JSX.Element {
+  const nameIssue = fieldIssues.organizationName;
+  const slugIssue = fieldIssues.organizationSlug;
+
   return (
     <div className="form-grid setup-wizard-form-grid">
-      <label className="form-field">
-        <span>Organization name</span>
+      <label className={getFormFieldClassName(nameIssue)}>
+        <span>
+          Organization name
+          <RequiredMarker />
+        </span>
         <input
+          aria-invalid={nameIssue?.severity === "error" ? true : undefined}
           autoComplete="organization"
           disabled={disabled}
           placeholder="Acme Governance"
           type="text"
           value={inputs.organizationName}
+          onBlur={() => onFieldBlur("organizationName")}
           onChange={(event) =>
             onUpdate("organizationName", event.target.value)
           }
         />
+        <FieldIssueText issue={nameIssue} />
+      </label>
+
+      <label className={getFormFieldClassName(slugIssue)}>
+        <span>
+          Organization slug
+          <RequiredMarker />
+        </span>
+        <div className="setup-slug-control">
+          <input
+            aria-invalid={slugIssue?.severity === "error" ? true : undefined}
+            autoComplete="off"
+            disabled={disabled}
+            placeholder="acme-governance"
+            spellCheck={false}
+            type="text"
+            value={inputs.organizationSlug}
+            onBlur={() => onFieldBlur("organizationSlug")}
+            onChange={(event) =>
+              onUpdate("organizationSlug", event.target.value)
+            }
+          />
+          {slugManuallyEdited ? (
+            <button
+              className="button button-small"
+              disabled={disabled}
+              type="button"
+              onClick={onResetSlug}
+            >
+              Reset
+            </button>
+          ) : null}
+        </div>
+        <FieldIssueText issue={slugIssue} />
+        <small className="form-help-text">
+          Format is validated locally. Before execution, App Core checks
+          currently indexed organizations when Control Plane is reachable.
+        </small>
       </label>
 
       <label className="form-field">
@@ -110,10 +176,13 @@ export function IdentityStep({
       <AddressInput
         className="form-field-wide"
         disabled={disabled}
+        error={fieldIssues.organizationAdminAddress?.message}
         label="Organization admin address"
         normalizeOnBlur
         required
+        showFeedback={Boolean(fieldIssues.organizationAdminAddress)}
         value={inputs.organizationAdminAddress}
+        onBlur={() => onFieldBlur("organizationAdminAddress")}
         onChange={(value) => onUpdate("organizationAdminAddress", value)}
       />
     </div>
@@ -141,42 +210,58 @@ export function GovernanceBodiesStep(): JSX.Element {
 
 export function HoldersStep({
   disabled,
+  fieldIssues,
   inputs,
+  onFieldBlur,
   onUpdate,
 }: {
   readonly disabled: boolean;
+  readonly fieldIssues: SetupWizardFieldIssueMap;
   readonly inputs: SimpleDaoPlusDraftInputs;
+  readonly onFieldBlur: (fieldId: SetupWizardFieldId) => void;
   readonly onUpdate: SimpleDaoPlusInputUpdate;
 }): JSX.Element {
   return (
     <div className="form-grid setup-wizard-form-grid">
       <AddressListField
         disabled={disabled}
+        fieldId="generalCouncilHolderAddresses"
+        issue={fieldIssues.generalCouncilHolderAddresses}
         label="General Council holders"
         value={inputs.generalCouncilHolderAddresses}
+        onBlur={onFieldBlur}
         onChange={(value) => onUpdate("generalCouncilHolderAddresses", value)}
       />
       <AddressListField
         disabled={disabled}
+        fieldId="treasuryCommitteeHolderAddresses"
+        issue={fieldIssues.treasuryCommitteeHolderAddresses}
         label="Treasury Committee holders"
         value={inputs.treasuryCommitteeHolderAddresses}
+        onBlur={onFieldBlur}
         onChange={(value) =>
           onUpdate("treasuryCommitteeHolderAddresses", value)
         }
       />
       <AddressListField
         disabled={disabled}
+        fieldId="securityCouncilHolderAddresses"
+        issue={fieldIssues.securityCouncilHolderAddresses}
         label="Security Council holders"
         value={inputs.securityCouncilHolderAddresses}
+        onBlur={onFieldBlur}
         onChange={(value) => onUpdate("securityCouncilHolderAddresses", value)}
       />
       <AddressInput
         className="form-field-wide"
         disabled={disabled}
+        error={fieldIssues.executorHolderAddress?.message}
         label="Executor holder address"
         normalizeOnBlur
         required
+        showFeedback={Boolean(fieldIssues.executorHolderAddress)}
         value={inputs.executorHolderAddress}
+        onBlur={() => onFieldBlur("executorHolderAddress")}
         onChange={(value) => onUpdate("executorHolderAddress", value)}
       />
     </div>
@@ -185,15 +270,31 @@ export function HoldersStep({
 
 export function PolicyRoutesStep({
   disabled,
+  fieldIssues,
   inputs,
+  onFieldBlur,
   onUpdate,
 }: {
   readonly disabled: boolean;
+  readonly fieldIssues: SetupWizardFieldIssueMap;
   readonly inputs: SimpleDaoPlusDraftInputs;
+  readonly onFieldBlur: (fieldId: SetupWizardFieldId) => void;
   readonly onUpdate: SimpleDaoPlusInputUpdate;
 }): JSX.Element {
   return (
     <div className="setup-wizard-step-body">
+      <div className="setup-wizard-hint">
+        <IsoIcon name="lightbulb" size={20} />
+        <div>
+          <strong>Emergency delay can be explicit and short</strong>
+          <span>
+            Emergency routes exist for narrow response authority. A zero-second
+            delay can be useful in local demos, while production policies may
+            require a different value.
+          </span>
+        </div>
+      </div>
+
       <div className="form-grid setup-wizard-form-grid">
         <label className="form-field">
           <span>Standard and upgrade executor body</span>
@@ -214,26 +315,38 @@ export function PolicyRoutesStep({
 
         <TimelockField
           disabled={disabled}
-          label="Standard timelock"
+          fieldId="standardTimelockSeconds"
+          issue={fieldIssues.standardTimelockSeconds}
+          label="Standard delay in seconds"
           value={inputs.standardTimelockSeconds}
+          onBlur={onFieldBlur}
           onChange={(value) => onUpdate("standardTimelockSeconds", value)}
         />
         <TimelockField
           disabled={disabled}
-          label="Treasury timelock"
+          fieldId="treasuryTimelockSeconds"
+          issue={fieldIssues.treasuryTimelockSeconds}
+          label="Treasury delay in seconds"
           value={inputs.treasuryTimelockSeconds}
+          onBlur={onFieldBlur}
           onChange={(value) => onUpdate("treasuryTimelockSeconds", value)}
         />
         <TimelockField
           disabled={disabled}
-          label="Upgrade timelock"
+          fieldId="upgradeTimelockSeconds"
+          issue={fieldIssues.upgradeTimelockSeconds}
+          label="Upgrade delay in seconds"
           value={inputs.upgradeTimelockSeconds}
+          onBlur={onFieldBlur}
           onChange={(value) => onUpdate("upgradeTimelockSeconds", value)}
         />
         <TimelockField
           disabled={disabled}
-          label="Emergency timelock"
+          fieldId="emergencyTimelockSeconds"
+          issue={fieldIssues.emergencyTimelockSeconds}
+          label="Emergency delay in seconds"
           value={inputs.emergencyTimelockSeconds}
+          onBlur={onFieldBlur}
           onChange={(value) => onUpdate("emergencyTimelockSeconds", value)}
         />
       </div>
@@ -273,12 +386,18 @@ function GovernanceBodyPreview({
 
 function AddressListField({
   disabled,
+  fieldId,
+  issue,
   label,
+  onBlur,
   onChange,
   value,
 }: {
   readonly disabled: boolean;
+  readonly fieldId: SetupWizardFieldId;
+  readonly issue?: SetupWizardFieldIssue;
   readonly label: string;
+  readonly onBlur: (fieldId: SetupWizardFieldId) => void;
   readonly onChange: (value: readonly string[]) => void;
   readonly value: readonly string[];
 }): JSX.Element {
@@ -286,11 +405,14 @@ function AddressListField({
     <MultiAddressInput
       className="form-field-wide"
       disabled={disabled}
+      error={issue?.message}
       label={label}
       normalizeOutput={false}
       placeholder="Paste or type addresses"
       required
+      showFeedback={Boolean(issue)}
       value={value}
+      onBlur={() => onBlur(fieldId)}
       onChange={onChange}
     />
   );
@@ -298,27 +420,39 @@ function AddressListField({
 
 function TimelockField({
   disabled,
+  fieldId,
+  issue,
   label,
+  onBlur,
   onChange,
   value,
 }: {
   readonly disabled: boolean;
+  readonly fieldId: SetupWizardFieldId;
+  readonly issue?: SetupWizardFieldIssue;
   readonly label: string;
+  readonly onBlur: (fieldId: SetupWizardFieldId) => void;
   readonly onChange: (value: string) => void;
   readonly value: string;
 }): JSX.Element {
   return (
-    <label className="form-field">
-      <span>{label}</span>
+    <label className={getFormFieldClassName(issue)}>
+      <span>
+        {label}
+        <RequiredMarker />
+      </span>
       <input
+        aria-invalid={issue?.severity === "error" ? true : undefined}
         disabled={disabled}
         inputMode="numeric"
         min="0"
         step="1"
         type="number"
         value={value}
+        onBlur={() => onBlur(fieldId)}
         onChange={(event) => onChange(event.target.value)}
       />
+      <FieldIssueText issue={issue} />
     </label>
   );
 }
@@ -336,6 +470,7 @@ function PolicyRoutePreviewList({
       approvalBodies: "General Council",
       executorBody: standardExecutor,
       name: "Standard route",
+      description: "Default proposal route for standard governance changes.",
       timelockSeconds: inputs.standardTimelockSeconds,
       vetoBody: "Security Council",
     },
@@ -343,6 +478,7 @@ function PolicyRoutePreviewList({
       approvalBodies: "General Council and Treasury Committee",
       executorBody: "Treasury Committee",
       name: "Treasury route",
+      description: "Treasury changes require general and treasury approval.",
       timelockSeconds: inputs.treasuryTimelockSeconds,
       vetoBody: "Security Council",
     },
@@ -350,6 +486,7 @@ function PolicyRoutePreviewList({
       approvalBodies: "General Council",
       executorBody: standardExecutor,
       name: "Upgrade route",
+      description: "Protocol upgrade decisions use the standard approval path.",
       timelockSeconds: inputs.upgradeTimelockSeconds,
       vetoBody: "Security Council",
     },
@@ -357,6 +494,7 @@ function PolicyRoutePreviewList({
       approvalBodies: "Security Council",
       executorBody: "Security Council",
       name: "Emergency route",
+      description: "Emergency authority is narrow and explicitly routed.",
       timelockSeconds: inputs.emergencyTimelockSeconds,
       vetoBody: "Security Council",
     },
@@ -376,6 +514,7 @@ function PolicyRoutePreview({
 }: {
   readonly route: {
     readonly approvalBodies: string;
+    readonly description: string;
     readonly executorBody: string;
     readonly name: string;
     readonly timelockSeconds: string;
@@ -383,27 +522,20 @@ function PolicyRoutePreview({
   };
 }): JSX.Element {
   return (
-    <article className="setup-wizard-route-preview">
-      <h4>{route.name}</h4>
-      <dl className="detail-list">
-        <div>
-          <dt>Approval</dt>
-          <dd>{route.approvalBodies}</dd>
-        </div>
-        <div>
-          <dt>Veto</dt>
-          <dd>{route.vetoBody}</dd>
-        </div>
-        <div>
-          <dt>Executor</dt>
-          <dd>{route.executorBody}</dd>
-        </div>
-        <div>
-          <dt>Timelock</dt>
-          <dd>{formatTimelock(route.timelockSeconds)}</dd>
-        </div>
-      </dl>
-    </article>
+    <RoutePreviewCard
+      description={route.description}
+      facts={[
+        { icon: "check", label: "Approval", value: route.approvalBodies },
+        { icon: "warning", label: "Veto", value: route.vetoBody },
+        { icon: "info", label: "Executor", value: route.executorBody },
+        {
+          icon: "lightbulb",
+          label: "Timelock",
+          value: formatTimelock(route.timelockSeconds),
+        },
+      ]}
+      title={route.name}
+    />
   );
 }
 
@@ -417,9 +549,50 @@ function getStandardExecutorBodyLabel(
 
 function formatTimelock(value: string): string {
   const trimmed = value.trim();
-  if (!trimmed) {
+  if (!/^\d+$/.test(trimmed)) {
     return "Not set";
   }
 
-  return `${formatNumericString(trimmed)} seconds`;
+  const seconds = BigInt(trimmed);
+  const hours = seconds / 3_600n;
+  const minutes = (seconds % 3_600n) / 60n;
+  const remainingSeconds = seconds % 60n;
+  const duration = [hours, minutes, remainingSeconds]
+    .map((part) => part.toString().padStart(2, "0"))
+    .join(":");
+
+  return `${duration} (${formatNumericString(trimmed)} seconds)`;
+}
+
+function RequiredMarker(): JSX.Element {
+  return (
+    <span aria-hidden="true" className="field-required-marker">
+      *
+    </span>
+  );
+}
+
+function FieldIssueText({
+  issue,
+}: {
+  readonly issue?: SetupWizardFieldIssue;
+}): JSX.Element | null {
+  if (!issue) {
+    return null;
+  }
+
+  return (
+    <small className={`setup-field-message setup-field-message-${issue.severity}`}>
+      {issue.message}
+    </small>
+  );
+}
+
+function getFormFieldClassName(issue?: SetupWizardFieldIssue): string {
+  return [
+    "form-field",
+    issue ? `form-field-${issue.severity}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }

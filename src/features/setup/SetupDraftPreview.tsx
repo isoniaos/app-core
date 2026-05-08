@@ -480,9 +480,14 @@ function getActionSummary(action: SetupAction): ReactNode {
 function getCreateOrganizationSummary(
   action: CreateOrganizationSetupAction,
 ): ReactNode {
+  const slug = (action as CreateOrganizationSetupAction & {
+    readonly slug?: string;
+  }).slug;
+
   return (
     <span className="setup-action-summary">
       {action.fallbackName}; admin {renderDraftAddress(action.adminAddress)}
+      {slug ? `; slug ${slug}` : ""}
       {action.metadataUri ? `; metadata ${action.metadataUri}` : ""}
     </span>
   );

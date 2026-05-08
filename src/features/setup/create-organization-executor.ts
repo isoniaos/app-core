@@ -2,6 +2,7 @@ import type { CreateOrganizationSetupAction } from "@isonia/types";
 import { isAddress } from "viem";
 import {
   buildOrganizationSlug,
+  validateOrganizationSlug,
   GOV_CORE_ABI,
   parseOrganizationCreatedLog,
 } from "../../chain/setup-contracts";
@@ -85,6 +86,18 @@ export async function executeCreateOrganizationAction({
   const payload = buildCreateOrganizationPayload(action);
   if (payload instanceof Error) {
     setActionFailed(action, payload.message);
+    return;
+  }
+
+  const slugConflict = await hasIndexedSlugConflict({
+    currentOrgId: action.orgId,
+    slug: payload.slug,
+  });
+  if (slugConflict) {
+    setActionFailed(
+      action,
+      `Organization slug "${payload.slug}" already appears in the Control Plane read model.`,
+    );
     return;
   }
 
@@ -179,6 +192,24 @@ export async function executeCreateOrganizationAction({
       },
     }));
   }
+
+  async function hasIndexedSlugConflict({
+    currentOrgId,
+    slug,
+  }: {
+    readonly currentOrgId?: string;
+    readonly slug: string;
+  }): Promise<boolean> {
+    try {
+      const organizations = await client.getOrganizations();
+      return organizations.some(
+        (organization) =>
+          organization.slug === slug && organization.orgId !== currentOrgId,
+      );
+    } catch {
+      return false;
+    }
+  }
 }
 
 function buildCreateOrganizationPayload(
@@ -188,9 +219,10 @@ function buildCreateOrganizationPayload(
     return new Error("Organization admin address must be a non-zero EVM address.");
   }
 
-  const slug = buildOrganizationSlug(action.fallbackName);
-  if (!slug) {
-    return new Error("Organization slug must not be empty.");
+  const slug = getCreateOrganizationActionSlug(action);
+  const slugError = validateOrganizationSlug(slug);
+  if (slugError) {
+    return new Error(slugError);
   }
 
   return {
@@ -198,4 +230,14 @@ function buildCreateOrganizationPayload(
     metadataUri: action.metadataUri ?? "",
     slug,
   };
+}
+
+function getCreateOrganizationActionSlug(
+  action: CreateOrganizationSetupAction,
+): string {
+  const explicitSlug = (action as CreateOrganizationSetupAction & {
+    readonly slug?: string;
+  }).slug?.trim();
+
+  return explicitSlug || buildOrganizationSlug(action.fallbackName);
 }

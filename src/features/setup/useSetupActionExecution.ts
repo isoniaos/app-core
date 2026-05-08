@@ -121,7 +121,7 @@ export function useSetupActionExecution({
       error: transaction.error,
       stage: mapSetupLifecycleStageToTransactionFlowStage(
         transaction.stage,
-        "preparing",
+        "idle",
       ),
       txHash: transaction.txHash,
     });
@@ -203,43 +203,7 @@ export function useSetupActionExecution({
     setState(createInitialSetupDraftExecutionState());
   }, [resetTransactionModal]);
 
-  const openSetupTransactionModal = useCallback(
-    ({
-      description,
-      itemId,
-      retry,
-      title,
-      transaction,
-    }: {
-      readonly description: string;
-      readonly itemId: string;
-      readonly retry: () => Promise<void>;
-      readonly title: string;
-      readonly transaction: SetupActionTransaction;
-    }) => {
-      activeTransactionModalItemId.current = itemId;
-      openTransactionModal({
-        description,
-        item: {
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
-          description,
-          error: transaction.error,
-          id: itemId,
-          retry,
-          stage: mapSetupLifecycleStageToTransactionFlowStage(
-            transaction.stage,
-            "preparing",
-          ),
-          title,
-          txHash: transaction.txHash,
-        },
-        title,
-      });
-    },
-    [openTransactionModal, runtimeConfig.blockExplorerUrl],
-  );
-
-  const retrySetupTransaction = useCallback(
+  const startSetupTransaction = useCallback(
     async (itemId: string, run: () => Promise<void>): Promise<void> => {
       activeTransactionModalItemId.current = itemId;
       updateTransactionModalItem(itemId, {
@@ -249,6 +213,44 @@ export function useSetupActionExecution({
       await run();
     },
     [updateTransactionModalItem],
+  );
+
+  const openSetupTransactionModal = useCallback(
+    ({
+      description,
+      itemId,
+      run,
+      title,
+      transaction,
+    }: {
+      readonly description: string;
+      readonly itemId: string;
+      readonly run: () => Promise<void>;
+      readonly title: string;
+      readonly transaction: SetupActionTransaction;
+    }) => {
+      activeTransactionModalItemId.current = itemId;
+      const start = () => startSetupTransaction(itemId, run);
+      openTransactionModal({
+        description,
+        item: {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          description,
+          error: transaction.error,
+          execute: start,
+          id: itemId,
+          retry: start,
+          stage: mapSetupLifecycleStageToTransactionFlowStage(
+            transaction.stage,
+            "idle",
+          ),
+          title,
+          txHash: transaction.txHash,
+        },
+        title,
+      });
+    },
+    [openTransactionModal, runtimeConfig.blockExplorerUrl, startSetupTransaction],
   );
 
   const runCreateOrganizationAction = useCallback(async (): Promise<void> => {
@@ -362,15 +364,13 @@ export function useSetupActionExecution({
       description:
         "Submit the organization setup action, wait for the chain receipt, then wait for Control Plane to index the organization read model.",
       itemId,
-      retry: () => retrySetupTransaction(itemId, runCreateOrganizationAction),
+      run: runCreateOrganizationAction,
       title: createOrganizationAction?.label ?? "Create organization",
       transaction: state.createOrganization,
     });
-    await runCreateOrganizationAction();
   }, [
     createOrganizationAction?.label,
     openSetupTransactionModal,
-    retrySetupTransaction,
     runCreateOrganizationAction,
     state.createOrganization,
   ]);
@@ -385,18 +385,16 @@ export function useSetupActionExecution({
         description:
           "Submit the body setup action, wait for the chain receipt, then wait for Control Plane to index the body read model.",
         itemId,
-        retry: () => retrySetupTransaction(itemId, () => runCreateBodyAction(actionId)),
+        run: () => runCreateBodyAction(actionId),
         title: action?.label ?? "Create body",
         transaction:
           state.createBodies[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
-      await runCreateBodyAction(actionId);
     },
     [
       createBodyActions,
       openSetupTransactionModal,
-      retrySetupTransaction,
       runCreateBodyAction,
       state.createBodies,
     ],
@@ -412,18 +410,16 @@ export function useSetupActionExecution({
         description:
           "Submit the role setup action, wait for the chain receipt, then wait for Control Plane to index the role read model.",
         itemId,
-        retry: () => retrySetupTransaction(itemId, () => runCreateRoleAction(actionId)),
+        run: () => runCreateRoleAction(actionId),
         title: action?.label ?? "Create role",
         transaction:
           state.createRoles[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
-      await runCreateRoleAction(actionId);
     },
     [
       createRoleActions,
       openSetupTransactionModal,
-      retrySetupTransaction,
       runCreateRoleAction,
       state.createRoles,
     ],
@@ -442,18 +438,16 @@ export function useSetupActionExecution({
         description:
           "Submit the mandate setup action, wait for the chain receipt, then wait for Control Plane to index the mandate read model.",
         itemId,
-        retry: () => retrySetupTransaction(itemId, () => runAssignMandateAction(actionId)),
+        run: () => runAssignMandateAction(actionId),
         title: action?.label ?? "Assign mandate",
         transaction:
           state.assignMandates[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
-      await runAssignMandateAction(actionId);
     },
     [
       assignMandateActions,
       openSetupTransactionModal,
-      retrySetupTransaction,
       runAssignMandateAction,
       state.assignMandates,
     ],
@@ -472,17 +466,15 @@ export function useSetupActionExecution({
         description:
           "Submit the policy setup action, wait for the chain receipt, then wait for Control Plane to index the policy read model.",
         itemId,
-        retry: () => retrySetupTransaction(itemId, () => runSetPolicyRuleAction(actionId)),
+        run: () => runSetPolicyRuleAction(actionId),
         title: action?.label ?? "Set policy rule",
         transaction:
           state.setPolicyRules[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
-      await runSetPolicyRuleAction(actionId);
     },
     [
       openSetupTransactionModal,
-      retrySetupTransaction,
       runSetPolicyRuleAction,
       setPolicyRuleActions,
       state.setPolicyRules,
