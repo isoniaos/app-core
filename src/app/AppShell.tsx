@@ -43,9 +43,6 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
             <NavLink to="/orgs/new" className={navClassName}>
               New Organization
             </NavLink>
-            <NavLink to="/diagnostics" className={navClassName}>
-              Diagnostics
-            </NavLink>
             {orgId ? (
               <>
                 <div className="nav-group-label">Org #{orgId}</div>

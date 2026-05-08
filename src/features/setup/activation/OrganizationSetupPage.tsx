@@ -68,9 +68,6 @@ export function OrganizationSetupPage(): JSX.Element {
         <Link className="button" to={`/orgs/${orgId}`}>
           Overview
         </Link>
-        <Link className="button" to="/diagnostics">
-          Diagnostics
-        </Link>
         <StatusBadge tone={getCompletionTone(completion.readiness)}>
           {formatLabel(completion.readiness)}
         </StatusBadge>

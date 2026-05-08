@@ -127,8 +127,8 @@ function SerialTransactionItem({
         />
         <div className="transaction-modal-item-actions">
           {showDiagnostics ? (
-            <Link className="button button-small" to="/diagnostics">
-              Open diagnostics
+            <Link className="diagnostics-text-link" to="/diagnostics">
+              View diagnostics
             </Link>
           ) : null}
           {isFailedTransactionStage(displayStage) && item.retry ? (

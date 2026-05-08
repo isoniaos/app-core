@@ -47,6 +47,7 @@ export function ProposalActionLifecycle({
       detail: (
         <ProposalControlPlaneWaitingDetail
           blockExplorerUrl={blockExplorerUrl}
+          showDiagnosticsLink={transaction.stage === "confirmed_waiting_indexer"}
           txHash={transaction.txHash}
         />
       ),
@@ -178,9 +179,11 @@ function ProposalSubmittedDetail({
 
 function ProposalControlPlaneWaitingDetail({
   blockExplorerUrl,
+  showDiagnosticsLink,
   txHash,
 }: {
   readonly blockExplorerUrl?: string;
+  readonly showDiagnosticsLink: boolean;
   readonly txHash?: `0x${string}`;
 }): JSX.Element {
   return (
@@ -198,9 +201,11 @@ function ProposalControlPlaneWaitingDetail({
         Local Hardhat restarts, a stopped indexer, or stale runtime config can
         delay this step.
       </span>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
-      </Link>
+      {showDiagnosticsLink ? (
+        <Link className="diagnostics-text-link" to="/diagnostics">
+          View diagnostics
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -229,8 +234,8 @@ function ProposalFailedDetail({
         <span>Raw error</span>
         <code>{errorMessage}</code>
       </div>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
+      <Link className="diagnostics-text-link" to="/diagnostics">
+        View diagnostics
       </Link>
     </div>
   );
@@ -264,7 +269,7 @@ function getFailureGuidance(errorMessage: string): FailureGuidance {
     return {
       label: "Timeout or indexer delay",
       recoveryHint:
-        "Open diagnostics, confirm Control Plane/indexer health, then reload after projections catch up.",
+        "View diagnostics, confirm Control Plane/indexer health, then reload after projections catch up.",
       summary:
         "The transaction may be mined, but App Core did not see the expected proposal read model update in time.",
     };

@@ -13,23 +13,48 @@ import {
   formatLabel,
   formatNumericString,
 } from "../../utils/format";
+import { useWalletSetup } from "../../wallet/WalletProvider";
+import { useWalletConnection } from "../../wallet/useWalletConnection";
 import { useDiagnostics } from "./DiagnosticsProvider";
 import {
   getDiagnosticsSeverityTone,
   getDiagnosticsStatusSummary,
 } from "./diagnostics-status";
 
+type DiagnosticsPageVariant = "home" | "diagnostics";
+
+export function DiagnosticsHomePage(): JSX.Element {
+  return <DiagnosticsPageContent variant="home" />;
+}
+
 export function DiagnosticsPage(): JSX.Element {
+  return <DiagnosticsPageContent variant="diagnostics" />;
+}
+
+function DiagnosticsPageContent({
+  variant,
+}: {
+  readonly variant: DiagnosticsPageVariant;
+}): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const diagnostics = useDiagnostics();
+  const walletSetup = useWalletSetup();
+  const walletConnection = useWalletConnection();
+  const isHome = variant === "home";
 
   return (
     <section className="page-stack">
       <PageHeader
-        eyebrow="Control Plane"
-        title="Diagnostics"
-        description="Operator view for API availability, chain indexing, projection health, stale data, and protocol contract configuration."
+        eyebrow={isHome ? "v0.6 local demo" : "Control Plane"}
+        title={isHome ? "IsoniaOS local demo status" : "Diagnostics"}
+        description={
+          isHome
+            ? "Check API, indexer, projections, wallet, runtime config, and chain connectivity before running setup or proposal flows."
+            : "Operator view for API availability, chain indexing, projection health, stale data, wallet state, and runtime configuration."
+        }
       />
+
+      <DiagnosticsSupportGuidance />
 
       {diagnostics.loading && !diagnostics.data ? (
         <DiagnosticsLoadingState />
@@ -50,6 +75,12 @@ export function DiagnosticsPage(): JSX.Element {
       {diagnostics.data ? (
         <DiagnosticsDetails diagnostics={diagnostics.data} />
       ) : null}
+
+      <DiagnosticsLocalRuntime
+        runtimeConfig={runtimeConfig}
+        walletConnection={walletConnection}
+        walletSetup={walletSetup}
+      />
     </section>
   );
 }
@@ -182,6 +213,153 @@ function DiagnosticsDetails({
         <LatestProjectionError error={diagnostics.latestProjectionError} />
       </DiagnosticsPanel>
     </>
+  );
+}
+
+function DiagnosticsSupportGuidance(): JSX.Element {
+  return (
+    <section className="panel diagnostics-panel">
+      <div className="panel-header">
+        <div>
+          <h2>When to use this page</h2>
+          <p className="panel-subtitle">
+            Local demo support surface for stale UI state and setup/proposal
+            flow troubleshooting.
+          </p>
+        </div>
+      </div>
+      <div className="diagnostics-panel-body">
+        <ul className="diagnostics-guidance-list">
+          <li>
+            Use this page when transactions are mined but not reflected in the UI.
+          </li>
+          <li>
+            Check Control Plane, indexer, projections, runtime config, wallet,
+            and chain connectivity when local state looks stale.
+          </li>
+          <li>
+            For local Hardhat restarts, confirm contract addresses and runtime
+            config before retrying setup or proposal flows.
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function DiagnosticsLocalRuntime({
+  runtimeConfig,
+  walletConnection,
+  walletSetup,
+}: {
+  readonly runtimeConfig: ReturnType<typeof useRuntimeConfig>;
+  readonly walletConnection: ReturnType<typeof useWalletConnection>;
+  readonly walletSetup: ReturnType<typeof useWalletSetup>;
+}): JSX.Element {
+  const walletTone = walletConnection.isConnected ? "success" : "muted";
+  const chainTone =
+    walletConnection.chainId === undefined ||
+    walletConnection.chainId === runtimeConfig.chainId
+      ? "success"
+      : "danger";
+
+  return (
+    <div className="two-column-grid">
+      <DiagnosticsPanel
+        title="Runtime Config"
+        subtitle="Local app configuration loaded before App Core starts."
+      >
+        <DetailList
+          items={[
+            ["Mode", formatLabel(runtimeConfig.mode)],
+            ["API base URL", runtimeConfig.apiBaseUrl],
+            ["RPC URL", runtimeConfig.rpcUrl],
+            [
+              "Configured chain",
+              `${runtimeConfig.chainName} (${runtimeConfig.chainId})`,
+            ],
+            [
+              "Reown AppKit",
+              walletSetup.appKitEnabled ? "Enabled" : "Injected fallback",
+              walletSetup.appKitEnabled ? "success" : "warning",
+            ],
+            [
+              "Create proposal",
+              runtimeConfig.features.createProposal ? "Enabled" : "Disabled",
+              runtimeConfig.features.createProposal ? "success" : "muted",
+            ],
+            [
+              "Write actions",
+              runtimeConfig.features.writeActions ? "Enabled" : "Disabled",
+              runtimeConfig.features.writeActions ? "success" : "muted",
+            ],
+          ]}
+        />
+      </DiagnosticsPanel>
+
+      <DiagnosticsPanel
+        title="Wallet"
+        subtitle="Current browser wallet and chain connection state."
+      >
+        <DetailList
+          items={[
+            [
+              "Connection",
+              walletConnection.isConnected
+                ? walletConnection.status
+                : "Not connected",
+              walletTone,
+            ],
+            [
+              "Wallet chain",
+              walletConnection.chainId
+                ? String(walletConnection.chainId)
+                : "Not reported",
+              chainTone,
+            ],
+            [
+              "Expected chain",
+              String(runtimeConfig.chainId),
+              chainTone,
+            ],
+            [
+              "Connector",
+              walletConnection.connector?.name ?? "Not reported",
+            ],
+            [
+              "Wallet setup diagnostics",
+              walletSetup.diagnostics.length.toLocaleString(),
+              walletSetup.diagnostics.length > 0 ? "warning" : "success",
+            ],
+          ]}
+        />
+        {walletSetup.diagnostics.length > 0 ? (
+          <div className="diagnostics-indicator-list">
+            {walletSetup.diagnostics.map((diagnostic) => (
+              <article
+                className={`diagnostics-indicator diagnostics-indicator-${
+                  diagnostic.level === "error" ? "error" : "warning"
+                }`}
+                key={diagnostic.code}
+              >
+                <div className="diagnostics-indicator-header">
+                  <div>
+                    <strong>{formatLabel(diagnostic.code)}</strong>
+                    <span>{diagnostic.message}</span>
+                  </div>
+                  <StatusBadge
+                    tone={diagnostic.level === "error" ? "danger" : "warning"}
+                  >
+                    {formatLabel(diagnostic.level)}
+                  </StatusBadge>
+                </div>
+                <p>{diagnostic.detail}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </DiagnosticsPanel>
+    </div>
   );
 }
 

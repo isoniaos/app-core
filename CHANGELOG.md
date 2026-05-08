@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Consolidated diagnostics into the app home and diagnostics surface.
+- Removed scattered Diagnostics buttons from normal setup, activation, and proposal flows.
+- Cleaned AppShell diagnostics navigation and status access.
+
 ## [0.6.0-alpha.11]
 
 ### Added

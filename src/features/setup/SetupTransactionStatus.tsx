@@ -80,6 +80,7 @@ export function SetupTransactionStatus({
         <SetupControlPlaneWaitingDetail
           blockExplorerUrl={blockExplorerUrl}
           emittedIdLabel={emittedIdLabel}
+          showDiagnosticsLink={transaction.stage === "confirmed_waiting_indexer"}
           txHash={transaction.txHash}
         />
       ),
@@ -210,10 +211,12 @@ function SetupSubmittedDetail({
 function SetupControlPlaneWaitingDetail({
   blockExplorerUrl,
   emittedIdLabel,
+  showDiagnosticsLink,
   txHash,
 }: {
   readonly blockExplorerUrl?: string;
   readonly emittedIdLabel?: string;
+  readonly showDiagnosticsLink: boolean;
   readonly txHash?: `0x${string}`;
 }): JSX.Element {
   return (
@@ -230,9 +233,11 @@ function SetupControlPlaneWaitingDetail({
       <span>
         Local Hardhat restarts or stale runtime config can delay this step.
       </span>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
-      </Link>
+      {showDiagnosticsLink ? (
+        <Link className="diagnostics-text-link" to="/diagnostics">
+          View diagnostics
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -261,8 +266,8 @@ function SetupFailedTransactionDetail({
         <span>Raw error</span>
         <code>{errorMessage}</code>
       </div>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
+      <Link className="diagnostics-text-link" to="/diagnostics">
+        View diagnostics
       </Link>
     </div>
   );

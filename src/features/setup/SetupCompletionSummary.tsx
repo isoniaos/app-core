@@ -83,8 +83,8 @@ export function SetupCompletionSummary({
                 Retry
               </button>
             ) : null}
-            <Link className="button" to="/diagnostics">
-              Diagnostics
+            <Link className="diagnostics-text-link" to="/diagnostics">
+              View diagnostics
             </Link>
           </div>
         </div>
@@ -262,9 +262,6 @@ function CompletedNextSteps({
       </Link>
       <Link className="button" to={`/orgs/${orgId}/proposals/new`}>
         Proposal Creation
-      </Link>
-      <Link className="button" to="/diagnostics">
-        Diagnostics
       </Link>
     </div>
   );

@@ -375,6 +375,18 @@ td {
   font-size: 0.86rem;
 }
 
+.diagnostics-text-link {
+  color: var(--iso-color-primary);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.diagnostics-text-link:hover {
+  color: var(--iso-color-primary-strong);
+}
+
 .proposal-form {
   display: grid;
   gap: 1rem;
@@ -1659,6 +1671,16 @@ button.address-display {
 
 .diagnostics-panel-body {
   padding: 1rem;
+}
+
+.diagnostics-guidance-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--iso-color-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .diagnostics-detail-list {

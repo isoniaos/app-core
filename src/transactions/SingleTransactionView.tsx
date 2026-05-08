@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { IsoAlert, IsoHelpTerm, IsoTransactionHash } from "../ui-kit";
 import {
   getTransactionStageCopy,
-  isControlPlaneWaitingStage,
   normalizeSingleTransactionStage,
   SINGLE_TRANSACTION_STAGE_ORDER,
 } from "./transactionCopy";
@@ -137,8 +136,8 @@ function TransactionStageMeta({
         />
       ) : null}
       {showDiagnostics ? (
-        <Link className="button button-small" to="/diagnostics">
-          Open diagnostics
+        <Link className="diagnostics-text-link" to="/diagnostics">
+          View diagnostics
         </Link>
       ) : null}
       {showError ? (

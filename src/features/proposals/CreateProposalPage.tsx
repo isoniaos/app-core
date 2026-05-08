@@ -457,6 +457,7 @@ function TransactionLifecycle({
         <CreateProposalControlPlaneWaitingDetail
           blockExplorerUrl={blockExplorerUrl}
           proposalId={transaction.proposalId}
+          showDiagnosticsLink={transaction.stage === "confirmed_waiting_indexer"}
           txHash={transaction.txHash}
         />
       ),
@@ -572,10 +573,12 @@ function CreateProposalSubmittedDetail({
 function CreateProposalControlPlaneWaitingDetail({
   blockExplorerUrl,
   proposalId,
+  showDiagnosticsLink,
   txHash,
 }: {
   readonly blockExplorerUrl?: string;
   readonly proposalId?: string;
+  readonly showDiagnosticsLink: boolean;
   readonly txHash?: `0x${string}`;
 }): JSX.Element {
   return (
@@ -594,9 +597,11 @@ function CreateProposalControlPlaneWaitingDetail({
         Local Hardhat restarts, a stopped indexer, or stale runtime config can
         delay this step.
       </span>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
-      </Link>
+      {showDiagnosticsLink ? (
+        <Link className="diagnostics-text-link" to="/diagnostics">
+          View diagnostics
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -621,8 +626,8 @@ function CreateProposalFailedDetail({
         If the transaction was mined but the proposal does not appear, check
         Control Plane/indexer health, local Hardhat state, and runtime config.
       </span>
-      <Link className="button button-small" to="/diagnostics">
-        Open diagnostics
+      <Link className="diagnostics-text-link" to="/diagnostics">
+        View diagnostics
       </Link>
     </div>
   );

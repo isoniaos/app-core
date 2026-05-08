@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
+import {
+  DiagnosticsHomePage,
+  DiagnosticsPage,
+} from "../features/diagnostics/DiagnosticsPage";
 import { GraphPage } from "../features/graph/GraphPage";
 import { GovernancePage } from "../features/governance/GovernancePage";
-import { HomePage } from "../features/home/HomePage";
 import { OrganizationOverviewPage } from "../features/organizations/OrganizationOverviewPage";
 import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
 import { CreateProposalPage } from "../features/proposals/CreateProposalPage";
@@ -20,7 +22,7 @@ export function App(): JSX.Element {
       <TransactionModalProvider>
         <AppShell>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<DiagnosticsHomePage />} />
             <Route path="/orgs" element={<OrganizationsPage />} />
             <Route path="/orgs/new" element={<NewOrganizationSetupPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
