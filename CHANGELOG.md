@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.9]
+
 ### Added
 
 - Added reusable transaction modal foundation for single and serial transaction UX.
@@ -118,7 +120,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.8...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.9...HEAD
+[0.6.0-alpha.9]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.9
 [0.6.0-alpha.8]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.8
 [0.6.0-alpha.7]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.7
 [0.6.0-alpha.6]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.6
