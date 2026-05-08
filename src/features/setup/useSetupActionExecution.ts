@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SetupDraft } from "@isonia/types";
+import type { SetupAction, SetupDraft } from "@isonia/types";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
   useTransactionModal,
+  type TransactionFlowItem,
+  type TransactionFlowItemStage,
   type TransactionFlowStage,
 } from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
+import { canExecuteActivationActionState } from "./activation-group-progress";
 import { executeAssignMandateAction } from "./assign-mandate-executor";
 import { executeCreateBodyAction } from "./create-body-executor";
 import { executeCreateOrganizationAction } from "./create-organization-executor";
@@ -23,8 +26,10 @@ import {
 } from "./setup-action-execution-helpers";
 import {
   deriveSetupExecutionStateFromReadModels,
+  verifySetupCompletion,
   type SetupCompletionReadModels,
 } from "./setup-completion-verification";
+import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import {
   createInitialSetupDraftExecutionState,
   type SetupActionLifecycleStage,
@@ -53,10 +58,14 @@ export function useSetupActionExecution({
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
+  readonly executeAssignMandateGroup: () => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly executeCreateBodyGroup: () => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeCreateRoleGroup: () => Promise<void>;
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRuleGroup: () => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
   readonly state: SetupDraftExecutionState;
@@ -67,14 +76,25 @@ export function useSetupActionExecution({
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
+    openSerial: openSerialTransactionModal,
     openSingle: openTransactionModal,
     reset: resetTransactionModal,
+    setActiveItem: setActiveTransactionModalItem,
     state: transactionModalState,
     updateItem: updateTransactionModalItem,
   } = useTransactionModal();
   const activeTransactionModalItemId = useRef<string | undefined>(undefined);
   const [state, setState] = useState<SetupDraftExecutionState>(
     createInitialSetupDraftExecutionState,
+  );
+  const stateRef = useRef<SetupDraftExecutionState>(state);
+  const setExecutionState = useCallback(
+    (updater: (current: SetupDraftExecutionState) => SetupDraftExecutionState) => {
+      const next = updater(stateRef.current);
+      stateRef.current = next;
+      setState(next);
+    },
+    [],
   );
 
   const createOrganizationAction = useMemo(
@@ -113,6 +133,10 @@ export function useSetupActionExecution({
     },
     [draft, readModels, resolvedOrgId, state],
   );
+  useEffect(() => {
+    stateRef.current = returnedState;
+  }, [returnedState]);
+
   const setupWritesEnabled =
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
 
@@ -133,15 +157,21 @@ export function useSetupActionExecution({
     updateTransactionModalItem(activeItemId, {
       blockExplorerUrl: runtimeConfig.blockExplorerUrl,
       error: transaction.error,
-      stage: mapSetupLifecycleStageToTransactionFlowStage(
-        transaction.stage,
-        "idle",
-      ),
+      stage:
+        transactionModalState.mode === "serial"
+          ? mapSetupLifecycleStageToSerialTransactionFlowStage(
+              transaction.stage,
+            )
+          : mapSetupLifecycleStageToTransactionFlowStage(
+              transaction.stage,
+              "idle",
+            ),
       txHash: transaction.txHash,
     });
   }, [
     returnedState,
     runtimeConfig.blockExplorerUrl,
+    transactionModalState.mode,
     transactionModalState.open,
     updateTransactionModalItem,
   ]);
@@ -156,7 +186,7 @@ export function useSetupActionExecution({
       client,
       publicClient,
       runtimeConfig,
-      setState,
+      setState: setExecutionState,
       setupWritesEnabled,
       writeContractAsync,
     }),
@@ -167,10 +197,16 @@ export function useSetupActionExecution({
       client,
       publicClient,
       runtimeConfig,
+      setExecutionState,
       setupWritesEnabled,
       writeContractAsync,
     ],
   );
+  const executorContextRef =
+    useRef<SetupActionExecutorContext>(executorContext);
+  useEffect(() => {
+    executorContextRef.current = executorContext;
+  }, [executorContext]);
 
   const readiness = useMemo(
     () =>
@@ -214,29 +250,34 @@ export function useSetupActionExecution({
   const reset = useCallback(() => {
     activeTransactionModalItemId.current = undefined;
     resetTransactionModal();
-    setState(createInitialSetupDraftExecutionState());
+    const next = createInitialSetupDraftExecutionState();
+    stateRef.current = next;
+    setState(next);
   }, [resetTransactionModal]);
 
   const startSetupTransaction = useCallback(
     async (itemId: string, run: () => Promise<void>): Promise<void> => {
       activeTransactionModalItemId.current = itemId;
+      setActiveTransactionModalItem(itemId);
       updateTransactionModalItem(itemId, {
         error: undefined,
         stage: "preparing",
       });
       await run();
     },
-    [updateTransactionModalItem],
+    [setActiveTransactionModalItem, updateTransactionModalItem],
   );
 
   const openSetupTransactionModal = useCallback(
     ({
+      action,
       description,
       itemId,
       run,
       title,
       transaction,
     }: {
+      readonly action?: SetupAction;
       readonly description: string;
       readonly itemId: string;
       readonly run: () => Promise<void>;
@@ -244,120 +285,122 @@ export function useSetupActionExecution({
       readonly transaction: SetupActionTransaction;
     }) => {
       activeTransactionModalItemId.current = itemId;
+      const preflight = action
+        ? getSetupActionExecutionPreflight(action, {
+            accountChainId: account.chainId,
+            connected: account.isConnected,
+            connectedAddress: account.address,
+            govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+            runtimeChainId: runtimeConfig.chainId,
+            setupWritesEnabled,
+          })
+        : undefined;
+      const preflightReady = preflight?.canExecute ?? true;
       const start = () => startSetupTransaction(itemId, run);
       openTransactionModal({
         description,
         item: {
           blockExplorerUrl: runtimeConfig.blockExplorerUrl,
           description,
-          error: transaction.error,
-          execute: start,
+          error: preflightReady ? transaction.error : preflight?.message,
+          execute: preflightReady ? start : undefined,
           id: itemId,
-          retry: start,
-          stage: mapSetupLifecycleStageToTransactionFlowStage(
-            transaction.stage,
-            "idle",
-          ),
+          retry: preflightReady ? start : undefined,
+          stage: preflightReady
+            ? mapSetupLifecycleStageToTransactionFlowStage(
+                transaction.stage,
+                "idle",
+              )
+            : "failed",
           title,
           txHash: transaction.txHash,
         },
         title,
       });
     },
-    [openTransactionModal, runtimeConfig.blockExplorerUrl, startSetupTransaction],
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      openTransactionModal,
+      runtimeConfig.blockExplorerUrl,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setupWritesEnabled,
+      startSetupTransaction,
+    ],
   );
 
   const runCreateOrganizationAction = useCallback(async (): Promise<void> => {
     await executeCreateOrganizationAction({
       action: createOrganizationAction,
-      context: executorContext,
+      context: executorContextRef.current,
     });
-  }, [createOrganizationAction, executorContext]);
+  }, [createOrganizationAction]);
 
   const runCreateBodyAction = useCallback(
     async (actionId: string): Promise<void> => {
+      const latestState = stateRef.current;
       await executeCreateBodyAction({
         actionId,
         actions: createBodyActions,
-        context: executorContext,
-        resolvedBodyIds: returnedState.resolvedBodyIds,
-        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
+        context: executorContextRef.current,
+        resolvedBodyIds: latestState.resolvedBodyIds,
+        resolvedOrgId: latestState.resolvedOrgId ?? resolvedOrgId,
       });
     },
-    [
-      createBodyActions,
-      executorContext,
-      resolvedOrgId,
-      returnedState.resolvedBodyIds,
-      returnedState.resolvedOrgId,
-    ],
+    [createBodyActions, resolvedOrgId],
   );
 
   const runCreateRoleAction = useCallback(
     async (actionId: string): Promise<void> => {
+      const latestState = stateRef.current;
       await executeCreateRoleAction({
         actionId,
         actions: createRoleActions,
         bodyActions: createBodyActions,
         busy,
-        context: executorContext,
-        resolvedBodyIds: returnedState.resolvedBodyIds,
-        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
-        resolvedRoleIds: returnedState.resolvedRoleIds,
+        context: executorContextRef.current,
+        resolvedBodyIds: latestState.resolvedBodyIds,
+        resolvedOrgId: latestState.resolvedOrgId ?? resolvedOrgId,
+        resolvedRoleIds: latestState.resolvedRoleIds,
       });
     },
-    [
-      busy,
-      createBodyActions,
-      createRoleActions,
-      executorContext,
-      resolvedOrgId,
-      returnedState.resolvedBodyIds,
-      returnedState.resolvedOrgId,
-      returnedState.resolvedRoleIds,
-    ],
+    [busy, createBodyActions, createRoleActions, resolvedOrgId],
   );
 
   const runAssignMandateAction = useCallback(
     async (actionId: string): Promise<void> => {
+      const latestState = stateRef.current;
       await executeAssignMandateAction({
         actionId,
         actions: assignMandateActions,
         busy,
-        context: executorContext,
-        resolvedMandateIds: returnedState.resolvedMandateIds,
-        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
-        resolvedRoleIds: returnedState.resolvedRoleIds,
-        resolvedRoles: returnedState.resolvedRoles,
+        context: executorContextRef.current,
+        resolvedMandateIds: latestState.resolvedMandateIds,
+        resolvedOrgId: latestState.resolvedOrgId ?? resolvedOrgId,
+        resolvedRoleIds: latestState.resolvedRoleIds,
+        resolvedRoles: latestState.resolvedRoles,
         roleActions: createRoleActions,
       });
     },
-    [
-      assignMandateActions,
-      busy,
-      createRoleActions,
-      executorContext,
-      resolvedOrgId,
-      returnedState.resolvedMandateIds,
-      returnedState.resolvedOrgId,
-      returnedState.resolvedRoleIds,
-      returnedState.resolvedRoles,
-    ],
+    [assignMandateActions, busy, createRoleActions, resolvedOrgId],
   );
 
   const runSetPolicyRuleAction = useCallback(
     async (actionId: string): Promise<void> => {
+      const latestState = stateRef.current;
       await executeSetPolicyRuleAction({
         actionId,
         actions: setPolicyRuleActions,
         bodyActions: createBodyActions,
         busy,
-        context: executorContext,
+        context: executorContextRef.current,
         mandateActions: assignMandateActions,
-        resolvedBodyIds: returnedState.resolvedBodyIds,
-        resolvedMandateIds: returnedState.resolvedMandateIds,
-        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
-        resolvedPolicyVersions: returnedState.resolvedPolicyVersions,
+        resolvedBodyIds: latestState.resolvedBodyIds,
+        resolvedMandateIds: latestState.resolvedMandateIds,
+        resolvedOrgId: latestState.resolvedOrgId ?? resolvedOrgId,
+        resolvedPolicyVersions: latestState.resolvedPolicyVersions,
         roleActions: createRoleActions,
       });
     },
@@ -366,19 +409,15 @@ export function useSetupActionExecution({
       busy,
       createBodyActions,
       createRoleActions,
-      executorContext,
       resolvedOrgId,
       setPolicyRuleActions,
-      returnedState.resolvedBodyIds,
-      returnedState.resolvedMandateIds,
-      returnedState.resolvedOrgId,
-      returnedState.resolvedPolicyVersions,
     ],
   );
 
   const executeCreateOrganization = useCallback(async (): Promise<void> => {
     const itemId = SETUP_CREATE_ORGANIZATION_MODAL_ITEM_ID;
     openSetupTransactionModal({
+      action: createOrganizationAction,
       description:
         "Submit the organization setup action, wait for the chain receipt, then wait for Control Plane to index the organization read model.",
       itemId,
@@ -387,7 +426,7 @@ export function useSetupActionExecution({
       transaction: returnedState.createOrganization,
     });
   }, [
-    createOrganizationAction?.label,
+    createOrganizationAction,
     openSetupTransactionModal,
     returnedState.createOrganization,
     runCreateOrganizationAction,
@@ -400,6 +439,7 @@ export function useSetupActionExecution({
       );
       const itemId = buildSetupTransactionModalItemId("create-body", actionId);
       openSetupTransactionModal({
+        action,
         description:
           "Submit the body setup action, wait for the chain receipt, then wait for Control Plane to index the body read model.",
         itemId,
@@ -425,6 +465,7 @@ export function useSetupActionExecution({
       );
       const itemId = buildSetupTransactionModalItemId("create-role", actionId);
       openSetupTransactionModal({
+        action,
         description:
           "Submit the role setup action, wait for the chain receipt, then wait for Control Plane to index the role read model.",
         itemId,
@@ -453,6 +494,7 @@ export function useSetupActionExecution({
         actionId,
       );
       openSetupTransactionModal({
+        action,
         description:
           "Submit the mandate setup action, wait for the chain receipt, then wait for Control Plane to index the mandate read model.",
         itemId,
@@ -481,6 +523,7 @@ export function useSetupActionExecution({
         actionId,
       );
       openSetupTransactionModal({
+        action,
         description:
           "Submit the policy setup action, wait for the chain receipt, then wait for Control Plane to index the policy read model.",
         itemId,
@@ -499,13 +542,265 @@ export function useSetupActionExecution({
     ],
   );
 
+  const runSetupGroupTransactions = useCallback(
+    async ({
+      actions,
+      getItemId,
+      runAction,
+      startActionId,
+    }: SetupGroupRunConfig): Promise<void> => {
+      const startIndex = Math.max(
+        0,
+        startActionId
+          ? actions.findIndex((action) => action.actionId === startActionId)
+          : actions.findIndex((action) => {
+              const result = getCompletionResult(
+                action.actionId,
+                draft,
+                stateRef.current,
+                readModels,
+              );
+              return result?.state !== "indexed";
+            }),
+      );
+
+      for (const action of actions.slice(startIndex)) {
+        const itemId = getItemId(action.actionId);
+        const result = getCompletionResult(
+          action.actionId,
+          draft,
+          stateRef.current,
+          readModels,
+        );
+
+        if (result?.state === "indexed") {
+          updateTransactionModalItem(itemId, {
+            error: undefined,
+            stage: "completed",
+          });
+          continue;
+        }
+
+        if (!canExecuteActivationActionState(result?.state)) {
+          updateTransactionModalItem(itemId, {
+            error: result?.message ?? "This setup action is blocked.",
+            stage: "failed",
+          });
+          break;
+        }
+
+        const preflight = getSetupActionExecutionPreflight(action, {
+          accountChainId: account.chainId,
+          connected: account.isConnected,
+          connectedAddress: account.address,
+          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          runtimeChainId: runtimeConfig.chainId,
+          setupWritesEnabled,
+        });
+        if (!preflight.canExecute) {
+          updateTransactionModalItem(itemId, {
+            error: preflight.message,
+            stage: "failed",
+          });
+          break;
+        }
+
+        activeTransactionModalItemId.current = itemId;
+        setActiveTransactionModalItem(itemId);
+        updateTransactionModalItem(itemId, {
+          error: undefined,
+          stage: "preparing",
+        });
+
+        await runAction(action.actionId);
+
+        const nextResult = getCompletionResult(
+          action.actionId,
+          draft,
+          stateRef.current,
+          readModels,
+        );
+        const transaction = getSetupTransactionByModalItemId(
+          itemId,
+          stateRef.current,
+        );
+
+        if (
+          nextResult?.state === "indexed" ||
+          transaction?.stage === "indexed"
+        ) {
+          updateTransactionModalItem(itemId, {
+            error: undefined,
+            stage: "completed",
+            txHash: transaction?.txHash ?? nextResult?.txHash,
+          });
+          continue;
+        }
+
+        if (
+          nextResult?.state === "failed" ||
+          transaction?.stage === "failed"
+        ) {
+          updateTransactionModalItem(itemId, {
+            error:
+              transaction?.error ??
+              nextResult?.message ??
+              "The setup action failed.",
+            stage: "failed",
+            txHash: transaction?.txHash ?? nextResult?.txHash,
+          });
+          break;
+        }
+
+        updateTransactionModalItem(itemId, {
+          error: nextResult?.message,
+          stage: transaction
+            ? mapSetupLifecycleStageToSerialTransactionFlowStage(
+                transaction.stage,
+              )
+            : "failed",
+          txHash: transaction?.txHash ?? nextResult?.txHash,
+        });
+        break;
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      draft,
+      readModels,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setActiveTransactionModalItem,
+      setupWritesEnabled,
+      updateTransactionModalItem,
+    ],
+  );
+
+  const openSetupGroupTransactionModal = useCallback(
+    ({
+      actions,
+      description,
+      getItemId,
+      runAction,
+      title,
+    }: SetupGroupModalConfig): void => {
+      const firstActiveAction = actions.find((action) => {
+        const result = getCompletionResult(
+          action.actionId,
+          draft,
+          returnedState,
+          readModels,
+        );
+        return result?.state !== "indexed";
+      });
+      const activeItemId = firstActiveAction
+        ? getItemId(firstActiveAction.actionId)
+        : undefined;
+      const items = actions.map((action) =>
+        createSetupGroupTransactionItem({
+          action,
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          draft,
+          executionState: returnedState,
+          getItemId,
+          readModels,
+          runGroup: (startActionId) =>
+            runSetupGroupTransactions({
+              actions,
+              getItemId,
+              runAction,
+              startActionId,
+            }),
+        }),
+      );
+
+      activeTransactionModalItemId.current = activeItemId;
+      openSerialTransactionModal({
+        activeItemId,
+        description,
+        items,
+        title,
+      });
+    },
+    [
+      draft,
+      openSerialTransactionModal,
+      readModels,
+      returnedState,
+      runSetupGroupTransactions,
+      runtimeConfig.blockExplorerUrl,
+    ],
+  );
+
+  const executeCreateBodyGroup = useCallback(async (): Promise<void> => {
+    openSetupGroupTransactionModal({
+      actions: createBodyActions,
+      description:
+        "Create each governance body, waiting for receipt and Control Plane indexing before continuing.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("create-body", actionId),
+      runAction: runCreateBodyAction,
+      title: "Activate bodies",
+    });
+  }, [createBodyActions, openSetupGroupTransactionModal, runCreateBodyAction]);
+
+  const executeCreateRoleGroup = useCallback(async (): Promise<void> => {
+    openSetupGroupTransactionModal({
+      actions: createRoleActions,
+      description:
+        "Create each role scope, waiting for receipt and Control Plane indexing before continuing.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("create-role", actionId),
+      runAction: runCreateRoleAction,
+      title: "Activate roles",
+    });
+  }, [createRoleActions, openSetupGroupTransactionModal, runCreateRoleAction]);
+
+  const executeAssignMandateGroup = useCallback(async (): Promise<void> => {
+    openSetupGroupTransactionModal({
+      actions: assignMandateActions,
+      description:
+        "Assign each mandate holder, waiting for receipt and Control Plane indexing before continuing.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("assign-mandate", actionId),
+      runAction: runAssignMandateAction,
+      title: "Activate mandates",
+    });
+  }, [
+    assignMandateActions,
+    openSetupGroupTransactionModal,
+    runAssignMandateAction,
+  ]);
+
+  const executeSetPolicyRuleGroup = useCallback(async (): Promise<void> => {
+    openSetupGroupTransactionModal({
+      actions: setPolicyRuleActions,
+      description:
+        "Set each policy route, waiting for receipt and Control Plane indexing before continuing.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("set-policy-rule", actionId),
+      runAction: runSetPolicyRuleAction,
+      title: "Activate policy routes",
+    });
+  }, [
+    openSetupGroupTransactionModal,
+    runSetPolicyRuleAction,
+    setPolicyRuleActions,
+  ]);
+
   return {
     busy,
     executeAssignMandate,
+    executeAssignMandateGroup,
     executeCreateBody,
+    executeCreateBodyGroup,
     executeCreateOrganization,
     executeCreateRole,
+    executeCreateRoleGroup,
     executeSetPolicyRule,
+    executeSetPolicyRuleGroup,
     readiness,
     reset,
     state: returnedState,
@@ -519,6 +814,62 @@ type SetupModalActionKind =
   | "create-body"
   | "create-role"
   | "set-policy-rule";
+
+interface SetupGroupRunConfig {
+  readonly actions: readonly SetupAction[];
+  readonly getItemId: (actionId: string) => string;
+  readonly runAction: (actionId: string) => Promise<void>;
+  readonly startActionId?: string;
+}
+
+interface SetupGroupModalConfig
+  extends Omit<SetupGroupRunConfig, "startActionId"> {
+  readonly description: string;
+  readonly title: string;
+}
+
+function createSetupGroupTransactionItem({
+  action,
+  blockExplorerUrl,
+  draft,
+  executionState,
+  getItemId,
+  readModels,
+  runGroup,
+}: {
+  readonly action: SetupAction;
+  readonly blockExplorerUrl?: string;
+  readonly draft: SetupDraft;
+  readonly executionState: SetupDraftExecutionState;
+  readonly getItemId: (actionId: string) => string;
+  readonly readModels?: SetupCompletionReadModels;
+  readonly runGroup: (startActionId: string) => Promise<void>;
+}): TransactionFlowItem {
+  const itemId = getItemId(action.actionId);
+  const result = getCompletionResult(
+    action.actionId,
+    draft,
+    executionState,
+    readModels,
+  );
+  const transaction = getSetupTransactionByModalItemId(itemId, executionState);
+  const stage = getSetupGroupTransactionItemStage(result?.state, transaction);
+  const run = () => runGroup(action.actionId);
+
+  return {
+    blockExplorerUrl,
+    description: action.description,
+    error:
+      transaction?.error ??
+      (result?.state === "failed" ? result.message : undefined),
+    execute: stage !== "completed" ? run : undefined,
+    id: itemId,
+    retry: stage !== "completed" ? run : undefined,
+    stage,
+    title: action.label,
+    txHash: transaction?.txHash ?? result?.txHash,
+  };
+}
 
 function buildSetupTransactionModalItemId(
   kind: SetupModalActionKind,
@@ -594,4 +945,61 @@ function mapSetupLifecycleStageToTransactionFlowStage(
     return "completed";
   }
   return stage;
+}
+
+function mapSetupLifecycleStageToSerialTransactionFlowStage(
+  stage: SetupActionLifecycleStage,
+): TransactionFlowItemStage {
+  switch (stage) {
+    case "idle":
+      return "pending";
+    case "wallet_pending":
+      return "waiting_for_wallet";
+    case "submitted":
+      return "submitted";
+    case "confirming":
+      return "confirming";
+    case "confirmed_waiting_indexer":
+      return "waiting_for_control_plane";
+    case "indexed":
+      return "completed";
+    case "failed":
+      return "failed";
+  }
+}
+
+function getSetupGroupTransactionItemStage(
+  resultState: ReturnType<
+    typeof verifySetupCompletion
+  >["actionResults"][number]["state"] | undefined,
+  transaction: SetupActionTransaction | undefined,
+): TransactionFlowItemStage {
+  if (resultState === "indexed") {
+    return "completed";
+  }
+
+  if (transaction && transaction.stage !== "idle") {
+    return mapSetupLifecycleStageToSerialTransactionFlowStage(
+      transaction.stage,
+    );
+  }
+
+  if (resultState === "failed") {
+    return "failed";
+  }
+
+  return "pending";
+}
+
+function getCompletionResult(
+  actionId: string,
+  draft: SetupDraft,
+  executionState: SetupDraftExecutionState,
+  readModels: SetupCompletionReadModels | undefined,
+): ReturnType<typeof verifySetupCompletion>["actionResults"][number] | undefined {
+  return verifySetupCompletion({
+    draft,
+    executionState,
+    readModels,
+  }).actionResults.find((result) => result.actionId === actionId);
 }

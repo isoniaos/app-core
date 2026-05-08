@@ -2037,6 +2037,11 @@ button.address-display {
   color: var(--iso-color-primary-strong);
 }
 
+.setup-wizard-step-button-complete .setup-wizard-step-number {
+  border-color: var(--iso-color-success);
+  color: var(--iso-color-success);
+}
+
 .setup-wizard-step-button-locked .setup-wizard-step-number {
   border-color: var(--iso-color-border);
   color: var(--iso-color-muted);
@@ -2622,6 +2627,90 @@ button.address-display {
   color: var(--iso-color-primary-strong);
 }
 
+.activation-group-panel {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface);
+}
+
+.activation-group-header,
+.activation-group-status,
+.activation-signer-grid {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.activation-group-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+  background: var(--iso-color-surface-subtle);
+}
+
+.activation-group-header div,
+.activation-group-status div,
+.activation-signer-preflight div {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.activation-group-header h4,
+.activation-group-header p,
+.activation-group-status strong,
+.activation-group-status span {
+  margin: 0;
+}
+
+.activation-group-header h4 {
+  font-size: 0.98rem;
+}
+
+.activation-group-header p,
+.activation-group-status span,
+.activation-signer-preflight span,
+.activation-signer-preflight small {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.activation-group-status {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--iso-color-border);
+}
+
+.activation-signer-preflight {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 1rem 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface-subtle);
+}
+
+.activation-signer-preflight-compact {
+  margin-top: 0;
+}
+
+.activation-signer-grid {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.activation-signer-grid > div {
+  min-width: min(220px, 100%);
+}
+
+.activation-navigation {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .setup-execution-inline {
   margin: 1rem;
 }
@@ -3144,6 +3233,8 @@ button.address-display {
   .setup-review-validation-row,
   .setup-validation-state,
   .setup-action-group-header,
+  .activation-group-header,
+  .activation-group-status,
   .proposal-action-note,
   .power-body-header,
   .power-role-header,

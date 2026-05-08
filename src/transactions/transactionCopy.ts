@@ -42,7 +42,7 @@ const TRANSACTION_STAGE_COPY: Record<
   },
   wallet_pending: {
     detail: "Confirm this transaction in your wallet.",
-    label: "Confirm in wallet",
+    label: "Waiting for wallet",
     tone: "warning",
   },
   submitted: {
@@ -78,7 +78,7 @@ const TRANSACTION_STAGE_COPY: Record<
   },
   waiting_for_wallet: {
     detail: "Confirm this transaction in your wallet.",
-    label: "Confirm in wallet",
+    label: "Waiting for wallet",
     tone: "warning",
   },
   waiting_for_control_plane: {

@@ -51,24 +51,25 @@ function TransactionModalPrimaryAction({
   readonly state: TransactionModalState;
 }): JSX.Element {
   const executableItem = state.items.find(
-    (item) => item.stage === "idle" && item.execute,
+    (item) =>
+      (item.stage === "idle" || item.stage === "pending") && item.execute,
   );
   const failedItem = state.items.find(
     (item) => item.stage === "failed" && item.retry,
   );
 
-  if (executableItem?.execute) {
-    return (
-      <IsoButton onClick={() => void executableItem.execute?.()}>
-        Execute
-      </IsoButton>
-    );
-  }
-
   if (failedItem?.retry) {
     return (
       <IsoButton onClick={() => void failedItem.retry?.()}>
         Retry
+      </IsoButton>
+    );
+  }
+
+  if (executableItem?.execute) {
+    return (
+      <IsoButton onClick={() => void executableItem.execute?.()}>
+        {state.mode === "serial" ? "Start" : "Execute"}
       </IsoButton>
     );
   }

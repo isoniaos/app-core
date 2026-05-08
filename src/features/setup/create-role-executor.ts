@@ -16,6 +16,7 @@ import {
   parsePositiveUint64,
   resolveBodyReference,
 } from "./setup-action-execution-helpers";
+import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import type {
   CreateRolePayload,
   SetupActionExecutorContext,
@@ -114,6 +115,19 @@ export async function executeCreateRoleAction({
         account.chainId,
       )}; expected chain ${runtimeConfig.chainId}.`,
     );
+    return;
+  }
+
+  const signerPreflight = getSetupActionExecutionPreflight(action, {
+    accountChainId: account.chainId,
+    connected: account.isConnected,
+    connectedAddress: account.address,
+    govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+    runtimeChainId: runtimeConfig.chainId,
+    setupWritesEnabled,
+  });
+  if (!signerPreflight.canExecute) {
+    setRoleActionFailed(action, signerPreflight.message);
     return;
   }
 

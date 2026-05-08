@@ -84,9 +84,13 @@ export function OrganizationSetupPage(): JSX.Element {
         completionLoading={completionReadModels.loading}
         completionReload={completionReadModels.reload}
         executeAssignMandate={execution.executeAssignMandate}
+        executeAssignMandateGroup={execution.executeAssignMandateGroup}
         executeCreateBody={execution.executeCreateBody}
+        executeCreateBodyGroup={execution.executeCreateBodyGroup}
         executeCreateRole={execution.executeCreateRole}
+        executeCreateRoleGroup={execution.executeCreateRoleGroup}
         executeSetPolicyRule={execution.executeSetPolicyRule}
+        executeSetPolicyRuleGroup={execution.executeSetPolicyRuleGroup}
         inputs={activationInputs}
         orgId={orgId}
         readModels={completionReadModels.data}

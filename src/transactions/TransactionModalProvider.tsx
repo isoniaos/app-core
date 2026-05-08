@@ -26,6 +26,7 @@ export interface TransactionModalContextValue {
   readonly openSerial: (input: OpenSerialTransactionModalInput) => void;
   readonly openSingle: (input: OpenSingleTransactionModalInput) => void;
   readonly reset: () => void;
+  readonly setActiveItem: (itemId: string | undefined) => void;
   readonly state: TransactionModalState;
   readonly updateItem: (
     itemId: string,
@@ -49,6 +50,10 @@ export function TransactionModalProvider({
 
   const reset = useCallback(() => {
     setState(INITIAL_TRANSACTION_MODAL_STATE);
+  }, []);
+
+  const setActiveItem = useCallback((itemId: string | undefined) => {
+    setState((current) => ({ ...current, activeItemId: itemId }));
   }, []);
 
   const openSingle = useCallback((input: OpenSingleTransactionModalInput) => {
@@ -106,10 +111,11 @@ export function TransactionModalProvider({
       openSerial,
       openSingle,
       reset,
+      setActiveItem,
       state,
       updateItem,
     }),
-    [close, openSerial, openSingle, reset, state, updateItem],
+    [close, openSerial, openSingle, reset, setActiveItem, state, updateItem],
   );
 
   return (

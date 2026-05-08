@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added sequential organization activation flow with step unlocking and group progress.
+- Added signer preflight for bootstrap activation actions.
+- Added serial transaction modal execution for activation groups.
+
 ## [0.6.0-alpha.10]
 
 ### Changed

@@ -6,13 +6,27 @@ import type {
   SetupAction,
 } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useRuntimeConfig } from "../../config/runtime-config";
 import { StatusBadge } from "../../ui/StatusBadge";
+import { IsoAddressDisplay } from "../../ui-kit";
 import { formatLabel } from "../../utils/format";
+import { useWalletConnection } from "../../wallet/useWalletConnection";
+import {
+  buildActivationGroupProgress,
+  canExecuteActivationActionState,
+  type ActivationGroupId,
+  type ActivationGroupProgress,
+} from "./activation-group-progress";
 import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
+import {
+  getSetupActionExecutionPreflight,
+  getSetupActionGroupExecutionPreflight,
+  type SetupActionExecutionPreflight,
+  type SetupActionExecutionPreflightEnvironment,
+} from "./setup-action-preflight";
 import type {
-  SetupCompletionActionState,
   SetupCompletionActionVerification,
   SetupCompletionReadModels,
   SetupCompletionVerification,
@@ -33,28 +47,39 @@ type ActivationStepId =
   | "review";
 
 interface ActivationStep {
+  readonly groupId?: ActivationGroupId;
   readonly id: ActivationStepId;
   readonly title: string;
   readonly summary: string;
 }
 
+interface ActivationStepState {
+  readonly complete: boolean;
+  readonly locked: boolean;
+  readonly reason: string;
+}
+
 const ACTIVATION_STEPS: readonly ActivationStep[] = [
   {
+    groupId: "bodies",
     id: "bodies",
     summary: "Create the governance bodies for this organization.",
     title: "Bodies",
   },
   {
+    groupId: "roles",
     id: "roles",
     summary: "Create role scopes inside the indexed bodies.",
     title: "Roles",
   },
   {
+    groupId: "mandates",
     id: "mandates",
     summary: "Assign mandate holders for role and proposal scopes.",
     title: "Mandates",
   },
   {
+    groupId: "policies",
     id: "policies",
     summary: "Set approval, veto, executor, and timelock routes.",
     title: "Policy routes",
@@ -69,21 +94,25 @@ const ACTIVATION_STEPS: readonly ActivationStep[] = [
 const EMPTY_FIELD_ISSUES: SetupWizardFieldIssueMap = {};
 
 export interface OrganizationActivationWizardProps {
+  readonly actions: readonly SetupAction[];
   readonly busy: boolean;
   readonly completion: SetupCompletionVerification;
   readonly completionError?: Error;
   readonly completionLoading: boolean;
   readonly completionReload: () => void;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
+  readonly executeAssignMandateGroup: () => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly executeCreateBodyGroup: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeCreateRoleGroup: () => Promise<void>;
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRuleGroup: () => Promise<void>;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
   readonly orgId: string;
   readonly readModels?: SetupCompletionReadModels;
   readonly state: SetupDraftExecutionState;
-  readonly actions: readonly SetupAction[];
 }
 
 export function OrganizationActivationWizard({
@@ -94,15 +123,21 @@ export function OrganizationActivationWizard({
   completionLoading,
   completionReload,
   executeAssignMandate,
+  executeAssignMandateGroup,
   executeCreateBody,
+  executeCreateBodyGroup,
   executeCreateRole,
+  executeCreateRoleGroup,
   executeSetPolicyRule,
+  executeSetPolicyRuleGroup,
   inputs,
   onChange,
   orgId,
   readModels,
   state,
 }: OrganizationActivationWizardProps): JSX.Element {
+  const runtimeConfig = useRuntimeConfig();
+  const wallet = useWalletConnection();
   const [currentStepId, setCurrentStepId] =
     useState<ActivationStepId>("bodies");
   const currentStepIndex = ACTIVATION_STEPS.findIndex(
@@ -133,20 +168,115 @@ export function OrganizationActivationWizard({
       ),
     [completion.actionResults],
   );
+  const preflightEnvironment =
+    useMemo<SetupActionExecutionPreflightEnvironment>(
+      () => ({
+        accountChainId: wallet.chainId,
+        connected: wallet.isConnected,
+        connectedAddress: wallet.address,
+        govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        runtimeChainId: runtimeConfig.chainId,
+        setupWritesEnabled:
+          runtimeConfig.features.writeActions &&
+          runtimeConfig.features.manageOrg,
+      }),
+      [
+        runtimeConfig.chainId,
+        runtimeConfig.contracts.govCoreAddress,
+        runtimeConfig.features.manageOrg,
+        runtimeConfig.features.writeActions,
+        wallet.address,
+        wallet.chainId,
+        wallet.isConnected,
+      ],
+    );
+  const bodyProgress = useMemo(
+    () =>
+      buildActivationGroupProgress({
+        actions: bodyActions,
+        groupId: "bodies",
+        readModels,
+        resultByActionId: actionResultById,
+      }),
+    [actionResultById, bodyActions, readModels],
+  );
+  const roleProgress = useMemo(
+    () =>
+      buildActivationGroupProgress({
+        actions: roleActions,
+        groupId: "roles",
+        readModels,
+        resultByActionId: actionResultById,
+      }),
+    [actionResultById, readModels, roleActions],
+  );
+  const mandateProgress = useMemo(
+    () =>
+      buildActivationGroupProgress({
+        actions: mandateActions,
+        groupId: "mandates",
+        readModels,
+        resultByActionId: actionResultById,
+      }),
+    [actionResultById, mandateActions, readModels],
+  );
+  const policyProgress = useMemo(
+    () =>
+      buildActivationGroupProgress({
+        actions: policyActions,
+        groupId: "policies",
+        readModels,
+        resultByActionId: actionResultById,
+      }),
+    [actionResultById, policyActions, readModels],
+  );
+  const progressByGroup = useMemo(
+    () => ({
+      bodies: bodyProgress,
+      mandates: mandateProgress,
+      policies: policyProgress,
+      roles: roleProgress,
+    }),
+    [bodyProgress, mandateProgress, policyProgress, roleProgress],
+  );
+  const stepStateById = useMemo(
+    () => buildActivationStepStateById(progressByGroup),
+    [progressByGroup],
+  );
+  const activationPreflight = useMemo(
+    () =>
+      getSetupActionGroupExecutionPreflight(actions, preflightEnvironment),
+    [actions, preflightEnvironment],
+  );
   const updateInput: SimpleDaoPlusInputUpdate = (key, value) => {
     onChange({ ...inputs, [key]: value });
   };
 
+  useEffect(() => {
+    if (!stepStateById[currentStepId]?.locked) {
+      return;
+    }
+
+    const fallbackStep =
+      ACTIVATION_STEPS.find((step) => {
+        const stepState = stepStateById[step.id];
+        return !stepState.locked && !stepState.complete;
+      }) ??
+      ACTIVATION_STEPS.find((step) => !stepStateById[step.id].locked) ??
+      ACTIVATION_STEPS[0];
+    setCurrentStepId(fallbackStep.id);
+  }, [currentStepId, stepStateById]);
+
   function goBack(): void {
     const previousStep = ACTIVATION_STEPS[currentStepIndex - 1];
-    if (previousStep) {
+    if (previousStep && !stepStateById[previousStep.id].locked) {
       setCurrentStepId(previousStep.id);
     }
   }
 
   function goNext(): void {
     const nextStep = ACTIVATION_STEPS[currentStepIndex + 1];
-    if (nextStep) {
+    if (nextStep && !stepStateById[nextStep.id].locked) {
       setCurrentStepId(nextStep.id);
     }
   }
@@ -159,7 +289,7 @@ export function OrganizationActivationWizard({
             <h2>Organization Activation Wizard</h2>
             <p className="panel-subtitle">
               The organization root already exists. Activation creates bodies,
-              roles, mandates, and policy routes.
+              roles, mandates, and policy routes in order.
             </p>
           </div>
           <StatusBadge tone={getCompletionTone(completion.readiness)}>
@@ -167,7 +297,7 @@ export function OrganizationActivationWizard({
           </StatusBadge>
         </div>
 
-        <ActivationAuthorityNotice />
+        <ActivationAuthorityNotice preflight={activationPreflight} />
         <ActivationMetrics completion={completion} />
 
         {completionError ? (
@@ -196,6 +326,7 @@ export function OrganizationActivationWizard({
         <div className="setup-wizard-layout">
           <ActivationStepList
             currentStepId={currentStepId}
+            stepStateById={stepStateById}
             steps={ACTIVATION_STEPS}
             onStepSelect={setCurrentStepId}
           />
@@ -208,24 +339,36 @@ export function OrganizationActivationWizard({
             </div>
 
             {currentStepId === "bodies" ? (
-              <ActivationActionList
+              <ActivationGroupPanel
                 actionResultById={actionResultById}
                 actions={bodyActions}
                 busy={busy}
                 emptyMessage="No body actions are needed for this draft."
                 executeAction={executeCreateBody}
+                executeGroup={executeCreateBodyGroup}
+                preflightEnvironment={preflightEnvironment}
+                progress={bodyProgress}
+                purpose="Bodies define the governance areas that later roles and policy routes reference."
+                runLabel="Run body setup"
                 state={state}
+                title="Bodies"
               />
             ) : null}
 
             {currentStepId === "roles" ? (
-              <ActivationActionList
+              <ActivationGroupPanel
                 actionResultById={actionResultById}
                 actions={roleActions}
                 busy={busy}
                 emptyMessage="No role actions are needed for this draft."
                 executeAction={executeCreateRole}
+                executeGroup={executeCreateRoleGroup}
+                preflightEnvironment={preflightEnvironment}
+                progress={roleProgress}
+                purpose="Roles create the scoped authority that proposal actions use after bootstrap."
+                runLabel="Run role setup"
                 state={state}
+                title="Roles"
               />
             ) : null}
 
@@ -242,13 +385,19 @@ export function OrganizationActivationWizard({
                   mandateActions={mandateActions}
                   readModels={readModels}
                 />
-                <ActivationActionList
+                <ActivationGroupPanel
                   actionResultById={actionResultById}
                   actions={mandateActions}
                   busy={busy}
                   emptyMessage="Add holder addresses above to produce mandate actions."
                   executeAction={executeAssignMandate}
+                  executeGroup={executeAssignMandateGroup}
+                  preflightEnvironment={preflightEnvironment}
+                  progress={mandateProgress}
+                  purpose="Mandates bind holder wallets to active roles and proposal scopes."
+                  runLabel="Run mandate setup"
                   state={state}
+                  title="Mandates"
                 />
               </div>
             ) : null}
@@ -262,13 +411,19 @@ export function OrganizationActivationWizard({
                   onFieldBlur={() => undefined}
                   onUpdate={updateInput}
                 />
-                <ActivationActionList
+                <ActivationGroupPanel
                   actionResultById={actionResultById}
                   actions={policyActions}
                   busy={busy}
                   emptyMessage="No policy route actions are needed for this draft."
                   executeAction={executeSetPolicyRule}
+                  executeGroup={executeSetPolicyRuleGroup}
+                  preflightEnvironment={preflightEnvironment}
+                  progress={policyProgress}
+                  purpose="Policy routes set approval, veto, executor, and timelock constraints."
+                  runLabel="Run policy setup"
                   state={state}
+                  title="Policy routes"
                 />
               </div>
             ) : null}
@@ -287,7 +442,10 @@ export function OrganizationActivationWizard({
             ) : null}
 
             <ActivationNavigation
+              currentStep={currentStep}
               currentStepIndex={currentStepIndex}
+              progressByGroup={progressByGroup}
+              stepState={stepStateById[currentStepId]}
               onBack={goBack}
               onNext={goNext}
             />
@@ -298,16 +456,23 @@ export function OrganizationActivationWizard({
   );
 }
 
-function ActivationAuthorityNotice(): JSX.Element {
+function ActivationAuthorityNotice({
+  preflight,
+}: {
+  readonly preflight: SetupActionExecutionPreflight;
+}): JSX.Element {
+  const tone = preflight.canExecute ? "muted" : "warning";
+
   return (
-    <div className="inline-state inline-state-muted setup-execution-inline">
+    <div className={`inline-state inline-state-${tone} setup-execution-inline`}>
       <strong>Bootstrap authority</strong>
       <span>
-        Bootstrap activation is performed by the organization admin in the
-        current v0.6 EVM protocol. Proposal actions later use role and mandate
-        authority. Contracts remain authoritative. Read models may lag after
-        transactions.
+        Bootstrap activation requires the organization admin wallet. Bootstrap
+        activation is performed by the organization admin in the current v0.6
+        EVM protocol. Proposal actions later use role and mandate authority.
+        Contracts remain authoritative.
       </span>
+      <SignerPreflightSummary compact preflight={preflight} />
     </div>
   );
 }
@@ -345,10 +510,12 @@ function ActivationMetrics({
 function ActivationStepList({
   currentStepId,
   onStepSelect,
+  stepStateById,
   steps,
 }: {
   readonly currentStepId: ActivationStepId;
   readonly onStepSelect: (stepId: ActivationStepId) => void;
+  readonly stepStateById: Readonly<Record<ActivationStepId, ActivationStepState>>;
   readonly steps: readonly ActivationStep[];
 }): JSX.Element {
   return (
@@ -356,20 +523,26 @@ function ActivationStepList({
       <ol>
         {steps.map((step, index) => {
           const current = step.id === currentStepId;
+          const stepState = stepStateById[step.id];
+          const locked = stepState.locked;
+
           return (
             <li key={step.id}>
               <button
                 aria-current={current ? "step" : undefined}
                 className={`setup-wizard-step-button${
                   current ? " setup-wizard-step-button-current" : ""
+                }${locked ? " setup-wizard-step-button-locked" : ""}${
+                  stepState.complete ? " setup-wizard-step-button-complete" : ""
                 }`}
+                disabled={locked}
                 type="button"
                 onClick={() => onStepSelect(step.id)}
               >
                 <span className="setup-wizard-step-number">{index + 1}</span>
                 <span>
                   <strong>{step.title}</strong>
-                  <small>{step.summary}</small>
+                  <small>{locked ? stepState.reason : step.summary}</small>
                 </span>
               </button>
             </li>
@@ -380,12 +553,101 @@ function ActivationStepList({
   );
 }
 
+function ActivationGroupPanel({
+  actionResultById,
+  actions,
+  busy,
+  emptyMessage,
+  executeAction,
+  executeGroup,
+  preflightEnvironment,
+  progress,
+  purpose,
+  runLabel,
+  state,
+  title,
+}: {
+  readonly actionResultById: ReadonlyMap<
+    string,
+    SetupCompletionActionVerification
+  >;
+  readonly actions: readonly SetupAction[];
+  readonly busy: boolean;
+  readonly emptyMessage: string;
+  readonly executeAction: (actionId: string) => Promise<void>;
+  readonly executeGroup: () => Promise<void>;
+  readonly preflightEnvironment: SetupActionExecutionPreflightEnvironment;
+  readonly progress: ActivationGroupProgress;
+  readonly purpose: string;
+  readonly runLabel: string;
+  readonly state: SetupDraftExecutionState;
+  readonly title: string;
+}): JSX.Element {
+  const runnableActions = actions.filter((action) =>
+    canExecuteActivationActionState(
+      actionResultById.get(action.actionId)?.state,
+    ),
+  );
+  const groupPreflight = getSetupActionGroupExecutionPreflight(
+    runnableActions.length > 0 ? runnableActions : actions,
+    preflightEnvironment,
+  );
+  const disabled = busy || !progress.canRun || !groupPreflight.canExecute;
+
+  return (
+    <section className="activation-group-panel">
+      <header className="activation-group-header">
+        <div>
+          <h4>{title}</h4>
+          <p>{purpose}</p>
+        </div>
+        <button
+          className="button button-primary"
+          disabled={disabled}
+          type="button"
+          onClick={() => {
+            void executeGroup();
+          }}
+        >
+          {getGroupButtonLabel(progress, groupPreflight, runLabel)}
+        </button>
+      </header>
+
+      <div className="activation-group-status">
+        <div>
+          <strong>{formatActivationGroupProgress(progress)}</strong>
+          <span>{progress.reason}</span>
+        </div>
+        <div>
+          <strong>Next required action</strong>
+          <span>{progress.nextAction?.label ?? "None"}</span>
+        </div>
+      </div>
+
+      {progress.canRun && !groupPreflight.canExecute ? (
+        <SignerPreflightSummary preflight={groupPreflight} />
+      ) : null}
+
+      <ActivationActionList
+        actionResultById={actionResultById}
+        actions={actions}
+        busy={busy}
+        emptyMessage={emptyMessage}
+        executeAction={executeAction}
+        preflightEnvironment={preflightEnvironment}
+        state={state}
+      />
+    </section>
+  );
+}
+
 function ActivationActionList({
   actionResultById,
   actions,
   busy,
   emptyMessage,
   executeAction,
+  preflightEnvironment,
   state,
 }: {
   readonly actionResultById: ReadonlyMap<
@@ -396,6 +658,7 @@ function ActivationActionList({
   readonly busy: boolean;
   readonly emptyMessage: string;
   readonly executeAction: (actionId: string) => Promise<void>;
+  readonly preflightEnvironment: SetupActionExecutionPreflightEnvironment;
   readonly state: SetupDraftExecutionState;
 }): JSX.Element {
   if (actions.length === 0) {
@@ -411,6 +674,10 @@ function ActivationActionList({
           executeAction={executeAction}
           index={index + 1}
           key={action.actionId}
+          preflight={getSetupActionExecutionPreflight(
+            action,
+            preflightEnvironment,
+          )}
           result={actionResultById.get(action.actionId)}
           transactionStage={getTransactionStage(action, state)}
         />
@@ -424,6 +691,7 @@ function ActivationActionRow({
   busy,
   executeAction,
   index,
+  preflight,
   result,
   transactionStage,
 }: {
@@ -431,11 +699,14 @@ function ActivationActionRow({
   readonly busy: boolean;
   readonly executeAction: (actionId: string) => Promise<void>;
   readonly index: number;
+  readonly preflight: SetupActionExecutionPreflight;
   readonly result?: SetupCompletionActionVerification;
   readonly transactionStage?: string;
 }): JSX.Element {
-  const state = result?.state ?? "not_started";
-  const disabled = busy || !canExecuteActivationAction(state);
+  const actionState = result?.state ?? "not_started";
+  const executableState = canExecuteActivationActionState(actionState);
+  const disabled = busy || !executableState || !preflight.canExecute;
+  const note = getActionControlNote(actionState, result, preflight);
 
   return (
     <article className="setup-action-row">
@@ -449,29 +720,79 @@ function ActivationActionRow({
         </div>
         <div className="setup-action-meta">
           <StatusBadge tone="muted">{formatLabel(action.kind)}</StatusBadge>
-          <StatusBadge tone={getActionStateTone(state)}>
-            {getActionStateLabel(state, transactionStage)}
+          <StatusBadge tone={getActionStateTone(actionState)}>
+            {getActionStateLabel(actionState, transactionStage)}
           </StatusBadge>
         </div>
       </div>
       <div className="action-row setup-action-controls">
-        {state !== "indexed" ? (
+        {actionState !== "indexed" ? (
           <button
-            className="button button-small button-primary"
+            className="button button-small"
             disabled={disabled}
             type="button"
             onClick={() => {
               void executeAction(action.actionId);
             }}
           >
-            {state === "failed" ? "Retry" : getExecuteLabel(action)}
+            {getActionButtonLabel(action, actionState, preflight)}
           </button>
         ) : null}
-        {result?.message ? (
-          <span className="setup-action-control-note">{result.message}</span>
-        ) : null}
+        {note ? <span className="setup-action-control-note">{note}</span> : null}
       </div>
+      {!preflight.canExecute && actionState !== "indexed" ? (
+        <SignerPreflightSummary compact preflight={preflight} />
+      ) : null}
     </article>
+  );
+}
+
+function SignerPreflightSummary({
+  compact,
+  preflight,
+}: {
+  readonly compact?: boolean;
+  readonly preflight: SetupActionExecutionPreflight;
+}): JSX.Element {
+  return (
+    <div
+      className={`activation-signer-preflight${
+        compact ? " activation-signer-preflight-compact" : ""
+      }`}
+    >
+      {!compact || !preflight.canExecute ? (
+        <div>
+          <strong>{preflight.title}</strong>
+          <span>{preflight.message}</span>
+        </div>
+      ) : null}
+      <div className="activation-signer-grid">
+        <div>
+          <span>Expected admin</span>
+          {preflight.expectedSignerAddress ? (
+            <IsoAddressDisplay
+              copyable
+              size="compact"
+              value={preflight.expectedSignerAddress}
+            />
+          ) : (
+            <small>Required signer is not available in this draft.</small>
+          )}
+        </div>
+        <div>
+          <span>Connected</span>
+          {preflight.connectedSignerAddress ? (
+            <IsoAddressDisplay
+              copyable
+              size="compact"
+              value={preflight.connectedSignerAddress}
+            />
+          ) : (
+            <small>Not connected</small>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -489,12 +810,12 @@ function MandateResumeNotice({
   const indexedMandates = readModels?.mandates.length ?? 0;
   return (
     <div className="inline-state inline-state-warning setup-wizard-note">
-      <strong>Mandate resume needs confirmation</strong>
+      <strong>This group needs confirmation</strong>
       <span>
-        App Core can read {indexedMandates.toLocaleString()} indexed mandate
-        {indexedMandates === 1 ? "" : "s"}, but it needs holder inputs to
-        verify the intended Simple DAO+ mandate set exactly after a reload or
-        in another browser.
+        Activation progress exists, but exact mandate intent requires holder
+        inputs to confirm. App Core can read{" "}
+        {indexedMandates.toLocaleString()} indexed mandate
+        {indexedMandates === 1 ? "" : "s"} for this organization.
       </span>
     </div>
   );
@@ -541,12 +862,14 @@ function ActivationReview({
         </span>
       </div>
       <div className="setup-review-validation-list">
-        {rows.map(([label, actions]) => (
+        {rows.map(([label, rowActions]) => (
           <article className="setup-review-validation-row" key={label}>
             <div>
               <strong>{label}</strong>
-              <span>{formatGroupProgress(actions, actionResultById)}</span>
-              <small>{getGroupReviewMessage(label, actions, readModels)}</small>
+              <span>{formatGroupProgress(rowActions, actionResultById)}</span>
+              <small>
+                {getGroupReviewMessage(label, rowActions, readModels)}
+              </small>
             </div>
           </article>
         ))}
@@ -563,8 +886,8 @@ function ActivationReview({
         <div className="inline-state inline-state-muted setup-wizard-note">
           <strong>Activation remains in progress</strong>
           <span>
-            Continue the grouped actions one at a time. Serial group execution
-            remains a backlog item for this release review.
+            Finish each unlocked group in order. Use Run this step for guided
+            serial execution, or run individual actions as a fallback.
           </span>
         </div>
       )}
@@ -573,17 +896,32 @@ function ActivationReview({
 }
 
 function ActivationNavigation({
+  currentStep,
   currentStepIndex,
   onBack,
   onNext,
+  progressByGroup,
+  stepState,
 }: {
+  readonly currentStep: ActivationStep;
   readonly currentStepIndex: number;
   readonly onBack: () => void;
   readonly onNext: () => void;
+  readonly progressByGroup: Readonly<Record<ActivationGroupId, ActivationGroupProgress>>;
+  readonly stepState: ActivationStepState;
 }): JSX.Element {
   const lastStep = currentStepIndex >= ACTIVATION_STEPS.length - 1;
+  const currentProgress = currentStep.groupId
+    ? progressByGroup[currentStep.groupId]
+    : undefined;
+  const canGoNext = !lastStep && stepState.complete;
+  const disabledReason =
+    !lastStep && !canGoNext
+      ? currentProgress?.reason ?? stepState.reason
+      : undefined;
+
   return (
-    <footer className="setup-wizard-navigation">
+    <footer className="setup-wizard-navigation activation-navigation">
       <button
         className="button"
         disabled={currentStepIndex === 0}
@@ -594,23 +932,141 @@ function ActivationNavigation({
       </button>
       <button
         className="button button-primary"
-        disabled={lastStep}
+        disabled={!canGoNext}
         type="button"
         onClick={onNext}
       >
         Next
       </button>
+      {disabledReason ? (
+        <span className="setup-action-control-note">{disabledReason}</span>
+      ) : null}
     </footer>
   );
 }
 
-function canExecuteActivationAction(state: SetupCompletionActionState): boolean {
-  return (
-    state === "not_started" ||
+function buildActivationStepStateById(
+  progress: Readonly<Record<ActivationGroupId, ActivationGroupProgress>>,
+): Readonly<Record<ActivationStepId, ActivationStepState>> {
+  return {
+    bodies: {
+      complete: progress.bodies.complete,
+      locked: false,
+      reason: progress.bodies.reason,
+    },
+    roles: {
+      complete: progress.roles.complete,
+      locked: !progress.bodies.complete,
+      reason: progress.bodies.complete
+        ? progress.roles.reason
+        : "Complete body setup to unlock roles.",
+    },
+    mandates: {
+      complete: progress.mandates.complete,
+      locked: !progress.roles.complete,
+      reason: progress.roles.complete
+        ? progress.mandates.reason
+        : "Complete role setup to unlock mandates.",
+    },
+    policies: {
+      complete: progress.policies.complete,
+      locked: !progress.mandates.complete,
+      reason: progress.mandates.complete
+        ? progress.policies.reason
+        : "Complete mandate setup to unlock policy routes.",
+    },
+    review: {
+      complete:
+        progress.bodies.complete &&
+        progress.roles.complete &&
+        progress.mandates.complete &&
+        progress.policies.complete,
+      locked: !progress.policies.complete,
+      reason: progress.policies.complete
+        ? "Review activation progress."
+        : "Complete policy routes to unlock review.",
+    },
+  };
+}
+
+function getGroupButtonLabel(
+  progress: ActivationGroupProgress,
+  preflight: SetupActionExecutionPreflight,
+  runLabel: string,
+): string {
+  if (progress.complete) {
+    return "Step complete";
+  }
+
+  if (!progress.canRun) {
+    return "Run this step";
+  }
+
+  return preflight.canExecute ? runLabel : preflight.buttonLabel;
+}
+
+function formatActivationGroupProgress(
+  progress: ActivationGroupProgress,
+): string {
+  if (progress.needsInput) {
+    return "Needs confirmation";
+  }
+
+  if (progress.totalActions === 0) {
+    return "No actions";
+  }
+
+  const details = [
+    `${progress.indexedActions} of ${progress.totalActions} indexed`,
+    progress.failedActions > 0
+      ? `${progress.failedActions} failed`
+      : undefined,
+    progress.blockedActions > 0
+      ? `${progress.blockedActions} blocked`
+      : undefined,
+  ].filter(Boolean);
+
+  return details.join(" / ");
+}
+
+function getActionControlNote(
+  state: SetupCompletionActionVerification["state"],
+  result: SetupCompletionActionVerification | undefined,
+  preflight: SetupActionExecutionPreflight,
+): string | undefined {
+  if (!canExecuteActivationActionState(state)) {
+    return result?.message;
+  }
+
+  if (!preflight.canExecute) {
+    return preflight.message;
+  }
+
+  if (
     state === "failed" ||
     state === "missing_indexed_entity" ||
     state === "unresolved_policy_rule"
-  );
+  ) {
+    return result?.message;
+  }
+
+  return undefined;
+}
+
+function getActionButtonLabel(
+  action: SetupAction,
+  state: SetupCompletionActionVerification["state"],
+  preflight: SetupActionExecutionPreflight,
+): string {
+  if (!canExecuteActivationActionState(state)) {
+    return "Waiting";
+  }
+
+  if (!preflight.canExecute) {
+    return preflight.buttonLabel;
+  }
+
+  return state === "failed" ? "Retry" : getExecuteLabel(action);
 }
 
 function getActionSummary(
@@ -642,7 +1098,7 @@ function getExecuteLabel(action: SetupAction): string {
 }
 
 function getActionStateLabel(
-  state: SetupCompletionActionState,
+  state: SetupCompletionActionVerification["state"],
   transactionStage?: string,
 ): string {
   if (transactionStage && transactionStage !== "idle") {
@@ -668,7 +1124,7 @@ function getActionStateLabel(
 }
 
 function getActionStateTone(
-  state: SetupCompletionActionState,
+  state: SetupCompletionActionVerification["state"],
 ): "default" | "success" | "warning" | "danger" | "muted" {
   switch (state) {
     case "indexed":

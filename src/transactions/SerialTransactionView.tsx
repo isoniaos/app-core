@@ -29,6 +29,10 @@ export function SerialTransactionView({
     state.items.find(
       (item) => !isCompletedTransactionStage(getAllowedSerialStage(item)),
     )?.id;
+  const activeItem = state.items.find((item) => item.id === activeItemId);
+  const activeStage = activeItem
+    ? getAllowedSerialStage(activeItem)
+    : undefined;
 
   return (
     <div className="transaction-modal-stack">
@@ -50,6 +54,17 @@ export function SerialTransactionView({
         </strong>
         <span>Skipped items are shown only when an item explicitly allows it.</span>
       </div>
+      {activeItem && activeStage ? (
+        <div className="transaction-modal-current">
+          <div>
+            <strong>Current transaction</strong>
+            <span>{activeItem.title}</span>
+          </div>
+          <IsoBadge className={`badge badge-${getTransactionStageTone(activeStage)}`}>
+            {getTransactionStageCopy(activeStage).label}
+          </IsoBadge>
+        </div>
+      ) : null}
       <div className="transaction-modal-item-list">
         {state.items.map((item, index) => (
           <SerialTransactionItem
