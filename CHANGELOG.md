@@ -8,6 +8,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Changed
 
+- Refined setup creation wizard after alpha.10 review.
+- Split organization activation into a dedicated setup activation page.
+- Improved inline transaction hash component.
+- Clarified bootstrap activation authority copy.
 - Simplified transaction modal presentation and help popover behavior.
 - Applied Isonia palette and IBM Plex font stacks.
 - Reworked Simple DAO+ setup wizard flow with sequential step unlocking, local field validation, slug input handling, calmer policy route previews, and collapsed activation action details.

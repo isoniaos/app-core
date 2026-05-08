@@ -4,13 +4,20 @@ import {
   CancelCircleIcon,
   CheckmarkCircle02Icon,
   InformationCircleIcon,
+  QuestionIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentProps } from "react";
 
 type HugeiconsIconProps = ComponentProps<typeof HugeiconsIcon>;
 
-export type IsoIconName = "check" | "info" | "lightbulb" | "warning" | "x";
+export type IsoIconName =
+  | "check"
+  | "info"
+  | "lightbulb"
+  | "question"
+  | "warning"
+  | "x";
 
 export interface IsoIconProps
   extends Omit<HugeiconsIconProps, "icon" | "size" | "strokeWidth"> {
@@ -24,6 +31,7 @@ const ICONS = {
   check: CheckmarkCircle02Icon,
   info: InformationCircleIcon,
   lightbulb: BulbIcon,
+  question: QuestionIcon,
   warning: AlertCircleIcon,
   x: CancelCircleIcon,
 } satisfies Record<IsoIconName, HugeiconsIconProps["icon"]>;

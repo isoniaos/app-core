@@ -212,6 +212,116 @@ export function verifySetupCompletion({
   };
 }
 
+export function deriveSetupExecutionStateFromReadModels({
+  draft,
+  executionState,
+  readModels,
+}: {
+  readonly draft: SetupDraft;
+  readonly executionState: SetupDraftExecutionState;
+  readonly readModels?: SetupCompletionReadModels;
+}): SetupDraftExecutionState {
+  if (!readModels) {
+    return executionState;
+  }
+
+  const completion = verifySetupCompletion({
+    draft,
+    executionState,
+    readModels,
+  });
+  const next = {
+    ...executionState,
+    resolvedBodies: { ...executionState.resolvedBodies },
+    resolvedBodyIds: { ...executionState.resolvedBodyIds },
+    resolvedMandateIds: { ...executionState.resolvedMandateIds },
+    resolvedMandates: { ...executionState.resolvedMandates },
+    resolvedPolicies: { ...executionState.resolvedPolicies },
+    resolvedPolicyVersions: { ...executionState.resolvedPolicyVersions },
+    resolvedRoleIds: { ...executionState.resolvedRoleIds },
+    resolvedRoles: { ...executionState.resolvedRoles },
+  };
+
+  for (const result of completion.actionResults) {
+    if (result.state !== "indexed" || !result.indexedEntityId) {
+      continue;
+    }
+
+    const action = draft.actions.find(
+      (candidate) => candidate.actionId === result.actionId,
+    );
+    if (!action) {
+      continue;
+    }
+
+    switch (action.kind) {
+      case SetupActionKind.CreateOrganization: {
+        const organization =
+          readModels.organization?.orgId === result.indexedEntityId
+            ? readModels.organization
+            : undefined;
+        next.resolvedOrganization = organization ?? next.resolvedOrganization;
+        next.resolvedOrgId = result.indexedEntityId;
+        break;
+      }
+      case SetupActionKind.CreateBody: {
+        const body = readModels.bodies.find(
+          (candidate) => candidate.bodyId === result.indexedEntityId,
+        );
+        next.resolvedBodyIds[action.actionId] = result.indexedEntityId;
+        if (body) {
+          next.resolvedBodies[action.actionId] = body;
+        }
+        break;
+      }
+      case SetupActionKind.CreateRole: {
+        const role = readModels.roles.find(
+          (candidate) => candidate.roleId === result.indexedEntityId,
+        );
+        next.resolvedRoleIds[action.actionId] = result.indexedEntityId;
+        if (role) {
+          next.resolvedRoles[action.actionId] = role;
+        }
+        break;
+      }
+      case SetupActionKind.AssignMandate: {
+        const mandate = readModels.mandates.find(
+          (candidate) => candidate.mandateId === result.indexedEntityId,
+        );
+        next.resolvedMandateIds[action.actionId] = result.indexedEntityId;
+        if (mandate) {
+          next.resolvedMandates[action.actionId] = mandate;
+        }
+        break;
+      }
+      case SetupActionKind.SetPolicyRule: {
+        if (!isSetPolicyRuleAction(action)) {
+          break;
+        }
+        const policy = readModels.policies.find(
+          (candidate) =>
+            candidate.proposalType === action.proposalType &&
+            candidate.version === result.indexedEntityId,
+        );
+        next.resolvedPolicyVersions[action.actionId] = result.indexedEntityId;
+        if (policy) {
+          next.resolvedPolicies[action.actionId] = policy;
+        }
+        break;
+      }
+    }
+  }
+
+  return readModels.organization
+    ? {
+        ...next,
+        resolvedOrganization:
+          next.resolvedOrganization ?? readModels.organization,
+        resolvedOrgId: next.resolvedOrgId ?? readModels.organization.orgId,
+      }
+    : next;
+}
+
 function verifyAction(
   action: SetupAction,
   context: VerificationContext,
@@ -1150,4 +1260,10 @@ function isAssignMandateAction(
   action: SetupAction,
 ): action is AssignMandateSetupAction {
   return action.kind === SetupActionKind.AssignMandate;
+}
+
+function isSetPolicyRuleAction(
+  action: SetupAction,
+): action is SetPolicyRuleSetupAction {
+  return action.kind === SetupActionKind.SetPolicyRule;
 }

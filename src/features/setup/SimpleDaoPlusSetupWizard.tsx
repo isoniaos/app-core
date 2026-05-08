@@ -1,15 +1,16 @@
 import type {
   SetupDraft,
   SetupValidationWarning,
-  TemplateDescriptor,
 } from "@isonia/types";
 import { SetupActionKind, SetupValidationWarningCode } from "@isonia/types";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { buildOrganizationSlug, normalizeOrganizationSlug } from "../../chain/setup-contracts";
+import {
+  buildOrganizationSlug,
+  normalizeOrganizationSlug,
+} from "../../chain/setup-contracts";
 import { formatLabel } from "../../utils/format";
 import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
-import { SIMPLE_DAO_PLUS_TEMPLATE_ID } from "./setup-templates";
 import {
   getStepFieldIds,
   toFieldIssueMap,
@@ -18,14 +19,7 @@ import {
   type SetupWizardStepId,
   type SetupWizardTouchedFields,
 } from "./setup-wizard-validation";
-import { SetupDraftPreview } from "./SetupDraftPreview";
-import {
-  GovernanceBodiesStep,
-  HoldersStep,
-  IdentityStep,
-  PolicyRoutesStep,
-  TemplateStep,
-} from "./SimpleDaoPlusSetupWizardSteps";
+import { IdentityStep } from "./SimpleDaoPlusSetupWizardSteps";
 
 interface SetupWizardStep {
   readonly id: SetupWizardStepId;
@@ -35,34 +29,14 @@ interface SetupWizardStep {
 
 const WIZARD_STEPS: readonly SetupWizardStep[] = [
   {
-    id: "template",
-    summary: "Pick the setup shape available in v0.6.",
-    title: "Choose template",
-  },
-  {
-    id: "bodies",
-    summary: "Preview the fixed Simple DAO+ governance structure.",
-    title: "Governance structure",
-  },
-  {
     id: "identity",
-    summary: "Name the organization and set initial admin authority.",
+    summary: "Name the organization and set root admin authority.",
     title: "Organization identity",
   },
   {
-    id: "holders",
-    summary: "Add eligible holders for council and executor mandates.",
-    title: "Members and holders",
-  },
-  {
-    id: "routes",
-    summary: "Tune executor routing and timelocks.",
-    title: "Policy routes",
-  },
-  {
     id: "review",
-    summary: "Validate setup and execute when ready.",
-    title: "Review setup draft",
+    summary: "Review and create the organization root.",
+    title: "Review root creation",
   },
 ];
 
@@ -71,9 +45,12 @@ interface SimpleDaoPlusSetupWizardProps {
   readonly draft: SetupDraft;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
+  readonly reviewPrimaryAction?: {
+    readonly disabled?: boolean;
+    readonly label: string;
+    readonly onClick: () => void;
+  };
   readonly reviewSupplement?: ReactNode;
-  readonly selectedTemplateId?: string;
-  readonly templates: readonly TemplateDescriptor[];
 }
 
 export function SimpleDaoPlusSetupWizard({
@@ -81,12 +58,11 @@ export function SimpleDaoPlusSetupWizard({
   draft,
   inputs,
   onChange,
+  reviewPrimaryAction,
   reviewSupplement,
-  selectedTemplateId = SIMPLE_DAO_PLUS_TEMPLATE_ID,
-  templates,
 }: SimpleDaoPlusSetupWizardProps): JSX.Element {
   const [currentStepId, setCurrentStepId] =
-    useState<SetupWizardStepId>("template");
+    useState<SetupWizardStepId>("identity");
   const [highestUnlockedStepIndex, setHighestUnlockedStepIndex] = useState(0);
   const [attemptedStepIds, setAttemptedStepIds] = useState<
     ReadonlySet<SetupWizardStepId>
@@ -203,10 +179,10 @@ export function SimpleDaoPlusSetupWizard({
       <section className="panel setup-wizard-panel">
         <div className="panel-header">
           <div>
-            <h2>Simple DAO+ Setup Wizard</h2>
+            <h2>Organization Creation Wizard</h2>
             <p className="panel-subtitle">
-              Guided setup for the organization root, governing bodies,
-              holders, and policy routes.
+              Create the organization root first. Activation continues from the
+              organization setup page after indexing.
             </p>
           </div>
         </div>
@@ -226,12 +202,6 @@ export function SimpleDaoPlusSetupWizard({
               <p>{currentStep.summary}</p>
             </div>
 
-            {currentStepId === "template" ? (
-              <TemplateStep
-                selectedTemplateId={selectedTemplateId}
-                templates={templates}
-              />
-            ) : null}
             {currentStepId === "identity" ? (
               <IdentityStep
                 disabled={disabled}
@@ -249,25 +219,6 @@ export function SimpleDaoPlusSetupWizard({
                 onUpdate={update}
               />
             ) : null}
-            {currentStepId === "bodies" ? <GovernanceBodiesStep /> : null}
-            {currentStepId === "holders" ? (
-              <HoldersStep
-                disabled={disabled}
-                fieldIssues={visibleFieldIssues}
-                inputs={inputs}
-                onFieldBlur={markFieldTouched}
-                onUpdate={update}
-              />
-            ) : null}
-            {currentStepId === "routes" ? (
-              <PolicyRoutesStep
-                disabled={disabled}
-                fieldIssues={visibleFieldIssues}
-                inputs={inputs}
-                onFieldBlur={markFieldTouched}
-                onUpdate={update}
-              />
-            ) : null}
             {currentStepId === "review" ? (
               <ReviewStep
                 draft={draft}
@@ -279,6 +230,7 @@ export function SimpleDaoPlusSetupWizard({
 
             <WizardNavigation
               currentStepIndex={currentStepIndex}
+              reviewPrimaryAction={reviewPrimaryAction}
               steps={WIZARD_STEPS}
               onBack={goBack}
               onNext={goNext}
@@ -337,15 +289,20 @@ function WizardNavigation({
   currentStepIndex,
   onBack,
   onNext,
+  reviewPrimaryAction,
   steps,
 }: {
   readonly currentStepIndex: number;
   readonly onBack: () => void;
   readonly onNext: () => void;
+  readonly reviewPrimaryAction?: {
+    readonly disabled?: boolean;
+    readonly label: string;
+    readonly onClick: () => void;
+  };
   readonly steps: readonly SetupWizardStep[];
 }): JSX.Element {
   const lastStep = currentStepIndex >= steps.length - 1;
-  const nextStep = steps[currentStepIndex + 1];
 
   return (
     <footer className="setup-wizard-navigation">
@@ -359,11 +316,11 @@ function WizardNavigation({
       </button>
       <button
         className="button button-primary"
-        disabled={lastStep}
+        disabled={lastStep ? reviewPrimaryAction?.disabled ?? true : false}
         type="button"
-        onClick={onNext}
+        onClick={lastStep ? reviewPrimaryAction?.onClick : onNext}
       >
-        {nextStep?.id === "review" ? "Review execution" : "Next"}
+        {lastStep ? reviewPrimaryAction?.label ?? "Next" : "Next"}
       </button>
     </footer>
   );
@@ -391,14 +348,6 @@ function ReviewStep({
 
   return (
     <div className="setup-wizard-review">
-      <div className="inline-state inline-state-muted setup-wizard-note">
-        <strong>Review setup notes before execution</strong>
-        <span>
-          Review grouped issues, then use the execution panel in this final
-          step. Technical action details stay collapsed until needed.
-        </span>
-      </div>
-
       <ReviewValidationPanel
         issueSteps={issueSteps}
         stepIssues={stepIssues}
@@ -406,13 +355,38 @@ function ReviewStep({
         onFixStep={onFixStep}
       />
 
-      {reviewSupplement}
+      <RootCreationReview draft={draft} />
 
-      <details className="setup-technical-disclosure">
-        <summary>Technical details</summary>
-        <SetupDraftPreview draft={draft} />
-      </details>
+      {reviewSupplement}
     </div>
+  );
+}
+
+function RootCreationReview({
+  draft,
+}: {
+  readonly draft: SetupDraft;
+}): JSX.Element | null {
+  const organization = draft.organization;
+  if (!organization) {
+    return null;
+  }
+
+  return (
+    <dl className="detail-list detail-list-wide setup-creation-review">
+      <div>
+        <dt>Name</dt>
+        <dd>{organization.fallbackName}</dd>
+      </div>
+      <div>
+        <dt>Admin</dt>
+        <dd>{organization.adminAddress ?? "Not set"}</dd>
+      </div>
+      <div>
+        <dt>Metadata URI</dt>
+        <dd>{organization.metadataUri ?? "None"}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -431,7 +405,7 @@ function ReviewValidationPanel({
     return (
       <div className="inline-state inline-state-success setup-wizard-note">
         <strong>Draft ready for execution</strong>
-        <span>No blocking validation issues were found in this draft.</span>
+        <span>No blocking validation issues were found for root creation.</span>
       </div>
     );
   }
@@ -448,14 +422,14 @@ function ReviewValidationPanel({
         <div>
           <strong>
             {totalErrors > 0
-              ? "Resolve setup issues before execution"
-              : "Setup notes before execution"}
+              ? "Resolve root creation issues before execution"
+              : "Root creation notes before execution"}
           </strong>
           <span>
             {issueSteps.length} {pluralize("step", issueSteps.length)}{" "}
             {issueSteps.length === 1 ? "needs" : "need"} attention.{" "}
             {totalErrors > 0
-              ? "Execution remains blocked while error-level issues exist."
+              ? "Root creation remains blocked while error-level issues exist."
               : "These notes do not block execution, but should be reviewed."}
           </span>
         </div>

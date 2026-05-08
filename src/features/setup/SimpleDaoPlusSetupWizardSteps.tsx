@@ -1,7 +1,7 @@
 import type { TemplateDescriptor } from "@isonia/types";
 import { AddressInput, MultiAddressInput } from "../../ui/address";
 import { StatusBadge } from "../../ui/StatusBadge";
-import { IsoIcon } from "../../ui-kit";
+import { IsoIcon, IsoToggleTip } from "../../ui-kit";
 import { formatNumericString } from "../../utils/format";
 import { RoutePreviewCard } from "./RoutePreviewCard";
 import type {
@@ -123,9 +123,23 @@ export function IdentityStep({
       </label>
 
       <label className={getFormFieldClassName(slugIssue)}>
-        <span>
-          Organization slug
-          <RequiredMarker />
+        <span className="form-field-label-row">
+          <span>
+            Organization slug
+            <RequiredMarker />
+          </span>
+          <IsoToggleTip
+            content="The slug is the URL-safe organization identifier App Core uses in setup drafts and indexed organization lists. It should be short, stable, and recognizable."
+            title="Organization slug"
+          >
+            <button
+              aria-label="Explain organization slug"
+              className="field-help-button"
+              type="button"
+            >
+              <IsoIcon name="question" size={15} />
+            </button>
+          </IsoToggleTip>
         </span>
         <div className="setup-slug-control">
           <input
@@ -153,10 +167,6 @@ export function IdentityStep({
           ) : null}
         </div>
         <FieldIssueText issue={slugIssue} />
-        <small className="form-help-text">
-          Format is validated locally. Before execution, App Core checks
-          currently indexed organizations when Control Plane is reachable.
-        </small>
       </label>
 
       <label className="form-field">

@@ -383,13 +383,17 @@ td {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 1rem;
   padding: 1rem;
 }
 
 .form-field {
   display: grid;
+  align-content: start;
+  align-self: start;
   gap: 0.4rem;
+  grid-auto-rows: max-content;
   min-width: 0;
 }
 
@@ -398,10 +402,42 @@ td {
 }
 
 .form-field > span,
+.form-field-label-row,
 .form-muted {
   color: var(--iso-color-muted);
   font-size: 0.82rem;
   font-weight: 750;
+}
+
+.form-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.form-field-label-row > span {
+  min-width: 0;
+}
+
+.field-help-button {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface);
+  color: var(--iso-color-muted);
+  cursor: help;
+}
+
+.field-help-button:hover,
+.field-help-button:focus-visible {
+  border-color: var(--iso-color-primary);
+  color: var(--iso-color-foreground);
 }
 
 .field-required-marker {
@@ -2312,7 +2348,7 @@ button.address-display {
 
 .setup-wizard-navigation {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   border-top: 1px solid var(--iso-color-border);
@@ -2320,7 +2356,7 @@ button.address-display {
 }
 
 .setup-wizard-navigation .button {
-  align-self: center;
+  flex: 0 0 auto;
 }
 
 .setup-summary-grid {
@@ -2637,7 +2673,6 @@ button.address-display {
   display: grid;
   gap: 0.85rem;
   padding: 1rem;
-  border-bottom: 1px solid var(--iso-color-border);
 }
 
 .setup-execution-action-main {
@@ -2697,10 +2732,10 @@ button.address-display {
 .iso-transaction-hash,
 .setup-transaction-hash {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.55rem;
   max-width: 100%;
+  white-space: nowrap;
 }
 
 .iso-transaction-hash-label,
@@ -2713,10 +2748,43 @@ button.address-display {
 
 .iso-transaction-hash-value,
 .setup-transaction-hash-value {
-  color: var(--iso-color-primary-strong);
+  color: var(--iso-color-foreground);
   font-family: var(--iso-font-mono);
   font-size: 0.82rem;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iso-transaction-hash-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.iso-icon-button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-sm);
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-muted);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.iso-icon-button:hover,
+.iso-icon-button:focus-visible {
+  border-color: var(--iso-color-primary);
+  color: var(--iso-color-foreground);
+}
+
+.iso-icon-button:disabled,
+.iso-icon-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .setup-transaction-raw-error {
@@ -2922,6 +2990,11 @@ button.address-display {
   border-radius: var(--iso-radius-md);
   background: var(--iso-color-surface);
   box-shadow: var(--iso-shadow-lg);
+}
+
+.form-field-label-row .iso-toggle-tip__content {
+  right: 0;
+  left: auto;
 }
 
 .iso-toggle-tip__close {

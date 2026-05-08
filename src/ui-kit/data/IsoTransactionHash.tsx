@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { Copy01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useIsoToast } from "../feedback/useIsoToast";
 
 export interface IsoTransactionHashProps {
   readonly blockExplorerUrl?: string;
@@ -10,10 +12,9 @@ export interface IsoTransactionHashProps {
 export function IsoTransactionHash({
   blockExplorerUrl,
   className,
-  label = "Tx",
   txHash,
 }: IsoTransactionHashProps): JSX.Element | null {
-  const [copied, setCopied] = useState(false);
+  const toast = useIsoToast();
 
   if (!txHash) {
     return null;
@@ -27,41 +28,60 @@ export function IsoTransactionHash({
 
   async function copyToClipboard(): Promise<void> {
     if (!txHash || !navigator.clipboard) {
+      toast.error("Clipboard unavailable");
       return;
     }
 
-    await navigator.clipboard.writeText(txHash);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
+    try {
+      await navigator.clipboard.writeText(txHash);
+      toast.success("Transaction hash copied");
+    } catch {
+      toast.error("Unable to copy transaction hash");
+    }
   }
 
   return (
-    <span className={rootClassName}>
-      <span className="iso-transaction-hash-label">{label}</span>
-      {txUrl ? (
-        <a
-          className="iso-transaction-hash-value"
-          href={txUrl}
-          rel="noreferrer"
-          target="_blank"
-          title={txHash}
+    <span
+      aria-label={`Transaction hash ${txHash}`}
+      className={rootClassName}
+      title={txHash}
+    >
+      <code className="iso-transaction-hash-value">{displayHash}</code>
+      <span className="iso-transaction-hash-actions">
+        <button
+          aria-label={`Copy transaction hash ${txHash}`}
+          className="iso-icon-button"
+          title="Copy transaction hash"
+          type="button"
+          onClick={() => {
+            void copyToClipboard();
+          }}
         >
-          {displayHash}
-        </a>
-      ) : (
-        <code className="iso-transaction-hash-value" title={txHash}>
-          {displayHash}
-        </code>
-      )}
-      <button
-        className="address-copy-button"
-        type="button"
-        onClick={() => {
-          void copyToClipboard();
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
+          <HugeiconsIcon icon={Copy01Icon} size={16} strokeWidth={1.8} />
+        </button>
+        {txUrl ? (
+          <a
+            aria-label={`Open transaction ${txHash} in block explorer`}
+            className="iso-icon-button"
+            href={txUrl}
+            rel="noreferrer"
+            target="_blank"
+            title="Open in block explorer"
+          >
+            <HugeiconsIcon icon={LinkSquare01Icon} size={16} strokeWidth={1.8} />
+          </a>
+        ) : (
+          <button
+            aria-label="Block explorer unavailable for this network"
+            className="iso-icon-button"
+            disabled
+            title="Block explorer unavailable"
+            type="button"
+          >
+            <HugeiconsIcon icon={LinkSquare01Icon} size={16} strokeWidth={1.8} />
+          </button>
+        )}
+      </span>
     </span>
   );
 }

@@ -22,6 +22,10 @@ import {
   isBusyStage,
 } from "./setup-action-execution-helpers";
 import {
+  deriveSetupExecutionStateFromReadModels,
+  type SetupCompletionReadModels,
+} from "./setup-completion-verification";
+import {
   createInitialSetupDraftExecutionState,
   type SetupActionLifecycleStage,
   type SetupActionExecutorContext,
@@ -40,10 +44,12 @@ export type {
 
 interface UseSetupActionExecutionOptions {
   readonly draft: SetupDraft;
+  readonly readModels?: SetupCompletionReadModels;
 }
 
 export function useSetupActionExecution({
   draft,
+  readModels,
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
@@ -93,11 +99,19 @@ export function useSetupActionExecution({
   );
   const resolvedOrgId = state.resolvedOrgId ?? draft.organization?.orgId;
   const returnedState = useMemo<SetupDraftExecutionState>(
-    () =>
-      resolvedOrgId && state.resolvedOrgId !== resolvedOrgId
-        ? { ...state, resolvedOrgId }
-        : state,
-    [resolvedOrgId, state],
+    () => {
+      const stateWithOrgId =
+        resolvedOrgId && state.resolvedOrgId !== resolvedOrgId
+          ? { ...state, resolvedOrgId }
+          : state;
+
+      return deriveSetupExecutionStateFromReadModels({
+        draft,
+        executionState: stateWithOrgId,
+        readModels,
+      });
+    },
+    [draft, readModels, resolvedOrgId, state],
   );
   const setupWritesEnabled =
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
@@ -168,7 +182,7 @@ export function useSetupActionExecution({
         publicClientReady: Boolean(publicClient),
         runtimeChainId: runtimeConfig.chainId,
         setupWritesEnabled,
-        transaction: state.createOrganization,
+        transaction: returnedState.createOrganization,
       }),
     [
       account.chainId,
@@ -178,22 +192,22 @@ export function useSetupActionExecution({
       runtimeConfig.chainId,
       runtimeConfig.contracts.govCoreAddress,
       setupWritesEnabled,
-      state.createOrganization,
+      returnedState.createOrganization,
     ],
   );
 
   const busy =
-    isBusyStage(state.createOrganization.stage) ||
-    Object.values(state.createBodies).some((transaction) =>
+    isBusyStage(returnedState.createOrganization.stage) ||
+    Object.values(returnedState.createBodies).some((transaction) =>
       isBusyStage(transaction.stage),
     ) ||
-    Object.values(state.createRoles).some((transaction) =>
+    Object.values(returnedState.createRoles).some((transaction) =>
       isBusyStage(transaction.stage),
     ) ||
-    Object.values(state.assignMandates).some((transaction) =>
+    Object.values(returnedState.assignMandates).some((transaction) =>
       isBusyStage(transaction.stage),
     ) ||
-    Object.values(state.setPolicyRules).some((transaction) =>
+    Object.values(returnedState.setPolicyRules).some((transaction) =>
       isBusyStage(transaction.stage),
     );
 
@@ -266,15 +280,16 @@ export function useSetupActionExecution({
         actionId,
         actions: createBodyActions,
         context: executorContext,
-        resolvedBodyIds: state.resolvedBodyIds,
-        resolvedOrgId,
+        resolvedBodyIds: returnedState.resolvedBodyIds,
+        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
       });
     },
     [
       createBodyActions,
       executorContext,
       resolvedOrgId,
-      state.resolvedBodyIds,
+      returnedState.resolvedBodyIds,
+      returnedState.resolvedOrgId,
     ],
   );
 
@@ -286,9 +301,9 @@ export function useSetupActionExecution({
         bodyActions: createBodyActions,
         busy,
         context: executorContext,
-        resolvedBodyIds: state.resolvedBodyIds,
-        resolvedOrgId,
-        resolvedRoleIds: state.resolvedRoleIds,
+        resolvedBodyIds: returnedState.resolvedBodyIds,
+        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
+        resolvedRoleIds: returnedState.resolvedRoleIds,
       });
     },
     [
@@ -297,8 +312,9 @@ export function useSetupActionExecution({
       createRoleActions,
       executorContext,
       resolvedOrgId,
-      state.resolvedBodyIds,
-      state.resolvedRoleIds,
+      returnedState.resolvedBodyIds,
+      returnedState.resolvedOrgId,
+      returnedState.resolvedRoleIds,
     ],
   );
 
@@ -309,10 +325,10 @@ export function useSetupActionExecution({
         actions: assignMandateActions,
         busy,
         context: executorContext,
-        resolvedMandateIds: state.resolvedMandateIds,
-        resolvedOrgId,
-        resolvedRoleIds: state.resolvedRoleIds,
-        resolvedRoles: state.resolvedRoles,
+        resolvedMandateIds: returnedState.resolvedMandateIds,
+        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
+        resolvedRoleIds: returnedState.resolvedRoleIds,
+        resolvedRoles: returnedState.resolvedRoles,
         roleActions: createRoleActions,
       });
     },
@@ -322,9 +338,10 @@ export function useSetupActionExecution({
       createRoleActions,
       executorContext,
       resolvedOrgId,
-      state.resolvedMandateIds,
-      state.resolvedRoleIds,
-      state.resolvedRoles,
+      returnedState.resolvedMandateIds,
+      returnedState.resolvedOrgId,
+      returnedState.resolvedRoleIds,
+      returnedState.resolvedRoles,
     ],
   );
 
@@ -337,10 +354,10 @@ export function useSetupActionExecution({
         busy,
         context: executorContext,
         mandateActions: assignMandateActions,
-        resolvedBodyIds: state.resolvedBodyIds,
-        resolvedMandateIds: state.resolvedMandateIds,
-        resolvedOrgId,
-        resolvedPolicyVersions: state.resolvedPolicyVersions,
+        resolvedBodyIds: returnedState.resolvedBodyIds,
+        resolvedMandateIds: returnedState.resolvedMandateIds,
+        resolvedOrgId: returnedState.resolvedOrgId ?? resolvedOrgId,
+        resolvedPolicyVersions: returnedState.resolvedPolicyVersions,
         roleActions: createRoleActions,
       });
     },
@@ -352,9 +369,10 @@ export function useSetupActionExecution({
       executorContext,
       resolvedOrgId,
       setPolicyRuleActions,
-      state.resolvedBodyIds,
-      state.resolvedMandateIds,
-      state.resolvedPolicyVersions,
+      returnedState.resolvedBodyIds,
+      returnedState.resolvedMandateIds,
+      returnedState.resolvedOrgId,
+      returnedState.resolvedPolicyVersions,
     ],
   );
 
@@ -366,13 +384,13 @@ export function useSetupActionExecution({
       itemId,
       run: runCreateOrganizationAction,
       title: createOrganizationAction?.label ?? "Create organization",
-      transaction: state.createOrganization,
+      transaction: returnedState.createOrganization,
     });
   }, [
     createOrganizationAction?.label,
     openSetupTransactionModal,
+    returnedState.createOrganization,
     runCreateOrganizationAction,
-    state.createOrganization,
   ]);
 
   const executeCreateBody = useCallback(
@@ -388,15 +406,15 @@ export function useSetupActionExecution({
         run: () => runCreateBodyAction(actionId),
         title: action?.label ?? "Create body",
         transaction:
-          state.createBodies[actionId] ??
+          returnedState.createBodies[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
     },
     [
       createBodyActions,
       openSetupTransactionModal,
+      returnedState.createBodies,
       runCreateBodyAction,
-      state.createBodies,
     ],
   );
 
@@ -413,15 +431,15 @@ export function useSetupActionExecution({
         run: () => runCreateRoleAction(actionId),
         title: action?.label ?? "Create role",
         transaction:
-          state.createRoles[actionId] ??
+          returnedState.createRoles[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
     },
     [
       createRoleActions,
       openSetupTransactionModal,
+      returnedState.createRoles,
       runCreateRoleAction,
-      state.createRoles,
     ],
   );
 
@@ -441,15 +459,15 @@ export function useSetupActionExecution({
         run: () => runAssignMandateAction(actionId),
         title: action?.label ?? "Assign mandate",
         transaction:
-          state.assignMandates[actionId] ??
+          returnedState.assignMandates[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
     },
     [
       assignMandateActions,
       openSetupTransactionModal,
+      returnedState.assignMandates,
       runAssignMandateAction,
-      state.assignMandates,
     ],
   );
 
@@ -469,15 +487,15 @@ export function useSetupActionExecution({
         run: () => runSetPolicyRuleAction(actionId),
         title: action?.label ?? "Set policy rule",
         transaction:
-          state.setPolicyRules[actionId] ??
+          returnedState.setPolicyRules[actionId] ??
           createIdleSetupActionTransaction(actionId, action?.kind),
       });
     },
     [
       openSetupTransactionModal,
+      returnedState.setPolicyRules,
       runSetPolicyRuleAction,
       setPolicyRuleActions,
-      state.setPolicyRules,
     ],
   );
 

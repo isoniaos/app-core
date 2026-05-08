@@ -77,6 +77,7 @@ export const DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS: SimpleDaoPlusDraftInputs = {
 interface SetupDraftOptions {
   readonly chainId: ChainId;
   readonly govCoreAddress: Address;
+  readonly includeActivationActions?: boolean;
   readonly inputs?: Partial<SimpleDaoPlusDraftInputs>;
   readonly orgId?: NumericString;
 }
@@ -318,6 +319,7 @@ export const SETUP_TEMPLATES: readonly TemplateDescriptor[] = [
 export function createSimpleDaoPlusDraft({
   chainId,
   govCoreAddress,
+  includeActivationActions = true,
   inputs,
   orgId,
 }: SetupDraftOptions): SetupDraft {
@@ -337,33 +339,37 @@ export function createSimpleDaoPlusDraft({
       inputs: normalizedInputs,
       orgId,
     }),
-    ...createBodyActions({
-      adminAddress,
-      chainId,
-      govCoreAddress,
-      organizationRef,
-      orgId,
-    }),
-    ...createRoleActions({
-      adminAddress,
-      chainId,
-      govCoreAddress,
-      roleDefinitions,
-    }),
-    ...createMandateActions({
-      adminAddress,
-      chainId,
-      govCoreAddress,
-      inputs: normalizedInputs,
-      roleDefinitions,
-    }),
-    ...createPolicyActions({
-      adminAddress,
-      chainId,
-      govCoreAddress,
-      inputs: normalizedInputs,
-      organizationRef,
-    }),
+    ...(includeActivationActions
+      ? [
+          ...createBodyActions({
+            adminAddress,
+            chainId,
+            govCoreAddress,
+            organizationRef,
+            orgId,
+          }),
+          ...createRoleActions({
+            adminAddress,
+            chainId,
+            govCoreAddress,
+            roleDefinitions,
+          }),
+          ...createMandateActions({
+            adminAddress,
+            chainId,
+            govCoreAddress,
+            inputs: normalizedInputs,
+            roleDefinitions,
+          }),
+          ...createPolicyActions({
+            adminAddress,
+            chainId,
+            govCoreAddress,
+            inputs: normalizedInputs,
+            organizationRef,
+          }),
+        ]
+      : []),
   ];
   return applySetupValidation({
     actions: baseActions,
