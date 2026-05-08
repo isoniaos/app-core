@@ -1,7 +1,7 @@
 import { IsoIcon } from "../../ui-kit";
 
 export interface RoutePreviewFact {
-  readonly icon: "check" | "info" | "lightbulb" | "warning" | "x";
+  readonly icon: "check" | "job" | "timelock" | "warning" | "x";
   readonly label: string;
   readonly value: string;
 }

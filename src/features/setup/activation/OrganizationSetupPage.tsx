@@ -1,22 +1,22 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useRuntimeConfig } from "../../config/runtime-config";
-import { PageHeader } from "../../ui/PageHeader";
-import { StatusBadge } from "../../ui/StatusBadge";
-import { formatLabel } from "../../utils/format";
-import { requireParam } from "../../utils/route-params";
+import { useRuntimeConfig } from "../../../config/runtime-config";
+import { PageHeader } from "../../../ui/PageHeader";
+import { StatusBadge } from "../../../ui/StatusBadge";
+import { formatLabel } from "../../../utils/format";
+import { requireParam } from "../../../utils/route-params";
 import { OrganizationActivationWizard } from "./OrganizationActivationWizard";
 import {
   createSimpleDaoPlusDraft,
   DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS,
   type SimpleDaoPlusDraftInputs,
-} from "./setup-templates";
+} from "../setup-templates";
 import {
   verifySetupCompletion,
   type SetupCompletionReadModels,
-} from "./setup-completion-verification";
-import { useSetupCompletionReadModels } from "./useSetupCompletionReadModels";
-import { useSetupActionExecution } from "./useSetupActionExecution";
+} from "../setup-completion-verification";
+import { useSetupCompletionReadModels } from "../useSetupCompletionReadModels";
+import { useSetupActionExecution } from "../useSetupActionExecution";
 
 export function OrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();

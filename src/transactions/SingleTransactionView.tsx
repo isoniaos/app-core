@@ -119,14 +119,9 @@ function TransactionStageMeta({
     return null;
   }
 
-  const showDiagnostics =
-    isControlPlaneWaitingStage(stage) || stage === "failed";
+  const showDiagnostics = stage === "failed";
   const showHash =
-    stage === "submitted" ||
-    stage === "confirming" ||
-    stage === "confirmed_waiting_indexer" ||
-    stage === "completed" ||
-    stage === "failed";
+    stage === "submitted" || stage === "failed";
   const showError = stage === "failed" && item.error;
 
   if (!showHash && !showDiagnostics && !showError) {
@@ -163,7 +158,7 @@ function TransactionAuthorityNotice(): JSX.Element {
       title="Contracts remain authoritative"
       description={
         <span>
-          App Core shows wallet, chain, and{" "}
+          This application shows wallet, chain, and{" "}
           <IsoHelpTerm term="controlPlane">Control Plane</IsoHelpTerm> progress.
           On-chain contracts remain the source of governance authority, and read
           models may lag briefly.

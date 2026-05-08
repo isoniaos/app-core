@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useRuntimeConfig } from "../../config/runtime-config";
-import { PageHeader } from "../../ui/PageHeader";
+import { useRuntimeConfig } from "../../../config/runtime-config";
+import { PageHeader } from "../../../ui/PageHeader";
 import { SimpleDaoPlusSetupWizard } from "./SimpleDaoPlusSetupWizard";
 import {
   createSimpleDaoPlusDraft,
   DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS,
-} from "./setup-templates";
-import { SetupExecutionPanel } from "./SetupExecutionPanel";
-import { useSetupActionExecution } from "./useSetupActionExecution";
+} from "../setup-templates";
+import {
+  useSetupActionExecution,
+  type SetupActionLifecycleStage,
+} from "../useSetupActionExecution";
 
 export function NewOrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
@@ -29,6 +31,9 @@ export function NewOrganizationSetupPage(): JSX.Element {
   const rootCreated =
     execution.state.createOrganization.stage === "indexed" ||
     Boolean(activationOrgId);
+  const rootCreationBlocked = draft.warnings.some(
+    (warning) => warning.severity === "error",
+  );
   const draftInputsLocked =
     execution.busy ||
     rootCreated;
@@ -56,20 +61,56 @@ export function NewOrganizationSetupPage(): JSX.Element {
                   }
                 },
               }
-            : undefined
-        }
-        reviewSupplement={
-          <SetupExecutionPanel
-            busy={execution.busy}
-            draft={draft}
-            executeCreateOrganization={execution.executeCreateOrganization}
-            readiness={execution.readiness}
-            reset={execution.reset}
-            state={execution.state}
-          />
+            : {
+                disabled: execution.busy || rootCreationBlocked,
+                label: getRootCreationButtonLabel(
+                  execution.state.createOrganization.stage,
+                  execution.busy,
+                  rootCreationBlocked,
+                ),
+                onClick: () => {
+                  void execution.executeCreateOrganization();
+                },
+              }
         }
         onChange={setInputs}
       />
     </section>
   );
+}
+
+function getRootCreationButtonLabel(
+  stage: SetupActionLifecycleStage,
+  busy: boolean,
+  blocked: boolean,
+): string {
+  if (stage === "failed") {
+    return "Retry root creation";
+  }
+
+  if (stage === "wallet_pending") {
+    return "Waiting for wallet";
+  }
+
+  if (stage === "submitted") {
+    return "Transaction submitted";
+  }
+
+  if (stage === "confirming") {
+    return "Waiting for receipt";
+  }
+
+  if (stage === "confirmed_waiting_indexer") {
+    return "Waiting for Control Plane";
+  }
+
+  if (busy) {
+    return "Transaction active";
+  }
+
+  if (blocked) {
+    return "Root creation blocked";
+  }
+
+  return "Create root";
 }

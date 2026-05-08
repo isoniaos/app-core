@@ -3,7 +3,7 @@ import type {
   SetupCompletionActionState,
   SetupCompletionActionVerification,
   SetupCompletionReadModels,
-} from "./setup-completion-verification";
+} from "../setup-completion-verification";
 
 export type ActivationGroupId = "bodies" | "roles" | "mandates" | "policies";
 

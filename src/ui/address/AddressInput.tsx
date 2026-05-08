@@ -1,4 +1,6 @@
 import type { Address } from "@isonia/types";
+import { AlertCircleIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { ChangeEvent, FocusEvent } from "react";
 import { useEffect, useId, useMemo } from "react";
 import {
@@ -151,9 +153,11 @@ export function AddressInput({
           onBlur={handleBlur}
           onChange={handleChange}
         />
-        <span aria-hidden="true" className="address-input-mark">
-          {getStatusMark(validation)}
-        </span>
+        <AddressInputStatusMark
+          invalid={isInvalid}
+          message={feedback}
+          validation={validation}
+        />
       </div>
       <span className="address-input-feedback" id={feedbackId}>
         {showFeedback ? feedback : ""}
@@ -162,15 +166,38 @@ export function AddressInput({
   );
 }
 
-function getStatusMark(validation: AddressValidationResult): string {
-  switch (validation.status) {
-    case "valid":
-      return "OK";
-    case "empty":
-      return "";
-    case "invalid_checksum":
-    case "invalid_format":
-    case "zero_address":
-      return "!";
+function AddressInputStatusMark({
+  invalid,
+  message,
+  validation,
+}: {
+  readonly invalid: boolean;
+  readonly message: string;
+  readonly validation: AddressValidationResult;
+}): JSX.Element {
+  if (validation.status === "valid" && !invalid) {
+    return (
+      <span
+        aria-label="Valid address"
+        className="address-input-mark"
+        role="img"
+      >
+        <HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={1.9} />
+      </span>
+    );
   }
+
+  if (invalid || validation.status !== "empty") {
+    return (
+      <span
+        aria-label={message || "Invalid address"}
+        className="address-input-mark"
+        role="img"
+      >
+        <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.9} />
+      </span>
+    );
+  }
+
+  return <span aria-hidden="true" className="address-input-mark" />;
 }

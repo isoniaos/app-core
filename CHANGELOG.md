@@ -12,6 +12,13 @@ All notable changes to `@isonia/app-core` are documented here.
 - Added signer preflight for bootstrap activation actions.
 - Added serial transaction modal execution for activation groups.
 
+### Fixed
+
+- Fixed activation wizard blocking logic so future-step validation does not block earlier activation groups.
+- Restored creation wizard template and governance structure steps.
+- Polished setup help icons, address validation icon, form layout, and root review details.
+- Cleaned setup feature structure and naming where safe.
+
 ## [0.6.0-alpha.10]
 
 ### Changed

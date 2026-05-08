@@ -8,36 +8,36 @@ import type {
 import { SetupActionKind } from "@isonia/types";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useRuntimeConfig } from "../../config/runtime-config";
-import { StatusBadge } from "../../ui/StatusBadge";
-import { IsoAddressDisplay } from "../../ui-kit";
-import { formatLabel } from "../../utils/format";
-import { useWalletConnection } from "../../wallet/useWalletConnection";
+import { useRuntimeConfig } from "../../../config/runtime-config";
+import { StatusBadge } from "../../../ui/StatusBadge";
+import { IsoAddressDisplay } from "../../../ui-kit";
+import { formatLabel } from "../../../utils/format";
+import { useWalletConnection } from "../../../wallet/useWalletConnection";
 import {
   buildActivationGroupProgress,
   canExecuteActivationActionState,
   type ActivationGroupId,
   type ActivationGroupProgress,
 } from "./activation-group-progress";
-import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
+import type { SimpleDaoPlusDraftInputs } from "../setup-templates";
 import {
   getSetupActionExecutionPreflight,
   getSetupActionGroupExecutionPreflight,
   type SetupActionExecutionPreflight,
   type SetupActionExecutionPreflightEnvironment,
-} from "./setup-action-preflight";
+} from "../setup-action-preflight";
 import type {
   SetupCompletionActionVerification,
   SetupCompletionReadModels,
   SetupCompletionVerification,
-} from "./setup-completion-verification";
-import type { SetupWizardFieldIssueMap } from "./setup-wizard-validation";
+} from "../setup-completion-verification";
+import type { SetupWizardFieldIssueMap } from "../setup-wizard-validation";
 import {
   HoldersStep,
   PolicyRoutesStep,
   type SimpleDaoPlusInputUpdate,
-} from "./SimpleDaoPlusSetupWizardSteps";
-import type { SetupDraftExecutionState } from "./useSetupActionExecution";
+} from "../shared/SimpleDaoPlusSetupWizardSteps";
+import type { SetupDraftExecutionState } from "../useSetupActionExecution";
 
 type ActivationStepId =
   | "bodies"
@@ -460,21 +460,51 @@ function ActivationAuthorityNotice({
   preflight,
 }: {
   readonly preflight: SetupActionExecutionPreflight;
-}): JSX.Element {
-  const tone = preflight.canExecute ? "muted" : "warning";
+}): JSX.Element | null {
+  if (preflight.status === "ready") {
+    return null;
+  }
+
+  const tone = preflight.status === "wrong_signer" ? "danger" : "warning";
 
   return (
     <div className={`inline-state inline-state-${tone} setup-execution-inline`}>
-      <strong>Bootstrap authority</strong>
+      <strong>{getAuthorityNoticeTitle(preflight)}</strong>
       <span>
-        Bootstrap activation requires the organization admin wallet. Bootstrap
-        activation is performed by the organization admin in the current v0.6
-        EVM protocol. Proposal actions later use role and mandate authority.
-        Contracts remain authoritative.
+        {getAuthorityNoticeMessage(preflight)} Bootstrap activation is
+        performed by the organization admin in the current v0.6 EVM protocol.
+        Proposal actions later use role and mandate authority. Contracts remain
+        authoritative.
       </span>
       <SignerPreflightSummary compact preflight={preflight} />
     </div>
   );
+}
+
+function getAuthorityNoticeTitle(
+  preflight: SetupActionExecutionPreflight,
+): string {
+  switch (preflight.status) {
+    case "wallet_not_connected":
+      return "Connect organization admin wallet";
+    case "wrong_signer":
+      return "Switch to organization admin wallet";
+    default:
+      return preflight.title;
+  }
+}
+
+function getAuthorityNoticeMessage(
+  preflight: SetupActionExecutionPreflight,
+): string {
+  switch (preflight.status) {
+    case "wallet_not_connected":
+      return "Bootstrap activation requires the organization admin wallet. ";
+    case "wrong_signer":
+      return "The connected wallet differs from the expected organization admin. Switch wallet before activation. ";
+    default:
+      return `${preflight.message} `;
+  }
 }
 
 function ActivationMetrics({

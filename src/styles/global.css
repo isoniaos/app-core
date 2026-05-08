@@ -422,14 +422,15 @@ td {
 }
 
 .field-help-button {
-  display: inline-grid;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
   width: 26px;
   height: 26px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid var(--iso-color-border);
+  border: 1px solid transparent;
   border-radius: var(--iso-radius-sm);
-  background: var(--iso-color-surface);
+  background: transparent;
   color: var(--iso-color-muted);
   cursor: help;
 }
@@ -538,6 +539,36 @@ td {
 .mono-input {
   font-family: var(--iso-font-mono);
   font-size: 0.84rem;
+}
+
+.iso-state-neutral {
+  --iso-state-color: var(--iso-color-muted);
+  --iso-state-border: var(--iso-color-border);
+  --iso-state-surface: var(--iso-color-surface-subtle);
+}
+
+.iso-state-success {
+  --iso-state-color: var(--iso-color-success);
+  --iso-state-border: color-mix(in srgb, var(--iso-color-success) 65%, var(--iso-color-border));
+  --iso-state-surface: var(--iso-color-success-surface);
+}
+
+.iso-state-warning {
+  --iso-state-color: var(--iso-color-warning);
+  --iso-state-border: color-mix(in srgb, var(--iso-color-warning) 65%, var(--iso-color-border));
+  --iso-state-surface: var(--iso-color-warning-surface);
+}
+
+.iso-state-danger {
+  --iso-state-color: var(--iso-color-danger);
+  --iso-state-border: color-mix(in srgb, var(--iso-color-danger) 65%, var(--iso-color-border));
+  --iso-state-surface: var(--iso-color-danger-surface);
+}
+
+.iso-state-accent {
+  --iso-state-color: var(--iso-color-accent);
+  --iso-state-border: color-mix(in srgb, var(--iso-color-accent) 65%, var(--iso-color-border));
+  --iso-state-surface: var(--iso-color-accent-surface);
 }
 
 .iso-icon {
@@ -690,11 +721,12 @@ button.address-display {
 }
 
 .address-input-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
   min-width: 1.65rem;
   color: var(--iso-state-color, var(--iso-color-muted));
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-align: right;
+  line-height: 0;
 }
 
 .address-input-feedback {
@@ -1069,6 +1101,11 @@ button.address-display {
   overflow: hidden;
 }
 
+.iso-dialog-close-button {
+  top: 1rem;
+  right: 1rem;
+}
+
 .iso-dialog-header {
   display: grid;
   gap: 0.35rem;
@@ -1083,6 +1120,7 @@ button.address-display {
 .iso-dialog-title {
   color: var(--iso-color-foreground);
   font-weight: 700;
+  margin-top: 0;
 }
 
 .iso-dialog-description {
@@ -2227,6 +2265,23 @@ button.address-display {
   padding: 0;
 }
 
+.setup-wizard-form-grid {
+  grid-template-columns: minmax(0, 640px);
+  align-items: start;
+  max-width: 640px;
+  width: 100%;
+}
+
+.setup-wizard-form-grid .form-field,
+.setup-wizard-form-grid .address-field,
+.setup-wizard-form-grid .multi-address-field {
+  align-self: start;
+}
+
+.setup-wizard-form-grid .form-field-wide {
+  grid-column: 1;
+}
+
 .setup-wizard-template-disabled {
   opacity: 0.7;
 }
@@ -2362,6 +2417,15 @@ button.address-display {
 
 .setup-wizard-navigation .button {
   flex: 0 0 auto;
+}
+
+.setup-creation-review {
+  gap: 0.75rem;
+  padding: 0;
+}
+
+.setup-creation-review dd {
+  font-weight: 400;
 }
 
 .setup-summary-grid {
@@ -3079,6 +3143,10 @@ button.address-display {
   border-radius: var(--iso-radius-md);
   background: var(--iso-color-surface);
   box-shadow: var(--iso-shadow-lg);
+}
+
+.iso-toggle-tip__content :where(p, h1, h2, h3, h4, h5, h6) {
+  margin: 0;
 }
 
 .form-field-label-row .iso-toggle-tip__content {

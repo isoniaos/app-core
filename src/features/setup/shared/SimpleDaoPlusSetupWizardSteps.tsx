@@ -1,19 +1,19 @@
 import type { TemplateDescriptor } from "@isonia/types";
-import { AddressInput, MultiAddressInput } from "../../ui/address";
-import { StatusBadge } from "../../ui/StatusBadge";
-import { IsoIcon, IsoToggleTip } from "../../ui-kit";
-import { formatNumericString } from "../../utils/format";
-import { RoutePreviewCard } from "./RoutePreviewCard";
+import { AddressInput, MultiAddressInput } from "../../../ui/address";
+import { StatusBadge } from "../../../ui/StatusBadge";
+import { IsoIcon, IsoToggleTip } from "../../../ui-kit";
+import { formatNumericString } from "../../../utils/format";
+import { RoutePreviewCard } from "../RoutePreviewCard";
 import type {
   SetupWizardFieldId,
   SetupWizardFieldIssue,
   SetupWizardFieldIssueMap,
-} from "./setup-wizard-validation";
+} from "../setup-wizard-validation";
 import type {
   SimpleDaoPlusDraftInputs,
   SimpleDaoPlusExecutorBodyChoice,
-} from "./setup-templates";
-import { SIMPLE_DAO_PLUS_TEMPLATE_ID } from "./setup-templates";
+} from "../setup-templates";
+import { SIMPLE_DAO_PLUS_TEMPLATE_ID } from "../setup-templates";
 
 export type SimpleDaoPlusInputUpdate = <
   Key extends keyof SimpleDaoPlusDraftInputs,
@@ -137,7 +137,7 @@ export function IdentityStep({
               className="field-help-button"
               type="button"
             >
-              <IsoIcon name="question" size={15} />
+              <IsoIcon name="help" size={16} />
             </button>
           </IsoToggleTip>
         </span>
@@ -537,9 +537,9 @@ function PolicyRoutePreview({
       facts={[
         { icon: "check", label: "Approval", value: route.approvalBodies },
         { icon: "warning", label: "Veto", value: route.vetoBody },
-        { icon: "info", label: "Executor", value: route.executorBody },
+        { icon: "job", label: "Executor", value: route.executorBody },
         {
-          icon: "lightbulb",
+          icon: "timelock",
           label: "Timelock",
           value: formatTimelock(route.timelockSeconds),
         },

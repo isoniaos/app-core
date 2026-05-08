@@ -7,6 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { IsoIcon } from "../icons/IsoIcon";
 
 export interface IsoToggleTipProps {
   readonly children: ReactElement;
@@ -66,11 +67,11 @@ export function IsoToggleTip({
         >
           <Stack gap="2" paddingInlineEnd="6">
             {title ? (
-              <Text color="isonia.foreground" fontWeight="700">
+              <Text color="isonia.foreground" fontWeight="700" margin="0">
                 {title}
               </Text>
             ) : null}
-            <Text color="isonia.muted" fontSize="sm">
+            <Text color="isonia.muted" fontSize="sm" fontWeight={400} margin="0">
               {content}
             </Text>
           </Stack>
@@ -84,7 +85,7 @@ export function IsoToggleTip({
               setOpen(false);
             }}
           >
-            <span aria-hidden="true">x</span>
+            <IsoIcon name="cancel" size={16} />
           </button>
         </span>
       ) : null}

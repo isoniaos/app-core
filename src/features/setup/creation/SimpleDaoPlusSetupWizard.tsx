@@ -8,9 +8,14 @@ import { useMemo, useState } from "react";
 import {
   buildOrganizationSlug,
   normalizeOrganizationSlug,
-} from "../../chain/setup-contracts";
-import { formatLabel } from "../../utils/format";
-import type { SimpleDaoPlusDraftInputs } from "./setup-templates";
+} from "../../../chain/setup-contracts";
+import { IsoAddressDisplay } from "../../../ui-kit";
+import { formatLabel } from "../../../utils/format";
+import type { SimpleDaoPlusDraftInputs } from "../setup-templates";
+import {
+  SETUP_TEMPLATES,
+  SIMPLE_DAO_PLUS_TEMPLATE_ID,
+} from "../setup-templates";
 import {
   getStepFieldIds,
   toFieldIssueMap,
@@ -18,8 +23,12 @@ import {
   type SetupWizardFieldId,
   type SetupWizardStepId,
   type SetupWizardTouchedFields,
-} from "./setup-wizard-validation";
-import { IdentityStep } from "./SimpleDaoPlusSetupWizardSteps";
+} from "../setup-wizard-validation";
+import {
+  GovernanceBodiesStep,
+  IdentityStep,
+  TemplateStep,
+} from "../shared/SimpleDaoPlusSetupWizardSteps";
 
 interface SetupWizardStep {
   readonly id: SetupWizardStepId;
@@ -28,6 +37,16 @@ interface SetupWizardStep {
 }
 
 const WIZARD_STEPS: readonly SetupWizardStep[] = [
+  {
+    id: "template",
+    summary: "Choose the setup template for this organization.",
+    title: "Choose template",
+  },
+  {
+    id: "bodies",
+    summary: "Preview the governance bodies the template will activate later.",
+    title: "Governance structure",
+  },
   {
     id: "identity",
     summary: "Name the organization and set root admin authority.",
@@ -62,7 +81,7 @@ export function SimpleDaoPlusSetupWizard({
   reviewSupplement,
 }: SimpleDaoPlusSetupWizardProps): JSX.Element {
   const [currentStepId, setCurrentStepId] =
-    useState<SetupWizardStepId>("identity");
+    useState<SetupWizardStepId>("template");
   const [highestUnlockedStepIndex, setHighestUnlockedStepIndex] = useState(0);
   const [attemptedStepIds, setAttemptedStepIds] = useState<
     ReadonlySet<SetupWizardStepId>
@@ -202,6 +221,13 @@ export function SimpleDaoPlusSetupWizard({
               <p>{currentStep.summary}</p>
             </div>
 
+            {currentStepId === "template" ? (
+              <TemplateStep
+                selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
+                templates={SETUP_TEMPLATES}
+              />
+            ) : null}
+            {currentStepId === "bodies" ? <GovernanceBodiesStep /> : null}
             {currentStepId === "identity" ? (
               <IdentityStep
                 disabled={disabled}
@@ -380,7 +406,13 @@ function RootCreationReview({
       </div>
       <div>
         <dt>Admin</dt>
-        <dd>{organization.adminAddress ?? "Not set"}</dd>
+        <dd>
+          <IsoAddressDisplay
+            copyable
+            shorten={true}
+            value={organization.adminAddress}
+          />
+        </dd>
       </div>
       <div>
         <dt>Metadata URI</dt>

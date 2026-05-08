@@ -1,10 +1,15 @@
 import {
   AlertCircleIcon,
   BulbIcon,
+  Cancel01Icon,
   CancelCircleIcon,
   CheckmarkCircle02Icon,
+  HelpCircleIcon,
   InformationCircleIcon,
   QuestionIcon,
+  Tick02Icon,
+  NewJobIcon,
+  TimeQuarter02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentProps } from "react";
@@ -12,12 +17,17 @@ import type { ComponentProps } from "react";
 type HugeiconsIconProps = ComponentProps<typeof HugeiconsIcon>;
 
 export type IsoIconName =
+  | "cancel"
   | "check"
+  | "help"
   | "info"
   | "lightbulb"
   | "question"
+  | "tick"
   | "warning"
-  | "x";
+  | "job"
+  | "x"
+  | "timelock";
 
 export interface IsoIconProps
   extends Omit<HugeiconsIconProps, "icon" | "size" | "strokeWidth"> {
@@ -28,12 +38,17 @@ export interface IsoIconProps
 }
 
 const ICONS = {
+  cancel: Cancel01Icon,
   check: CheckmarkCircle02Icon,
+  help: HelpCircleIcon,
   info: InformationCircleIcon,
   lightbulb: BulbIcon,
   question: QuestionIcon,
+  tick: Tick02Icon,
   warning: AlertCircleIcon,
   x: CancelCircleIcon,
+  job: NewJobIcon,
+  timelock: TimeQuarter02Icon,
 } satisfies Record<IsoIconName, HugeiconsIconProps["icon"]>;
 
 export function IsoIcon({

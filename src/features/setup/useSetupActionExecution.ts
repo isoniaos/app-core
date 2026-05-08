@@ -10,7 +10,7 @@ import {
   type TransactionFlowStage,
 } from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
-import { canExecuteActivationActionState } from "./activation-group-progress";
+import { canExecuteActivationActionState } from "./activation/activation-group-progress";
 import { executeAssignMandateAction } from "./assign-mandate-executor";
 import { executeCreateBodyAction } from "./create-body-executor";
 import { executeCreateOrganizationAction } from "./create-organization-executor";

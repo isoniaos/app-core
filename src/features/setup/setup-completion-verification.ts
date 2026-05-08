@@ -12,8 +12,13 @@ import type {
   SetupAction,
   SetupDraft,
   SetupEntityReference,
+  SetupValidationWarning,
 } from "@isonia/types";
-import { SetupActionExecutionStatus, SetupActionKind } from "@isonia/types";
+import {
+  SetupActionExecutionStatus,
+  SetupActionKind,
+  SetupValidationWarningCode,
+} from "@isonia/types";
 import type {
   SetupActionLifecycleStage,
   SetupActionTransaction,
@@ -361,18 +366,6 @@ function verifyAction(
     });
   }
 
-  const blockingWarning = action.warnings.find(
-    (warning) => warning.severity === "error",
-  );
-  if (blockingWarning) {
-    return issueResult({
-      action,
-      message: blockingWarning.message,
-      state: "blocked",
-      transaction,
-    });
-  }
-
   const blockedDependency = getBlockedDependency(action, context);
   if (blockedDependency) {
     return issueResult({
@@ -394,6 +387,16 @@ function verifyAction(
       txHash: transaction?.txHash,
       unresolvedDependencies,
     };
+  }
+
+  const blockingWarning = getActionBlockingWarning(action);
+  if (blockingWarning) {
+    return issueResult({
+      action,
+      message: blockingWarning.message,
+      state: "blocked",
+      transaction,
+    });
   }
 
   if (action.kind === SetupActionKind.SetPolicyRule) {
@@ -1036,6 +1039,38 @@ function issueResult({
     txHash: transaction?.txHash,
     unresolvedDependencies: [],
   };
+}
+
+function getActionBlockingWarning(
+  action: SetupAction,
+): SetupValidationWarning | undefined {
+  return action.warnings.find(
+    (warning) =>
+      warning.severity === "error" &&
+      isWarningBlockingForActionGroup(action, warning),
+  );
+}
+
+function isWarningBlockingForActionGroup(
+  action: SetupAction,
+  warning: SetupValidationWarning,
+): boolean {
+  if (action.kind === SetupActionKind.CreateBody) {
+    return !isFutureAuthorityWarning(warning);
+  }
+
+  return true;
+}
+
+function isFutureAuthorityWarning(warning: SetupValidationWarning): boolean {
+  return (
+    warning.code === SetupValidationWarningCode.MissingApproverMandate ||
+    warning.code === SetupValidationWarningCode.MissingExecutorMandate ||
+    warning.code === SetupValidationWarningCode.MissingVetoMandate ||
+    warning.code === SetupValidationWarningCode.PolicyRouteWithoutEligibleHolder ||
+    warning.code === SetupValidationWarningCode.ProposalTypeScopeMismatch ||
+    /holder|mandate|eligible/i.test(warning.message)
+  );
 }
 
 function buildIndexedReadModelSource(
