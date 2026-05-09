@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.15]
+
 ### Changed
 
 - Refined AppShell and proposal detail visual hierarchy toward the v0.6 product design direction.
@@ -196,7 +198,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.14...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.15...HEAD
+[0.6.0-alpha.15]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.15
 [0.6.0-alpha.14]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.14
 [0.6.0-alpha.13]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.13
 [0.6.0-alpha.12]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.12
