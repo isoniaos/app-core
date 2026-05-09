@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.14]
+
 ### Added
 
 - Added feature-flagged EIP-5792 activation batch prototype with serial fallback.
@@ -188,7 +190,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.13...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.14...HEAD
+[0.6.0-alpha.14]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.14
 [0.6.0-alpha.13]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.13
 [0.6.0-alpha.12]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.12
 [0.6.0-alpha.11]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.11
