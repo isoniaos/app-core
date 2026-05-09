@@ -78,3 +78,8 @@ export type {
   IsoCardProps,
   IsoCardTitleProps,
 } from "./primitives/IsoCard";
+export { IsoStatusPill } from "./primitives/IsoStatusPill";
+export type {
+  IsoStatusPillProps,
+  IsoStatusPillTone,
+} from "./primitives/IsoStatusPill";

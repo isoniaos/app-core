@@ -8,45 +8,46 @@ import type {
 } from "@isonia/types";
 import { ProposalStatus } from "@isonia/types";
 import { useRuntimeConfig } from "../../config/runtime-config";
-import type { MetadataRecord } from "../../metadata/types";
-import {
-  buildDemoExecution,
-  inferDemoNumber,
-} from "../../protocol/demo-proposal-action";
+import type { DemoExecutionState } from "../../protocol/demo-proposal-action";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel } from "../../utils/format";
 import { ProposalActionLifecycle } from "./ProposalActionLifecycle";
 import {
-  type IndexedProposalActionData,
-  useProposalAction,
+  type ProposalActionReadiness,
+  type ProposalActionRequest,
+  type ProposalActionTransaction,
 } from "./useProposalAction";
-import { DemoTargetResultPanel } from "./DemoTargetResultPanel";
-import { LocalHardhatTimeControls } from "./LocalHardhatTimeControls";
 
 interface ProposalActionsPanelProps {
-  readonly metadata?: MetadataRecord;
-  readonly onIndexed?: (data: IndexedProposalActionData) => void;
-  readonly onRefresh?: () => void;
+  readonly busy: boolean;
+  readonly demoExecution: DemoExecutionState;
+  readonly demoNumber: string;
+  readonly onDemoNumberChange: (value: string) => void;
   readonly proposal: ProposalDto;
+  readonly readiness?: ProposalActionReadiness;
+  readonly reset: () => void;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
+  readonly runAction: (request: ProposalActionRequest) => Promise<void>;
+  readonly transaction: ProposalActionTransaction;
 }
 
 type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
 
 export function ProposalActionsPanel({
-  metadata,
-  onIndexed,
-  onRefresh,
+  busy,
+  demoExecution,
+  demoNumber,
+  onDemoNumberChange,
   proposal,
+  readiness,
+  reset,
   route,
   routeError,
+  runAction,
+  transaction,
 }: ProposalActionsPanelProps): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
-  const { busy, readiness, reset, runAction, transaction } = useProposalAction({
-    proposal,
-    onIndexed,
-  });
   const pendingApprovalBodies = useMemo(
     () =>
       route?.requiredApprovalBodies.filter((body) => !body.approved) ?? [],
@@ -58,30 +59,6 @@ export function ProposalActionsPanel({
   );
   const [approvalBodyId, setApprovalBodyId] = useState("");
   const [vetoBodyId, setVetoBodyId] = useState("");
-  const inferredDemoNumber = useMemo(
-    () =>
-      inferDemoNumber({
-        proposal,
-        textHints: [
-          metadata?.title,
-          metadata?.name,
-          metadata?.description,
-          proposal.title,
-          proposal.descriptionUri,
-        ],
-      }),
-    [metadata, proposal],
-  );
-  const [demoNumber, setDemoNumber] = useState(inferredDemoNumber ?? "");
-  const demoExecution = useMemo(
-    () =>
-      buildDemoExecution({
-        demoTargetAddress: runtimeConfig.contracts.demoTargetAddress,
-        demoNumber,
-        proposal,
-      }),
-    [demoNumber, proposal, runtimeConfig.contracts.demoTargetAddress],
-  );
 
   useEffect(() => {
     setApprovalBodyId((current) =>
@@ -92,12 +69,6 @@ export function ProposalActionsPanel({
   useEffect(() => {
     setVetoBodyId((current) => selectValidBodyId(current, availableVetoBodies));
   }, [availableVetoBodies]);
-
-  useEffect(() => {
-    setDemoNumber((current) =>
-      current.trim().length > 0 ? current : inferredDemoNumber ?? "",
-    );
-  }, [inferredDemoNumber]);
 
   const writeActionsEnabled = runtimeConfig.features.writeActions;
   const disableWrites = busy || Boolean(readiness);
@@ -239,7 +210,7 @@ export function ProposalActionsPanel({
                 min="0"
                 type="number"
                 value={demoNumber}
-                onChange={(event) => setDemoNumber(event.target.value)}
+                onChange={(event) => onDemoNumberChange(event.target.value)}
               />
             </label>
             <div className="proposal-action-note">
@@ -300,16 +271,6 @@ export function ProposalActionsPanel({
           </div>
         ) : null}
       </div>
-
-      <DemoTargetResultPanel
-        demoExecution={demoExecution}
-        demoNumber={demoNumber}
-        proposal={proposal}
-        transaction={transaction}
-        onRefresh={onRefresh}
-      />
-
-      <LocalHardhatTimeControls onAdvanced={onRefresh} />
 
       <ProposalActionLifecycle
         blockExplorerUrl={runtimeConfig.blockExplorerUrl}

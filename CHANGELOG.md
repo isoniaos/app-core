@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Refined AppShell and proposal detail visual hierarchy toward the v0.6 product design direction.
+- Reorganized proposal detail content into clearer overview, route, actions, result, and technical sections.
+- Reduced default technical noise on proposal pages.
+
 ## [0.6.0-alpha.14]
 
 ### Added

@@ -20,6 +20,7 @@ interface RouteExplanationPanelProps {
   readonly fallback: RouteFallbackContext;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
+  readonly showTechnicalDetails?: boolean;
 }
 
 type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
@@ -28,9 +29,16 @@ export function RouteExplanationPanel({
   fallback,
   route,
   routeError,
+  showTechnicalDetails = true,
 }: RouteExplanationPanelProps): JSX.Element {
   if (!route) {
-    return <MissingRoutePanel fallback={fallback} routeError={routeError} />;
+    return (
+      <MissingRoutePanel
+        fallback={fallback}
+        routeError={routeError}
+        showTechnicalDetails={showTechnicalDetails}
+      />
+    );
   }
 
   const approvalCounts = getApprovalCounts(route.requiredApprovalBodies);
@@ -232,32 +240,34 @@ export function RouteExplanationPanel({
         )}
       </RouteSection>
 
-      <RouteSection
-        title="Technical Details"
-        description="Stable identifiers from the route explanation DTO."
-      >
-        <dl className="route-technical-grid">
-          <RouteDetail label="Chain ID" value={String(route.chainId)} />
-          <RouteDetail label="Org ID" value={route.orgId} />
-          <RouteDetail label="Proposal ID" value={route.proposalId} />
-          <RouteDetail
-            label="Proposal type"
-            value={formatLabel(route.proposalType)}
-          />
-          <RouteDetail
-            label="Proposal status"
-            value={formatLabel(route.status)}
-          />
-          <RouteDetail
-            label="Executor body"
-            value={
-              route.execution.executorBody
-                ? `Body #${route.execution.executorBody}`
-                : "Not reported"
-            }
-          />
-        </dl>
-      </RouteSection>
+      {showTechnicalDetails ? (
+        <RouteSection
+          title="Technical Details"
+          description="Stable identifiers from the route explanation DTO."
+        >
+          <dl className="route-technical-grid">
+            <RouteDetail label="Chain ID" value={String(route.chainId)} />
+            <RouteDetail label="Org ID" value={route.orgId} />
+            <RouteDetail label="Proposal ID" value={route.proposalId} />
+            <RouteDetail
+              label="Proposal type"
+              value={formatLabel(route.proposalType)}
+            />
+            <RouteDetail
+              label="Proposal status"
+              value={formatLabel(route.status)}
+            />
+            <RouteDetail
+              label="Executor body"
+              value={
+                route.execution.executorBody
+                  ? `Body #${route.execution.executorBody}`
+                  : "Not reported"
+              }
+            />
+          </dl>
+        </RouteSection>
+      ) : null}
     </section>
   );
 }
@@ -265,9 +275,11 @@ export function RouteExplanationPanel({
 function MissingRoutePanel({
   fallback,
   routeError,
+  showTechnicalDetails,
 }: {
   readonly fallback: RouteFallbackContext;
   readonly routeError?: Error;
+  readonly showTechnicalDetails: boolean;
 }): JSX.Element {
   return (
     <section className="panel route-panel">
@@ -292,28 +304,30 @@ function MissingRoutePanel({
         </div>
       </RouteSection>
 
-      <RouteSection
-        title="Technical Details"
-        description="Fallback identifiers from the proposal details response."
-      >
-        <dl className="route-technical-grid">
-          <RouteDetail label="Chain ID" value={String(fallback.chainId)} />
-          <RouteDetail label="Org ID" value={fallback.orgId} />
-          <RouteDetail label="Proposal ID" value={fallback.proposalId} />
-          <RouteDetail
-            label="Proposal type"
-            value={formatLabel(fallback.proposalType)}
-          />
-          <RouteDetail
-            label="Proposal status"
-            value={formatLabel(fallback.status)}
-          />
-          <RouteDetail
-            label="Policy version"
-            value={`v${fallback.policyVersion}`}
-          />
-        </dl>
-      </RouteSection>
+      {showTechnicalDetails ? (
+        <RouteSection
+          title="Technical Details"
+          description="Fallback identifiers from the proposal details response."
+        >
+          <dl className="route-technical-grid">
+            <RouteDetail label="Chain ID" value={String(fallback.chainId)} />
+            <RouteDetail label="Org ID" value={fallback.orgId} />
+            <RouteDetail label="Proposal ID" value={fallback.proposalId} />
+            <RouteDetail
+              label="Proposal type"
+              value={formatLabel(fallback.proposalType)}
+            />
+            <RouteDetail
+              label="Proposal status"
+              value={formatLabel(fallback.status)}
+            />
+            <RouteDetail
+              label="Policy version"
+              value={`v${fallback.policyVersion}`}
+            />
+          </dl>
+        </RouteSection>
+      ) : null}
     </section>
   );
 }

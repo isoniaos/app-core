@@ -26,7 +26,10 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
             size="sm"
             variant="auto"
           />
-          <span>{runtimeConfig.appName}</span>
+          <span className="brand-lockup">
+            <span className="brand-name">{runtimeConfig.appName}</span>
+            <span className="brand-subtitle">Governance workspace</span>
+          </span>
         </NavLink>
         <div className="topbar-actions">
           <DiagnosticsStatusIndicator />
@@ -36,12 +39,13 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
 
       <div className="shell-body">
         <aside className="sidebar" aria-label="Primary navigation">
+          <div className="sidebar-heading">Workspace</div>
           <nav className="nav-stack">
             <NavLink to="/orgs" className={navClassName}>
               Organizations
             </NavLink>
             <NavLink to="/orgs/new" className={navClassName}>
-              New Organization
+              New organization
             </NavLink>
             {orgId ? (
               <>

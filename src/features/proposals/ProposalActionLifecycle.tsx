@@ -63,6 +63,10 @@ export function ProposalActionLifecycle({
     readonly title: string;
   }[];
 
+  const showSteps = transaction.stage !== "idle";
+  const detailsOpen =
+    transaction.stage !== "idle" && transaction.stage !== "indexed";
+
   return (
     <section className="proposal-action-lifecycle">
       <div className="panel-header proposal-action-lifecycle-header">
@@ -91,37 +95,39 @@ export function ProposalActionLifecycle({
           ) : null}
         </div>
       </div>
-      <div className="transaction-steps">
-        {transaction.stage === "idle" ? (
-          <TransactionStep
-            active
-            detail="Ready for a proposal action."
-            title="Ready"
-          />
-        ) : null}
-        {steps.map((step) => (
-          <TransactionStep
-            active={isTransactionStepActive(transaction.stage, step.id)}
-            complete={isTransactionStepComplete(transaction.stage, step.id)}
-            detail={step.detail}
-            key={step.id}
-            title={step.title}
-          />
-        ))}
-        {transaction.stage === "failed" ? (
-          <TransactionStep
-            active
-            danger
-            detail={
-              <ProposalFailedDetail
-                blockExplorerUrl={blockExplorerUrl}
-                transaction={transaction}
+      {showSteps ? (
+        <details className="proposal-transaction-details" open={detailsOpen}>
+          <summary>Transaction details</summary>
+          <div className="transaction-steps">
+            {steps.map((step) => (
+              <TransactionStep
+                active={isTransactionStepActive(transaction.stage, step.id)}
+                complete={isTransactionStepComplete(transaction.stage, step.id)}
+                detail={step.detail}
+                key={step.id}
+                title={step.title}
               />
-            }
-            title="Failed"
-          />
-        ) : null}
-      </div>
+            ))}
+            {transaction.stage === "failed" ? (
+              <TransactionStep
+                active
+                danger
+                detail={
+                  <ProposalFailedDetail
+                    blockExplorerUrl={blockExplorerUrl}
+                    transaction={transaction}
+                  />
+                }
+                title="Failed"
+              />
+            ) : null}
+          </div>
+        </details>
+      ) : (
+        <div className="proposal-transaction-idle">
+          Transaction status appears here after an action is submitted.
+        </div>
+      )}
     </section>
   );
 }

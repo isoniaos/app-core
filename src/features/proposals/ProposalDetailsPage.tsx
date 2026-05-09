@@ -1,15 +1,23 @@
 import type {
   ProposalDto,
   ProposalRouteExplanationDto,
+  RouteBlockedReasonDto,
 } from "@isonia/types";
+import { ProposalStatus } from "@isonia/types";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
+import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
-import { useMetadata } from "../../metadata/MetadataProvider";
+import { useRuntimeConfig } from "../../config/runtime-config";
+import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
-import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
-import { PageHeader } from "../../ui/PageHeader";
+import {
+  IsoStatusPill,
+  IsoTabs,
+  IsoTransactionHash,
+  type IsoStatusPillTone,
+} from "../../ui-kit";
 import { proposalDisplay } from "../../utils/display-labels";
 import {
   formatAddress,
@@ -17,11 +25,15 @@ import {
   formatLabel,
 } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
+import { DemoTargetResultPanel } from "./DemoTargetResultPanel";
+import { LocalHardhatTimeControls } from "./LocalHardhatTimeControls";
+import { ProposalActionsPanel } from "./ProposalActionsPanel";
 import {
   RouteExplanationPanel,
   type RouteFallbackContext,
 } from "./RouteExplanationPanel";
-import { ProposalActionsPanel } from "./ProposalActionsPanel";
+import { useDemoProposalExecution } from "./useDemoProposalExecution";
+import { useProposalAction } from "./useProposalAction";
 
 interface ProposalDetailsData {
   readonly proposal: ProposalDto;
@@ -52,7 +64,7 @@ export function ProposalDetailsPage(): JSX.Element {
   const metadata = useMetadata(details.data?.proposal.descriptionUri);
 
   return (
-    <section className="page-stack">
+    <section className="page-stack proposal-page-stack">
       <AsyncContent
         state={details}
         loadingTitle="Loading proposal"
@@ -61,170 +73,972 @@ export function ProposalDetailsPage(): JSX.Element {
         emptyMessage={`No indexed proposal #${proposalId} was found for org #${orgId}.`}
         errorTitle="Unable to load proposal"
       >
-        {({ proposal, route, routeError }) => {
-          const proposalText = proposalDisplay(proposal, metadata.record);
-          const hasMetadataUri = hasDisplayValue(proposal.descriptionUri);
-          const routeFallback: RouteFallbackContext = {
-            chainId: proposal.chainId,
-            orgId: proposal.orgId,
-            proposalId: proposal.proposalId,
-            proposalType: proposal.proposalType,
-            policyVersion: proposal.policyVersion,
-            status: proposal.status,
-          };
-
-          return (
-            <>
-              <PageHeader
-                eyebrow={`Proposal #${proposal.proposalId}`}
-                title={proposalText.title}
-                description={
-                  proposalText.description ??
-                  `${formatLabel(
-                    proposal.proposalType,
-                  )} proposal - policy snapshot v${proposal.policyVersion}`
-                }
-              />
-
-              <div className="action-row">
-                <Link className="button" to={`/orgs/${orgId}/proposals`}>
-                  Back to proposals
-                </Link>
-              </div>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <h2>Proposal</h2>
-                  <div className="chip-row">
-                    <StatusBadge tone="muted">
-                      Policy v{proposal.policyVersion}
-                    </StatusBadge>
-                    <StatusBadge>{formatLabel(proposal.status)}</StatusBadge>
-                  </div>
-                </div>
-                <dl className="detail-list detail-list-wide">
-                  <div>
-                    <dt>Proposal ID</dt>
-                    <dd>{proposal.proposalId}</dd>
-                  </div>
-                  <div>
-                    <dt>Organization ID</dt>
-                    <dd>{proposal.orgId}</dd>
-                  </div>
-                  <div>
-                    <dt>Type</dt>
-                    <dd>{formatLabel(proposal.proposalType)}</dd>
-                  </div>
-                  <div>
-                    <dt>Status</dt>
-                    <dd>{formatLabel(proposal.status)}</dd>
-                  </div>
-                  <div>
-                    <dt>Policy version</dt>
-                    <dd>Snapshot v{proposal.policyVersion}</dd>
-                  </div>
-                  <div>
-                    <dt>Metadata fallback label</dt>
-                    <dd>{proposalText.title}</dd>
-                  </div>
-                  <div>
-                    <dt>Creator</dt>
-                    <dd>{formatAddress(proposal.creatorAddress)}</dd>
-                  </div>
-                  <div>
-                    <dt>Target</dt>
-                    <dd>
-                      {proposal.targetAddress
-                        ? formatAddress(proposal.targetAddress)
-                        : "No target address"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Value</dt>
-                    <dd>{proposal.value}</dd>
-                  </div>
-                  <div>
-                    <dt>Created</dt>
-                    <dd>{formatChainTime(proposal.createdAtChain)}</dd>
-                  </div>
-                  <div>
-                    <dt>Created tx</dt>
-                    <dd className="mono-value">{proposal.createdTxHash}</dd>
-                  </div>
-                  <div>
-                    <dt>Queued</dt>
-                    <dd>{formatChainTime(proposal.queuedAtChain)}</dd>
-                  </div>
-                  <div>
-                    <dt>Executable</dt>
-                    <dd>
-                      {proposal.executableAtChain
-                        ? formatChainTime(proposal.executableAtChain)
-                        : "Not queued"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Executed</dt>
-                    <dd>{formatChainTime(proposal.executedAtChain)}</dd>
-                  </div>
-                  <div>
-                    <dt>Data status</dt>
-                    <dd>
-                      <DataStatusBadge status={proposal.dataStatus} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Data hash</dt>
-                    <dd className="mono-value">
-                      {proposal.dataHash ?? "No data hash indexed"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Description URI</dt>
-                    <dd className="mono-value">
-                      {proposal.descriptionUri ?? "No metadata URI indexed"}
-                    </dd>
-                  </div>
-                </dl>
-                {!hasMetadataUri ? (
-                  <div className="inline-state inline-state-muted">
-                    <strong>Missing metadata</strong>
-                    <span>
-                      No proposal metadata URI was indexed, so this screen is
-                      showing chain-derived fallback fields.
-                    </span>
-                  </div>
-                ) : !metadata.loading && !metadata.record ? (
-                  <div className="inline-state inline-state-muted">
-                    <strong>Metadata unavailable</strong>
-                    <span>
-                      The metadata URI could not be resolved, so this screen is
-                      using proposal type and chain-derived identifiers.
-                    </span>
-                  </div>
-                ) : null}
-              </section>
-
-              <RouteExplanationPanel
-                fallback={routeFallback}
-                route={route}
-                routeError={routeError}
-              />
-
-              <ProposalActionsPanel
-                metadata={metadata.record}
-                proposal={proposal}
-                route={route}
-                routeError={routeError}
-                onIndexed={() => details.reload()}
-                onRefresh={() => details.reload()}
-              />
-            </>
-          );
-        }}
+        {({ proposal, route, routeError }) => (
+          <ProposalDetailsContent
+            metadata={metadata}
+            orgId={orgId}
+            proposal={proposal}
+            route={route}
+            routeError={routeError}
+            onReload={() => details.reload()}
+          />
+        )}
       </AsyncContent>
     </section>
   );
+}
+
+function ProposalDetailsContent({
+  metadata,
+  orgId,
+  onReload,
+  proposal,
+  route,
+  routeError,
+}: {
+  readonly metadata: MetadataState;
+  readonly orgId: string;
+  readonly onReload: () => void;
+  readonly proposal: ProposalDto;
+  readonly route?: ProposalRouteExplanationDto;
+  readonly routeError?: Error;
+}): JSX.Element {
+  const runtimeConfig = useRuntimeConfig();
+  const proposalText = proposalDisplay(proposal, metadata.record);
+  const proposalAction = useProposalAction({
+    proposal,
+    onIndexed: () => onReload(),
+  });
+  const { demoExecution, demoNumber, setDemoNumber } =
+    useDemoProposalExecution({
+      metadata: metadata.record,
+      proposal,
+    });
+  const routeFallback: RouteFallbackContext = {
+    chainId: proposal.chainId,
+    orgId: proposal.orgId,
+    proposalId: proposal.proposalId,
+    proposalType: proposal.proposalType,
+    policyVersion: proposal.policyVersion,
+    status: proposal.status,
+  };
+  const headerDescription =
+    proposalText.description ??
+    `${formatLabel(
+      proposal.proposalType,
+    )} proposal using policy snapshot v${proposal.policyVersion}.`;
+
+  return (
+    <>
+      <header className="proposal-detail-header">
+        <nav className="proposal-breadcrumb" aria-label="Proposal breadcrumb">
+          <Link to={`/orgs/${orgId}/proposals`}>Proposals</Link>
+          <span aria-hidden="true">/</span>
+          <span>Proposal #{proposal.proposalId}</span>
+        </nav>
+        <div className="proposal-detail-header-main">
+          <div className="proposal-detail-title-block">
+            <h1>{proposalText.title}</h1>
+            <p>{headerDescription}</p>
+            <div className="proposal-status-row">
+              <IsoStatusPill tone={statusTone(proposal.status)}>
+                {formatLabel(proposal.status)}
+              </IsoStatusPill>
+              <IsoStatusPill tone={routeReadinessTone(route, routeError)}>
+                {routeReadinessLabel(route, routeError)}
+              </IsoStatusPill>
+              <IsoStatusPill tone="muted">
+                Policy v{proposal.policyVersion}
+              </IsoStatusPill>
+              <LifecyclePills proposal={proposal} />
+            </div>
+          </div>
+          <Link className="button" to={`/orgs/${orgId}/proposals`}>
+            Back to proposals
+          </Link>
+        </div>
+      </header>
+
+      <div className="proposal-detail-layout">
+        <main className="proposal-detail-main" aria-label="Proposal content">
+          <IsoTabs
+            ariaLabel="Proposal detail sections"
+            className="proposal-tabs"
+            defaultValue="overview"
+            tabs={[
+              {
+                content: (
+                  <ProposalOverviewTab
+                    metadata={metadata}
+                    proposal={proposal}
+                    route={route}
+                    routeError={routeError}
+                  />
+                ),
+                label: "Overview",
+                value: "overview",
+              },
+              {
+                content: (
+                  <RouteExplanationPanel
+                    fallback={routeFallback}
+                    route={route}
+                    routeError={routeError}
+                    showTechnicalDetails={false}
+                  />
+                ),
+                label: "Route",
+                value: "route",
+              },
+              {
+                content: (
+                  <ProposalActionsPanel
+                    busy={proposalAction.busy}
+                    demoExecution={demoExecution}
+                    demoNumber={demoNumber}
+                    onDemoNumberChange={setDemoNumber}
+                    proposal={proposal}
+                    readiness={proposalAction.readiness}
+                    reset={proposalAction.reset}
+                    route={route}
+                    routeError={routeError}
+                    runAction={proposalAction.runAction}
+                    transaction={proposalAction.transaction}
+                  />
+                ),
+                label: "Actions",
+                value: "actions",
+              },
+              {
+                content: (
+                  <ProposalExecutionResultTab
+                    demoExecution={demoExecution}
+                    demoNumber={demoNumber}
+                    proposal={proposal}
+                    transaction={proposalAction.transaction}
+                    onRefresh={onReload}
+                  />
+                ),
+                label: "Execution Result",
+                value: "execution-result",
+              },
+              {
+                content: (
+                  <ProposalTechnicalTab
+                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+                    proposal={proposal}
+                    route={route}
+                    routeError={routeError}
+                  />
+                ),
+                label: "Technical",
+                value: "technical",
+              },
+            ]}
+          />
+        </main>
+
+        <aside className="proposal-detail-aside" aria-label="Proposal context">
+          <ProposalInfoCard
+            blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+            proposal={proposal}
+          />
+          <NextActionCard
+            proposal={proposal}
+            route={route}
+            routeError={routeError}
+          />
+        </aside>
+      </div>
+    </>
+  );
+}
+
+function ProposalOverviewTab({
+  metadata,
+  proposal,
+  route,
+  routeError,
+}: {
+  readonly metadata: MetadataState;
+  readonly proposal: ProposalDto;
+  readonly route?: ProposalRouteExplanationDto;
+  readonly routeError?: Error;
+}): JSX.Element {
+  const hasMetadataUri = hasDisplayValue(proposal.descriptionUri);
+  const metadataMissing = !hasMetadataUri;
+  const metadataUnavailable =
+    hasMetadataUri && !metadata.loading && !metadata.record;
+
+  return (
+    <div className="proposal-overview-grid">
+      <section className="product-card proposal-summary-card">
+        <div className="product-card-header">
+          <div>
+            <h2>Proposal Summary</h2>
+            <p>Human-readable state from indexed proposal data.</p>
+          </div>
+          <IsoStatusPill tone={statusTone(proposal.status)}>
+            {formatLabel(proposal.status)}
+          </IsoStatusPill>
+        </div>
+        <dl className="proposal-fact-grid">
+          <Fact label="Type" value={formatLabel(proposal.proposalType)} />
+          <Fact label="Status" value={formatLabel(proposal.status)} />
+          <Fact
+            label="Target"
+            value={
+              proposal.targetAddress
+                ? formatAddress(proposal.targetAddress)
+                : "No target address"
+            }
+          />
+          <Fact label="Value" value={proposal.value} />
+          <Fact
+            label="Metadata"
+            value={
+              metadata.record
+                ? "Resolved"
+                : metadata.loading
+                  ? "Loading"
+                  : hasMetadataUri
+                    ? "Unavailable"
+                    : "Missing"
+            }
+          />
+          <Fact
+            label="Data"
+            value={proposal.dataStatus ? formatLabel(proposal.dataStatus) : "Observed"}
+          />
+        </dl>
+        {metadataMissing ? (
+          <CalmState
+            title="Missing metadata"
+            message="No proposal metadata URI was indexed, so App Core is showing chain-derived fallback fields."
+          />
+        ) : metadataUnavailable ? (
+          <CalmState
+            title="Metadata unavailable"
+            message="The metadata URI could not be resolved. Proposal type and chain-derived identifiers remain available."
+          />
+        ) : null}
+      </section>
+
+      <section className="product-card">
+        <div className="product-card-header">
+          <div>
+            <h2>Lifecycle</h2>
+            <p>Current indexed lifecycle milestones.</p>
+          </div>
+        </div>
+        <ProposalLifecycleTimeline proposal={proposal} />
+      </section>
+
+      <section className="product-card product-card-wide">
+        <div className="product-card-header">
+          <div>
+            <h2>Route Snapshot</h2>
+            <p>Approval, veto, timelock, and execution readiness.</p>
+          </div>
+          <IsoStatusPill tone={routeReadinessTone(route, routeError)}>
+            {routeReadinessLabel(route, routeError)}
+          </IsoStatusPill>
+        </div>
+        <RouteOverviewCards
+          proposal={proposal}
+          route={route}
+          routeError={routeError}
+        />
+      </section>
+    </div>
+  );
+}
+
+function ProposalExecutionResultTab({
+  demoExecution,
+  demoNumber,
+  onRefresh,
+  proposal,
+  transaction,
+}: Parameters<typeof DemoTargetResultPanel>[0]): JSX.Element {
+  return (
+    <div className="proposal-result-tab">
+      <DemoTargetResultPanel
+        demoExecution={demoExecution}
+        demoNumber={demoNumber}
+        proposal={proposal}
+        transaction={transaction}
+        onRefresh={onRefresh}
+      />
+      <LocalHardhatTimeControls onAdvanced={onRefresh} />
+    </div>
+  );
+}
+
+function ProposalInfoCard({
+  blockExplorerUrl,
+  proposal,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly proposal: ProposalDto;
+}): JSX.Element {
+  return (
+    <section className="context-card">
+      <div className="context-card-header">
+        <h2>Proposal Information</h2>
+      </div>
+      <dl className="context-detail-list">
+        <InfoRow label="Proposal ID" value={proposal.proposalId} />
+        <InfoRow label="Org ID" value={proposal.orgId} />
+        <InfoRow label="Policy version" value={`v${proposal.policyVersion}`} />
+        <InfoRow label="Created" value={formatChainTime(proposal.createdAtChain)} />
+        <InfoRow
+          label="Created tx"
+          value={
+            <IsoTransactionHash
+              blockExplorerUrl={blockExplorerUrl}
+              txHash={proposal.createdTxHash}
+            />
+          }
+        />
+        <InfoRow label="Queued" value={formatChainTime(proposal.queuedAtChain)} />
+        <InfoRow
+          label="Executable"
+          value={
+            proposal.executableAtChain
+              ? formatChainTime(proposal.executableAtChain)
+              : "Not queued"
+          }
+        />
+        <InfoRow
+          label="Executed"
+          value={formatChainTime(proposal.executedAtChain)}
+        />
+      </dl>
+    </section>
+  );
+}
+
+function NextActionCard({
+  proposal,
+  route,
+  routeError,
+}: {
+  readonly proposal: ProposalDto;
+  readonly route?: ProposalRouteExplanationDto;
+  readonly routeError?: Error;
+}): JSX.Element {
+  const action = getNextActionContext(proposal, route, routeError);
+
+  return (
+    <section className="context-card">
+      <div className="context-card-header context-card-header-row">
+        <h2>Next Action</h2>
+        <IsoStatusPill tone={action.tone}>{action.label}</IsoStatusPill>
+      </div>
+      <div className="next-action-copy">
+        <strong>{action.title}</strong>
+        <span>{action.detail}</span>
+      </div>
+      <dl className="context-detail-list">
+        <InfoRow label="Who can act" value={action.actor} />
+        <InfoRow
+          label="Connected wallet"
+          value="Authority is checked by the contract when submitting."
+        />
+      </dl>
+    </section>
+  );
+}
+
+function ProposalTechnicalTab({
+  blockExplorerUrl,
+  proposal,
+  route,
+  routeError,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly proposal: ProposalDto;
+  readonly route?: ProposalRouteExplanationDto;
+  readonly routeError?: Error;
+}): JSX.Element {
+  return (
+    <div className="proposal-technical-stack">
+      <section className="product-card">
+        <div className="product-card-header">
+          <div>
+            <h2>Raw Proposal Fields</h2>
+            <p>Technical values from the proposal read model.</p>
+          </div>
+        </div>
+        <dl className="technical-detail-grid">
+          <TechDetail label="Chain ID" value={String(proposal.chainId)} />
+          <TechDetail label="Org ID" value={proposal.orgId} />
+          <TechDetail label="Proposal ID" value={proposal.proposalId} />
+          <TechDetail
+            label="Proposal type"
+            value={formatLabel(proposal.proposalType)}
+          />
+          <TechDetail label="Status" value={formatLabel(proposal.status)} />
+          <TechDetail
+            label="Policy version"
+            value={`v${proposal.policyVersion}`}
+          />
+          <TechDetail label="Creator" value={proposal.creatorAddress} mono />
+          <TechDetail
+            label="Target"
+            value={proposal.targetAddress ?? "No target address"}
+            mono
+          />
+          <TechDetail label="Value" value={proposal.value} mono />
+          <TechDetail label="Created block" value={proposal.createdBlock} mono />
+          <TechDetail
+            label="Created tx"
+            value={
+              <IsoTransactionHash
+                blockExplorerUrl={blockExplorerUrl}
+                txHash={proposal.createdTxHash}
+              />
+            }
+          />
+          <TechDetail
+            label="Created chain time"
+            value={proposal.createdAtChain}
+            mono
+          />
+          <TechDetail
+            label="Queued chain time"
+            value={proposal.queuedAtChain ?? "Not set"}
+            mono
+          />
+          <TechDetail
+            label="Executable chain time"
+            value={proposal.executableAtChain ?? "Not set"}
+            mono
+          />
+          <TechDetail
+            label="Executed chain time"
+            value={proposal.executedAtChain ?? "Not set"}
+            mono
+          />
+          <TechDetail
+            label="Data status"
+            value={proposal.dataStatus ? formatLabel(proposal.dataStatus) : "Observed"}
+          />
+          <TechDetail
+            label="Data hash"
+            value={proposal.dataHash ?? "No data hash indexed"}
+            mono
+          />
+          <TechDetail
+            label="Description URI"
+            value={proposal.descriptionUri ?? "No metadata URI indexed"}
+            mono
+          />
+        </dl>
+      </section>
+
+      <section className="product-card">
+        <div className="product-card-header">
+          <div>
+            <h2>Route Technical Identifiers</h2>
+            <p>Stable identifiers from the route explanation response.</p>
+          </div>
+        </div>
+        {route ? (
+          <dl className="technical-detail-grid">
+            <TechDetail label="Route chain ID" value={String(route.chainId)} />
+            <TechDetail label="Route org ID" value={route.orgId} />
+            <TechDetail label="Route proposal ID" value={route.proposalId} />
+            <TechDetail
+              label="Route proposal type"
+              value={formatLabel(route.proposalType)}
+            />
+            <TechDetail
+              label="Route status"
+              value={formatLabel(route.status)}
+            />
+            <TechDetail
+              label="Executor body"
+              value={
+                route.execution.executorBody
+                  ? `Body #${route.execution.executorBody}`
+                  : "Not reported"
+              }
+            />
+            <TechDetail
+              label="Blocked reason codes"
+              value={
+                route.execution.blockedReasons
+                  .map((reason) => reason.code)
+                  .join(", ") || "None"
+              }
+              mono
+            />
+          </dl>
+        ) : (
+          <CalmState
+            title="Route details unavailable"
+            message={
+              routeError?.message ??
+              "The proposal loaded, but route technical identifiers are unavailable."
+            }
+          />
+        )}
+      </section>
+
+      <section className="product-card">
+        <div className="product-card-header">
+          <div>
+            <h2>Raw DTO Snapshots</h2>
+            <p>Debug payloads are kept here instead of the default view.</p>
+          </div>
+        </div>
+        <details className="technical-disclosure">
+          <summary>Proposal DTO</summary>
+          <pre>{JSON.stringify(proposal, null, 2)}</pre>
+        </details>
+        {route ? (
+          <details className="technical-disclosure">
+            <summary>Route DTO</summary>
+            <pre>{JSON.stringify(route, null, 2)}</pre>
+          </details>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function RouteOverviewCards({
+  proposal,
+  route,
+  routeError,
+}: {
+  readonly proposal: ProposalDto;
+  readonly route?: ProposalRouteExplanationDto;
+  readonly routeError?: Error;
+}): JSX.Element {
+  if (!route) {
+    return (
+      <CalmState
+        title="Route unavailable"
+        message={
+          routeError?.message ??
+          `Route explanation is not available for proposal #${proposal.proposalId}.`
+        }
+      />
+    );
+  }
+
+  const approvals = route.requiredApprovalBodies;
+  const approvedCount = approvals.filter((body) => body.approved).length;
+  const vetoes = route.vetoBodies;
+  const vetoedCount = vetoes.filter((body) => body.vetoed).length;
+  const nextAction = getNextActionContext(proposal, route, undefined);
+
+  return (
+    <div className="proposal-route-metric-grid">
+      <MetricCard
+        detail={
+          approvals.length === 0
+            ? "No required approval bodies"
+            : "Required bodies approved"
+        }
+        label="Approvals"
+        value={`${approvedCount}/${approvals.length}`}
+      />
+      <MetricCard
+        detail={
+          vetoes.length === 0
+            ? "No veto bodies configured"
+            : vetoedCount > 0
+              ? "A veto has been recorded"
+              : "No veto recorded"
+        }
+        label="Veto"
+        tone={vetoedCount > 0 ? "danger" : "success"}
+        value={vetoes.length === 0 ? "None" : `${vetoedCount}/${vetoes.length}`}
+      />
+      <MetricCard
+        detail={
+          route.timelock.required
+            ? route.timelock.satisfied
+              ? "Timelock satisfied"
+              : "Waiting for queue delay"
+            : "No queue delay configured"
+        }
+        label="Timelock"
+        tone={
+          route.timelock.required && !route.timelock.satisfied
+            ? "warning"
+            : "muted"
+        }
+        value={route.timelock.required ? "Required" : "None"}
+      />
+      <MetricCard
+        detail={nextAction.detail}
+        label="Next blocker"
+        tone={nextAction.tone}
+        value={nextAction.label}
+      />
+    </div>
+  );
+}
+
+function ProposalLifecycleTimeline({
+  proposal,
+}: {
+  readonly proposal: ProposalDto;
+}): JSX.Element {
+  const items = [
+    {
+      detail: formatChainTime(proposal.createdAtChain),
+      label: "Created",
+      tone: "success",
+    },
+    {
+      detail: proposal.queuedAtChain
+        ? formatChainTime(proposal.queuedAtChain)
+        : "Not queued",
+      label: "Queued",
+      tone: proposal.queuedAtChain ? "success" : "muted",
+    },
+    {
+      detail: proposal.executableAtChain
+        ? formatChainTime(proposal.executableAtChain)
+        : "Not available",
+      label: "Executable",
+      tone: proposal.executableAtChain ? "success" : "muted",
+    },
+    {
+      detail: proposal.executedAtChain
+        ? formatChainTime(proposal.executedAtChain)
+        : "Not executed",
+      label: "Executed",
+      tone:
+        proposal.status === ProposalStatus.Executed ? "success" : "muted",
+    },
+  ] satisfies readonly {
+    readonly detail: string;
+    readonly label: string;
+    readonly tone: IsoStatusPillTone;
+  }[];
+
+  return (
+    <ol className="proposal-timeline">
+      {items.map((item) => (
+        <li className={`proposal-timeline-item proposal-timeline-${item.tone}`} key={item.label}>
+          <span className="proposal-timeline-marker" aria-hidden="true" />
+          <div>
+            <strong>{item.label}</strong>
+            <span>{item.detail}</span>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function LifecyclePills({
+  proposal,
+}: {
+  readonly proposal: ProposalDto;
+}): JSX.Element {
+  return (
+    <>
+      <IsoStatusPill tone="success">Created</IsoStatusPill>
+      {proposal.queuedAtChain ? (
+        <IsoStatusPill tone="success">Queued</IsoStatusPill>
+      ) : null}
+      {proposal.executableAtChain ? (
+        <IsoStatusPill tone="warning">Executable</IsoStatusPill>
+      ) : null}
+      {proposal.executedAtChain ? (
+        <IsoStatusPill tone="success">Executed</IsoStatusPill>
+      ) : null}
+    </>
+  );
+}
+
+function MetricCard({
+  detail,
+  label,
+  tone = "muted",
+  value,
+}: {
+  readonly detail: string;
+  readonly label: string;
+  readonly tone?: IsoStatusPillTone;
+  readonly value: string;
+}): JSX.Element {
+  return (
+    <div className={`proposal-metric-card proposal-metric-card-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function Fact({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: ReactNode;
+}): JSX.Element {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: ReactNode;
+}): JSX.Element {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function TechDetail({
+  label,
+  mono,
+  value,
+}: {
+  readonly label: string;
+  readonly mono?: boolean;
+  readonly value: ReactNode;
+}): JSX.Element {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className={mono ? "technical-code" : undefined}>{value}</dd>
+    </div>
+  );
+}
+
+function CalmState({
+  message,
+  title,
+}: {
+  readonly message: string;
+  readonly title: string;
+}): JSX.Element {
+  return (
+    <div className="calm-state">
+      <strong>{title}</strong>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function getNextActionContext(
+  proposal: ProposalDto,
+  route: ProposalRouteExplanationDto | undefined,
+  routeError: Error | undefined,
+): {
+  readonly actor: string;
+  readonly detail: string;
+  readonly label: string;
+  readonly title: string;
+  readonly tone: IsoStatusPillTone;
+} {
+  if (proposal.status === ProposalStatus.Executed) {
+    return {
+      actor: "No further action",
+      detail: "The indexed proposal lifecycle is complete.",
+      label: "Complete",
+      title: "Proposal executed",
+      tone: "success",
+    };
+  }
+
+  if (
+    proposal.status === ProposalStatus.Cancelled ||
+    proposal.status === ProposalStatus.Expired ||
+    proposal.status === ProposalStatus.Vetoed
+  ) {
+    return {
+      actor: "No standard action",
+      detail: `Proposal is ${formatLabel(proposal.status)}.`,
+      label: formatLabel(proposal.status),
+      title: "Proposal is final",
+      tone: "danger",
+    };
+  }
+
+  if (!route) {
+    return {
+      actor: "Route endpoint",
+      detail:
+        routeError?.message ??
+        "Approval, veto, timelock, and execution readiness need route data.",
+      label: "Unknown",
+      title: "Route state unavailable",
+      tone: "warning",
+    };
+  }
+
+  if (route.execution.executable) {
+    return {
+      actor: route.execution.executorBody
+        ? `Executor body #${route.execution.executorBody}`
+        : "Configured executor body",
+      detail: "Approvals, veto checks, and timelock state allow execution.",
+      label: "Execute",
+      title: "Ready for execution",
+      tone: "success",
+    };
+  }
+
+  const firstReason = route.execution.blockedReasons[0];
+
+  if (!firstReason) {
+    return {
+      actor: "Governance route",
+      detail:
+        "Execution is false, but the route explainer did not report a blocker.",
+      label: "Check route",
+      title: "Route needs review",
+      tone: "warning",
+    };
+  }
+
+  return contextFromBlockedReason(firstReason);
+}
+
+function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
+  readonly actor: string;
+  readonly detail: string;
+  readonly label: string;
+  readonly title: string;
+  readonly tone: IsoStatusPillTone;
+} {
+  if (reason.code === "missing_approval") {
+    return {
+      actor: reason.relatedBodyId
+        ? `Body #${reason.relatedBodyId}`
+        : "Required approval body",
+      detail: reason.message,
+      label: "Approval",
+      title: "Approval needed",
+      tone: "warning",
+    };
+  }
+
+  if (reason.code === "not_queued") {
+    return {
+      actor: "Any authorized queue caller",
+      detail: reason.message,
+      label: "Queue",
+      title: "Queue needed",
+      tone: "warning",
+    };
+  }
+
+  if (reason.code === "timelock_not_satisfied") {
+    return {
+      actor: "No one yet",
+      detail: reason.message,
+      label: "Waiting",
+      title: "Timelock active",
+      tone: "warning",
+    };
+  }
+
+  if (reason.code === "vetoed") {
+    return {
+      actor: "No standard action",
+      detail: reason.message,
+      label: "Vetoed",
+      title: "Execution blocked",
+      tone: "danger",
+    };
+  }
+
+  if (reason.code === "policy_snapshot_missing") {
+    return {
+      actor: "Indexer/projection recovery",
+      detail: reason.message,
+      label: "Snapshot",
+      title: "Policy snapshot missing",
+      tone: "danger",
+    };
+  }
+
+  return {
+    actor: reason.relatedBodyId
+      ? `Body #${reason.relatedBodyId}`
+      : "Governance route",
+    detail: reason.message,
+    label: "Blocked",
+    title: formatLabel(reason.code),
+    tone: ["already_executed", "cancelled", "expired"].includes(reason.code)
+      ? "danger"
+      : "warning",
+  };
+}
+
+function statusTone(status: ProposalStatus): IsoStatusPillTone {
+  if (status === ProposalStatus.Executed || status === ProposalStatus.Approved) {
+    return "success";
+  }
+
+  if (
+    status === ProposalStatus.Cancelled ||
+    status === ProposalStatus.Expired ||
+    status === ProposalStatus.Vetoed
+  ) {
+    return "danger";
+  }
+
+  if (status === ProposalStatus.Queued || status === ProposalStatus.UnderReview) {
+    return "warning";
+  }
+
+  return "default";
+}
+
+function routeReadinessTone(
+  route: ProposalRouteExplanationDto | undefined,
+  routeError: Error | undefined,
+): IsoStatusPillTone {
+  if (!route) {
+    return routeError ? "warning" : "muted";
+  }
+
+  if (route.execution.executable) {
+    return "success";
+  }
+
+  return route.execution.blockedReasons.some((reason) =>
+    ["vetoed", "already_executed", "cancelled", "expired"].includes(
+      reason.code,
+    ),
+  )
+    ? "danger"
+    : "warning";
+}
+
+function routeReadinessLabel(
+  route: ProposalRouteExplanationDto | undefined,
+  routeError: Error | undefined,
+): string {
+  if (!route) {
+    return routeError ? "Route unavailable" : "Route pending";
+  }
+
+  return route.execution.executable ? "Route ready" : "Route blocked";
 }
 
 async function loadProposalRoute(
