@@ -50,6 +50,11 @@ const TRANSACTION_STAGE_COPY: Record<
     label: "Transaction submitted",
     tone: "warning",
   },
+  waiting_for_receipt: {
+    detail: "App Core is waiting for the chain receipt.",
+    label: "Waiting for receipt",
+    tone: "warning",
+  },
   confirming: {
     detail: "App Core is waiting for the chain receipt.",
     label: "Waiting for receipt",
@@ -125,6 +130,21 @@ export function isFailedTransactionStage(stage: TransactionFlowItemStage): boole
   return stage === "failed";
 }
 
+export function isActiveTransactionStage(
+  stage: TransactionFlowItemStage,
+): boolean {
+  return (
+    stage === "preparing" ||
+    stage === "wallet_pending" ||
+    stage === "waiting_for_wallet" ||
+    stage === "submitted" ||
+    stage === "confirming" ||
+    stage === "waiting_for_receipt" ||
+    stage === "confirmed_waiting_indexer" ||
+    stage === "waiting_for_control_plane"
+  );
+}
+
 export function normalizeSingleTransactionStage(
   stage: TransactionFlowItemStage,
 ): TransactionFlowStage {
@@ -136,6 +156,9 @@ export function normalizeSingleTransactionStage(
   }
   if (stage === "waiting_for_control_plane") {
     return "confirmed_waiting_indexer";
+  }
+  if (stage === "waiting_for_receipt") {
+    return "confirming";
   }
   if (stage === "skipped") {
     return "completed";

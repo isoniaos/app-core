@@ -52,7 +52,7 @@ export function SerialTransactionView({
         <strong>
           {countCompletedItems(state.items)} of {state.items.length} completed
         </strong>
-        <span>Skipped items are shown only when an item explicitly allows it.</span>
+        <span>Required items run in order; completed items stay completed.</span>
       </div>
       {activeItem && activeStage ? (
         <div className="transaction-modal-current">

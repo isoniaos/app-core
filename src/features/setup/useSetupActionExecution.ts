@@ -7,6 +7,7 @@ import {
   useTransactionModal,
   type TransactionFlowItem,
   type TransactionFlowItemStage,
+  type TransactionFlowItemPatch,
   type TransactionFlowStage,
 } from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
@@ -23,13 +24,18 @@ import {
   getCreateRoleActions,
   getSetPolicyRuleActions,
   isBusyStage,
+  normalizeTransactionError,
 } from "./setup-action-execution-helpers";
 import {
   deriveSetupExecutionStateFromReadModels,
   verifySetupCompletion,
   type SetupCompletionReadModels,
 } from "./setup-completion-verification";
-import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
+import {
+  getSetupActionExecutionPreflight,
+  type SetupActionExecutionPreflight,
+  type SetupActionExecutionPreflightEnvironment,
+} from "./setup-action-preflight";
 import {
   createInitialSetupDraftExecutionState,
   type SetupActionLifecycleStage,
@@ -88,6 +94,10 @@ export function useSetupActionExecution({
     createInitialSetupDraftExecutionState,
   );
   const stateRef = useRef<SetupDraftExecutionState>(state);
+  const draftRef = useRef<SetupDraft>(draft);
+  const readModelsRef = useRef<SetupCompletionReadModels | undefined>(
+    readModels,
+  );
   const setExecutionState = useCallback(
     (updater: (current: SetupDraftExecutionState) => SetupDraftExecutionState) => {
       const next = updater(stateRef.current);
@@ -96,6 +106,12 @@ export function useSetupActionExecution({
     },
     [],
   );
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  useEffect(() => {
+    readModelsRef.current = readModels;
+  }, [readModels]);
 
   const createOrganizationAction = useMemo(
     () => getCreateOrganizationAction(draft.actions),
@@ -141,34 +157,48 @@ export function useSetupActionExecution({
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
 
   useEffect(() => {
+    if (!transactionModalState.open) {
+      return;
+    }
+
+    if (transactionModalState.mode === "serial") {
+      transactionModalState.items.forEach((item) => {
+        if (!isSetupTransactionModalItemId(item.id)) {
+          return;
+        }
+
+        const patch = buildSetupTransactionModalItemPatch({
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          draft,
+          executionState: returnedState,
+          itemId: item.id,
+          readModels,
+          serial: true,
+        });
+        if (patch) {
+          updateTransactionModalItem(item.id, patch);
+        }
+      });
+      return;
+    }
+
     const activeItemId = activeTransactionModalItemId.current;
-    if (!transactionModalState.open || !activeItemId) {
-      return;
+    if (activeItemId && isSetupTransactionModalItemId(activeItemId)) {
+      const patch = buildSetupTransactionModalItemPatch({
+        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        draft,
+        executionState: returnedState,
+        itemId: activeItemId,
+        readModels,
+        serial: false,
+      });
+      if (patch) {
+        updateTransactionModalItem(activeItemId, patch);
+      }
     }
-
-    const transaction = getSetupTransactionByModalItemId(
-      activeItemId,
-      returnedState,
-    );
-    if (!transaction) {
-      return;
-    }
-
-    updateTransactionModalItem(activeItemId, {
-      blockExplorerUrl: runtimeConfig.blockExplorerUrl,
-      error: transaction.error,
-      stage:
-        transactionModalState.mode === "serial"
-          ? mapSetupLifecycleStageToSerialTransactionFlowStage(
-              transaction.stage,
-            )
-          : mapSetupLifecycleStageToTransactionFlowStage(
-              transaction.stage,
-              "idle",
-            ),
-      txHash: transaction.txHash,
-    });
   }, [
+    draft,
+    readModels,
     returnedState,
     runtimeConfig.blockExplorerUrl,
     transactionModalState.mode,
@@ -302,7 +332,11 @@ export function useSetupActionExecution({
         item: {
           blockExplorerUrl: runtimeConfig.blockExplorerUrl,
           description,
-          error: preflightReady ? transaction.error : preflight?.message,
+          error: preflightReady
+            ? transaction.error
+            : preflight
+              ? formatSetupPreflightError(preflight)
+              : undefined,
           execute: preflightReady ? start : undefined,
           id: itemId,
           retry: preflightReady ? start : undefined,
@@ -556,9 +590,9 @@ export function useSetupActionExecution({
           : actions.findIndex((action) => {
               const result = getCompletionResult(
                 action.actionId,
-                draft,
+                draftRef.current,
                 stateRef.current,
-                readModels,
+                readModelsRef.current,
               );
               return result?.state !== "indexed";
             }),
@@ -568,9 +602,9 @@ export function useSetupActionExecution({
         const itemId = getItemId(action.actionId);
         const result = getCompletionResult(
           action.actionId,
-          draft,
+          draftRef.current,
           stateRef.current,
-          readModels,
+          readModelsRef.current,
         );
 
         if (result?.state === "indexed") {
@@ -590,16 +624,11 @@ export function useSetupActionExecution({
         }
 
         const preflight = getSetupActionExecutionPreflight(action, {
-          accountChainId: account.chainId,
-          connected: account.isConnected,
-          connectedAddress: account.address,
-          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
-          runtimeChainId: runtimeConfig.chainId,
-          setupWritesEnabled,
+          ...getSetupPreflightEnvironment(executorContextRef.current),
         });
         if (!preflight.canExecute) {
           updateTransactionModalItem(itemId, {
-            error: preflight.message,
+            error: formatSetupPreflightError(preflight),
             stage: "failed",
           });
           break;
@@ -612,13 +641,26 @@ export function useSetupActionExecution({
           stage: "preparing",
         });
 
-        await runAction(action.actionId);
+        try {
+          await runAction(action.actionId);
+        } catch (error: unknown) {
+          const transaction = getSetupTransactionByModalItemId(
+            itemId,
+            stateRef.current,
+          );
+          updateTransactionModalItem(itemId, {
+            error: normalizeTransactionError(error),
+            stage: "failed",
+            txHash: transaction?.txHash,
+          });
+          break;
+        }
 
         const nextResult = getCompletionResult(
           action.actionId,
-          draft,
+          draftRef.current,
           stateRef.current,
-          readModels,
+          readModelsRef.current,
         );
         const transaction = getSetupTransactionByModalItemId(
           itemId,
@@ -665,15 +707,7 @@ export function useSetupActionExecution({
       }
     },
     [
-      account.address,
-      account.chainId,
-      account.isConnected,
-      draft,
-      readModels,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
       setActiveTransactionModalItem,
-      setupWritesEnabled,
       updateTransactionModalItem,
     ],
   );
@@ -828,6 +862,59 @@ interface SetupGroupModalConfig
   readonly title: string;
 }
 
+function buildSetupTransactionModalItemPatch({
+  blockExplorerUrl,
+  draft,
+  executionState,
+  itemId,
+  readModels,
+  serial,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly draft: SetupDraft;
+  readonly executionState: SetupDraftExecutionState;
+  readonly itemId: string;
+  readonly readModels?: SetupCompletionReadModels;
+  readonly serial: boolean;
+}): TransactionFlowItemPatch | undefined {
+  const transaction = getEffectiveSetupTransaction(
+    getSetupTransactionByModalItemId(itemId, executionState),
+  );
+  const actionId = parseSetupTransactionModalActionId(itemId);
+  const result = actionId
+    ? getCompletionResult(actionId, draft, executionState, readModels)
+    : undefined;
+
+  if (!serial && !transaction && result?.state !== "indexed") {
+    return undefined;
+  }
+
+  return {
+    blockExplorerUrl,
+    error:
+      transaction?.error ??
+      (result?.state === "failed" ? result.message : undefined),
+    stage: serial
+      ? getSetupGroupTransactionItemStage(result?.state, transaction)
+      : getSingleSetupTransactionItemStage(result?.state, transaction),
+    txHash: transaction?.txHash ?? result?.txHash,
+  };
+}
+
+function getEffectiveSetupTransaction(
+  transaction: SetupActionTransaction | undefined,
+): SetupActionTransaction | undefined {
+  if (
+    transaction?.stage === "idle" &&
+    !transaction.actionId &&
+    !transaction.txHash
+  ) {
+    return undefined;
+  }
+
+  return transaction;
+}
+
 function createSetupGroupTransactionItem({
   action,
   blockExplorerUrl,
@@ -876,6 +963,24 @@ function buildSetupTransactionModalItemId(
   actionId: string,
 ): string {
   return `setup:${kind}:${actionId}`;
+}
+
+function isSetupTransactionModalItemId(itemId: string): boolean {
+  return (
+    itemId === SETUP_CREATE_ORGANIZATION_MODAL_ITEM_ID ||
+    parseSetupTransactionModalActionId(itemId) !== undefined
+  );
+}
+
+function parseSetupTransactionModalActionId(
+  itemId: string,
+): string | undefined {
+  return (
+    parseSetupTransactionModalItemId(itemId, "create-body") ??
+    parseSetupTransactionModalItemId(itemId, "create-role") ??
+    parseSetupTransactionModalItemId(itemId, "assign-mandate") ??
+    parseSetupTransactionModalItemId(itemId, "set-policy-rule")
+  );
 }
 
 function createIdleSetupActionTransaction(
@@ -958,7 +1063,7 @@ function mapSetupLifecycleStageToSerialTransactionFlowStage(
     case "submitted":
       return "submitted";
     case "confirming":
-      return "confirming";
+      return "waiting_for_receipt";
     case "confirmed_waiting_indexer":
       return "waiting_for_control_plane";
     case "indexed":
@@ -989,6 +1094,51 @@ function getSetupGroupTransactionItemStage(
   }
 
   return "pending";
+}
+
+function getSingleSetupTransactionItemStage(
+  resultState: ReturnType<
+    typeof verifySetupCompletion
+  >["actionResults"][number]["state"] | undefined,
+  transaction: SetupActionTransaction | undefined,
+): TransactionFlowStage {
+  if (resultState === "indexed") {
+    return "completed";
+  }
+
+  if (transaction) {
+    return mapSetupLifecycleStageToTransactionFlowStage(
+      transaction.stage,
+      "idle",
+    );
+  }
+
+  if (resultState === "failed") {
+    return "failed";
+  }
+
+  return "idle";
+}
+
+function getSetupPreflightEnvironment(
+  context: SetupActionExecutorContext,
+): SetupActionExecutionPreflightEnvironment {
+  return {
+    accountChainId: context.account.chainId,
+    connected: context.account.isConnected,
+    connectedAddress: context.account.address,
+    govCoreAddress: context.runtimeConfig.contracts.govCoreAddress,
+    runtimeChainId: context.runtimeConfig.chainId,
+    setupWritesEnabled: context.setupWritesEnabled,
+  };
+}
+
+function formatSetupPreflightError(
+  preflight: SetupActionExecutionPreflight,
+): string {
+  const expected = preflight.expectedSignerAddress ?? "unavailable";
+  const connected = preflight.connectedSignerAddress ?? "not connected";
+  return `${preflight.message} Expected admin: ${expected}. Connected wallet: ${connected}.`;
 }
 
 function getCompletionResult(

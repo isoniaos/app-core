@@ -1330,6 +1330,13 @@ button.address-display {
   justify-content: flex-end;
 }
 
+.transaction-modal-close-note {
+  margin-right: auto;
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .transaction-steps {
   display: grid;
 }
@@ -2767,6 +2774,22 @@ button.address-display {
 .activation-group-status {
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--iso-color-border);
+}
+
+.activation-group-disabled-reason {
+  display: grid;
+  gap: 0.22rem;
+  margin: 0.85rem 1rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface-subtle);
+}
+
+.activation-group-disabled-reason span {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .activation-signer-preflight {

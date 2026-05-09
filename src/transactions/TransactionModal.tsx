@@ -1,6 +1,7 @@
 import { IsoButton, IsoDialog } from "../ui-kit";
 import { SerialTransactionView } from "./SerialTransactionView";
 import { SingleTransactionView } from "./SingleTransactionView";
+import { isActiveTransactionStage } from "./transactionCopy";
 import type { TransactionModalState } from "./transactionFlowTypes";
 
 export interface TransactionModalProps {
@@ -12,6 +13,12 @@ export function TransactionModal({
   onClose,
   state,
 }: TransactionModalProps): JSX.Element {
+  const closeDisabled = hasActiveTransaction(state);
+  const close = (): void => {
+    if (!closeDisabled) {
+      onClose();
+    }
+  };
   const body =
     state.mode === "serial" ? (
       <SerialTransactionView state={state} />
@@ -22,25 +29,36 @@ export function TransactionModal({
   return (
     <IsoDialog
       body={body}
+      closeDisabled={closeDisabled}
       closeLabel="Close transaction status"
       description={state.description}
       footer={
         <div className="transaction-modal-footer">
-          <IsoButton variant="outline" onClick={onClose}>
+          {closeDisabled ? (
+            <span className="transaction-modal-close-note">
+              Close is available after the active transaction reaches completed
+              or failed.
+            </span>
+          ) : null}
+          <IsoButton disabled={closeDisabled} variant="outline" onClick={close}>
             Close
           </IsoButton>
-          <TransactionModalPrimaryAction state={state} onClose={onClose} />
+          <TransactionModalPrimaryAction state={state} onClose={close} />
         </div>
       }
       open={state.open}
       title={state.title}
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !closeDisabled) {
           onClose();
         }
       }}
     />
   );
+}
+
+function hasActiveTransaction(state: TransactionModalState): boolean {
+  return state.items.some((item) => isActiveTransactionStage(item.stage));
 }
 
 function TransactionModalPrimaryAction({
@@ -50,6 +68,10 @@ function TransactionModalPrimaryAction({
   readonly onClose: () => void;
   readonly state: TransactionModalState;
 }): JSX.Element {
+  if (hasActiveTransaction(state)) {
+    return <IsoButton disabled>In progress</IsoButton>;
+  }
+
   const executableItem = state.items.find(
     (item) =>
       (item.stage === "idle" || item.stage === "pending") && item.execute,

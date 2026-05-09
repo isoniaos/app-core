@@ -623,6 +623,11 @@ function ActivationGroupPanel({
     preflightEnvironment,
   );
   const disabled = busy || !progress.canRun || !groupPreflight.canExecute;
+  const runDisabledReason = getGroupRunDisabledReason({
+    busy,
+    preflight: groupPreflight,
+    progress,
+  });
 
   return (
     <section className="activation-group-panel">
@@ -649,13 +654,24 @@ function ActivationGroupPanel({
           <span>{progress.reason}</span>
         </div>
         <div>
-          <strong>Next required action</strong>
-          <span>{progress.nextAction?.label ?? "None"}</span>
+          <strong>Active action</strong>
+          <span>{progress.activeAction?.label ?? "None"}</span>
+        </div>
+        <div>
+          <strong>Pending</strong>
+          <span>{formatActivationGroupPending(progress)}</span>
         </div>
       </div>
 
       {progress.canRun && !groupPreflight.canExecute ? (
         <SignerPreflightSummary preflight={groupPreflight} />
+      ) : null}
+
+      {disabled && runDisabledReason ? (
+        <div className="activation-group-disabled-reason">
+          <strong>{getGroupDisabledTitle(progress, groupPreflight)}</strong>
+          <span>{runDisabledReason}</span>
+        </div>
       ) : null}
 
       <ActivationActionList
@@ -1057,6 +1073,62 @@ function formatActivationGroupProgress(
   ].filter(Boolean);
 
   return details.join(" / ");
+}
+
+function formatActivationGroupPending(
+  progress: ActivationGroupProgress,
+): string {
+  if (progress.complete) {
+    return "None";
+  }
+
+  return [
+    `${progress.pendingActions} pending`,
+    progress.executableActions > 0
+      ? `${progress.executableActions} executable`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function getGroupRunDisabledReason({
+  busy,
+  preflight,
+  progress,
+}: {
+  readonly busy: boolean;
+  readonly preflight: SetupActionExecutionPreflight;
+  readonly progress: ActivationGroupProgress;
+}): string | undefined {
+  if (busy) {
+    return "A setup transaction is already active. Wait for it to complete or fail before starting another run.";
+  }
+
+  if (!progress.canRun) {
+    return progress.disabledReason;
+  }
+
+  if (!preflight.canExecute) {
+    return preflight.message;
+  }
+
+  return undefined;
+}
+
+function getGroupDisabledTitle(
+  progress: ActivationGroupProgress,
+  preflight: SetupActionExecutionPreflight,
+): string {
+  if (progress.complete) {
+    return "Step complete";
+  }
+
+  if (!progress.canRun) {
+    return "Step not ready";
+  }
+
+  return preflight.title;
 }
 
 function getActionControlNote(

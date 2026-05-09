@@ -6,19 +6,30 @@ import type {
 } from "../setup-completion-verification";
 
 export type ActivationGroupId = "bodies" | "roles" | "mandates" | "policies";
+export type ActivationGroupCompletionState =
+  | "blocked"
+  | "complete"
+  | "failed"
+  | "needs_confirmation"
+  | "pending"
+  | "ready";
 
 export interface ActivationGroupProgress {
+  readonly activeAction?: SetupAction;
   readonly blockedActions: number;
   readonly canContinue: boolean;
   readonly canRun: boolean;
   readonly complete: boolean;
+  readonly disabledReason?: string;
   readonly executableActions: number;
   readonly failedActions: number;
   readonly groupId: ActivationGroupId;
   readonly indexedActions: number;
   readonly needsInput: boolean;
   readonly nextAction?: SetupAction;
+  readonly pendingActions: number;
   readonly reason: string;
+  readonly state: ActivationGroupCompletionState;
   readonly totalActions: number;
 }
 
@@ -46,7 +57,11 @@ export function buildActivationGroupProgress({
   const executableActions = results.filter((result) =>
     result ? isExecutableState(result.state) : true,
   ).length;
-  const nextAction = actions.find(
+  const pendingActions = Math.max(
+    0,
+    totalActions - indexedActions - failedActions - blockedActions,
+  );
+  const activeAction = actions.find(
     (action) => resultByActionId.get(action.actionId)?.state !== "indexed",
   );
   const needsInput = needsGroupInput({ actions, groupId });
@@ -54,16 +69,22 @@ export function buildActivationGroupProgress({
     !needsInput &&
     (totalActions === 0 ||
       (totalActions > 0 && indexedActions === totalActions));
-  const canRun =
-    !complete &&
-    !needsInput &&
-    executableActions > 0 &&
-    blockedActions === 0;
-  const canContinue = complete;
-
-  return {
+  const state = getActivationGroupCompletionState({
     blockedActions,
-    canContinue,
+    complete,
+    executableActions,
+    failedActions,
+    needsInput,
+  });
+  const canRun =
+    state !== "complete" &&
+    state !== "needs_confirmation" &&
+    state !== "blocked" &&
+    executableActions > 0;
+  const canContinue = complete;
+  const reason = getGroupProgressReason({
+    activeAction,
+    blockedActions,
     canRun,
     complete,
     executableActions,
@@ -71,20 +92,27 @@ export function buildActivationGroupProgress({
     groupId,
     indexedActions,
     needsInput,
-    nextAction,
-    reason: getGroupProgressReason({
-      blockedActions,
-      canRun,
-      complete,
-      executableActions,
-      failedActions,
-      groupId,
-      indexedActions,
-      needsInput,
-      nextAction,
-      readModels,
-      totalActions,
-    }),
+    pendingActions,
+    readModels,
+    totalActions,
+  });
+
+  return {
+    activeAction,
+    blockedActions,
+    canContinue,
+    canRun,
+    complete,
+    disabledReason: canRun ? undefined : reason,
+    executableActions,
+    failedActions,
+    groupId,
+    indexedActions,
+    needsInput,
+    nextAction: activeAction,
+    pendingActions,
+    reason,
+    state,
     totalActions,
   };
 }
@@ -121,6 +149,7 @@ function needsGroupInput({
 }
 
 function getGroupProgressReason({
+  activeAction,
   blockedActions,
   canRun,
   complete,
@@ -129,10 +158,11 @@ function getGroupProgressReason({
   groupId,
   indexedActions,
   needsInput,
-  nextAction,
+  pendingActions,
   readModels,
   totalActions,
 }: {
+  readonly activeAction?: SetupAction;
   readonly blockedActions: number;
   readonly canRun: boolean;
   readonly complete: boolean;
@@ -141,7 +171,7 @@ function getGroupProgressReason({
   readonly groupId: ActivationGroupId;
   readonly indexedActions: number;
   readonly needsInput: boolean;
-  readonly nextAction?: SetupAction;
+  readonly pendingActions: number;
   readonly readModels?: SetupCompletionReadModels;
   readonly totalActions: number;
 }): string {
@@ -170,15 +200,49 @@ function getGroupProgressReason({
     } waiting for dependencies or validation.`;
   }
 
-  if (canRun && nextAction) {
-    return `Next required action: ${nextAction.label}.`;
+  if (canRun && activeAction) {
+    return `Next required action: ${activeAction.label}.`;
   }
 
   if (executableActions === 0) {
     return `No ${getGroupLabel(groupId)} action is ready to run.`;
   }
 
-  return "Continue this step after indexed progress refreshes.";
+  return pendingActions > 0
+    ? "Continue this step after indexed progress refreshes."
+    : "This group has no pending setup action.";
+}
+
+function getActivationGroupCompletionState({
+  blockedActions,
+  complete,
+  executableActions,
+  failedActions,
+  needsInput,
+}: {
+  readonly blockedActions: number;
+  readonly complete: boolean;
+  readonly executableActions: number;
+  readonly failedActions: number;
+  readonly needsInput: boolean;
+}): ActivationGroupCompletionState {
+  if (complete) {
+    return "complete";
+  }
+
+  if (needsInput) {
+    return "needs_confirmation";
+  }
+
+  if (blockedActions > 0) {
+    return "blocked";
+  }
+
+  if (failedActions > 0) {
+    return "failed";
+  }
+
+  return executableActions > 0 ? "ready" : "pending";
 }
 
 function isExecutableState(state: SetupCompletionActionState): boolean {

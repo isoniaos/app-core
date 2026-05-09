@@ -6,6 +6,11 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Hardened organization activation serial execution with group-level run actions, retry behavior, and sequential progress gating.
+- Improved activation progress recovery from indexed read models.
+
 ## [0.6.0-alpha.12]
 
 ### Changed

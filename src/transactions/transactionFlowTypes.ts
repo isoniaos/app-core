@@ -12,6 +12,7 @@ export type SerialTransactionFlowStage =
   | "pending"
   | "waiting_for_wallet"
   | "submitted"
+  | "waiting_for_receipt"
   | "confirming"
   | "waiting_for_control_plane"
   | "completed"

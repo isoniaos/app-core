@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 export interface IsoDialogProps {
   readonly body?: ReactNode;
   readonly children?: ReactNode;
+  readonly closeDisabled?: boolean;
   readonly closeLabel?: string;
   readonly description?: ReactNode;
   readonly footer?: ReactNode;
@@ -15,6 +16,7 @@ export interface IsoDialogProps {
 export function IsoDialog({
   body,
   children,
+  closeDisabled = false,
   closeLabel = "Close dialog",
   description,
   footer,
@@ -42,8 +44,13 @@ export function IsoDialog({
             </Dialog.Header>
             <Dialog.Body>{body ?? children}</Dialog.Body>
             {footer ? <Dialog.Footer>{footer}</Dialog.Footer> : null}
-            <Dialog.CloseTrigger asChild>
-              <CloseButton className="iso-dialog-close-button" aria-label={closeLabel} size="sm" />
+            <Dialog.CloseTrigger asChild disabled={closeDisabled}>
+              <CloseButton
+                aria-label={closeLabel}
+                className="iso-dialog-close-button"
+                disabled={closeDisabled}
+                size="sm"
+              />
             </Dialog.CloseTrigger>
           </Dialog.Content>
         </Dialog.Positioner>
