@@ -81,6 +81,7 @@ export function OrganizationSetupPage(): JSX.Element {
         completionLoading={completionReadModels.loading}
         completionReload={completionReadModels.reload}
         eip5792BatchCapability={execution.eip5792BatchCapability}
+        eip5792BatchChecking={execution.eip5792BatchChecking}
         eip5792BatchFeatureEnabled={execution.eip5792BatchFeatureEnabled}
         executeAssignMandate={execution.executeAssignMandate}
         executeAssignMandateGroupBatch={execution.executeAssignMandateGroupBatch}
@@ -97,6 +98,7 @@ export function OrganizationSetupPage(): JSX.Element {
         inputs={activationInputs}
         orgId={orgId}
         readModels={completionReadModels.data}
+        refreshEip5792BatchCapability={execution.refreshEip5792BatchCapability}
         state={execution.state}
         onChange={setInputs}
       />

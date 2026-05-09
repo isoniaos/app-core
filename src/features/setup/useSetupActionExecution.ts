@@ -24,7 +24,8 @@ import type { PreparedContractCall } from "../../transactions/prepared-contract-
 import {
   extractEip5792TransactionHashes,
   formatEip5792Error,
-  getEip5792ProviderFromConnector,
+  getEip5792MethodError,
+  getEip5792ProviderContext,
   isSuccessfulCallsStatus,
   pollEip5792CallsStatus,
   sendEip5792Calls,
@@ -96,7 +97,9 @@ export function useSetupActionExecution({
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
   readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchChecking: boolean;
   readonly eip5792BatchFeatureEnabled: boolean;
+  readonly refreshEip5792BatchCapability: () => Promise<Eip5792CapabilityDetection>;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeAssignMandateGroupBatch: () => Promise<void>;
   readonly executeAssignMandateGroup: () => Promise<void>;
@@ -197,7 +200,11 @@ export function useSetupActionExecution({
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
   const eip5792BatchFeatureEnabled =
     setupWritesEnabled && runtimeConfig.features.eip5792Batch;
-  const eip5792BatchCapability = useEip5792Capabilities({
+  const {
+    capabilities: eip5792BatchCapability,
+    checking: eip5792BatchChecking,
+    refresh: refreshEip5792BatchCapability,
+  } = useEip5792Capabilities({
     accountChainId: account.chainId,
     address: account.address,
     chainId: runtimeConfig.chainId,
@@ -789,11 +796,20 @@ export function useSetupActionExecution({
       calls,
       getItemId,
     }: SetupGroupBatchRunConfig): Promise<void> => {
-      const provider = await getEip5792ProviderFromConnector(account.connector);
+      const providerContext = await getEip5792ProviderContext(account.connector);
+      const provider = providerContext.provider;
+      const errorContext = {
+        chainId: runtimeConfig.chainId,
+        connectorName:
+          providerContext.diagnostics.connector.name ??
+          providerContext.diagnostics.connector.id,
+        providerName: providerContext.diagnostics.providerLabel,
+      };
       if (!provider || !account.address) {
         const message = "Wallet provider is unavailable for EIP-5792 batching.";
         updateTransactionBatch({
           error: message,
+          lastMethodError: undefined,
           status: "failed",
           statusDetail:
             "The batch was not submitted. Use the serial fallback for this activation group.",
@@ -820,6 +836,7 @@ export function useSetupActionExecution({
         const message = eip5792BatchCapability.reason;
         updateTransactionBatch({
           error: message,
+          lastMethodError: eip5792BatchCapability.lastMethodError,
           status: "failed",
           statusDetail:
             "The batch was not submitted. Use the serial fallback for this activation group.",
@@ -847,6 +864,7 @@ export function useSetupActionExecution({
       try {
         updateTransactionBatch({
           error: undefined,
+          lastMethodError: undefined,
           status: "waiting_for_wallet",
           statusDetail: "Confirm the wallet batch request.",
         });
@@ -868,6 +886,7 @@ export function useSetupActionExecution({
         const sendResult = await sendEip5792Calls({
           atomicRequired: eip5792BatchCapability.atomicRequired,
           calls,
+          context: errorContext,
           from: account.address,
           provider,
         });
@@ -897,6 +916,7 @@ export function useSetupActionExecution({
           statusDetail: "Waiting for wallet_getCallsStatus.",
         });
         const terminalStatus = await pollEip5792CallsStatus({
+          context: errorContext,
           id: sendResult.id,
           onStatus: (status) => {
             const txHashes = extractEip5792TransactionHashes(status);
@@ -1002,7 +1022,8 @@ export function useSetupActionExecution({
             "All expected activation read models are indexed for this batch.",
         });
       } catch (error: unknown) {
-        const message = formatEip5792Error(error);
+        const lastMethodError = getEip5792MethodError(error);
+        const message = formatEip5792Error(error, errorContext);
         applyBatchActionTransactionPatch({
           actions,
           setState: setExecutionState,
@@ -1020,6 +1041,7 @@ export function useSetupActionExecution({
         });
         updateTransactionBatch({
           error: message,
+          lastMethodError,
           status: "failed",
           statusDetail: batchSubmitted
             ? "The wallet accepted the batch, but App Core could not finish status tracking. Check wallet UI and indexed progress before retrying incomplete actions."
@@ -1035,6 +1057,7 @@ export function useSetupActionExecution({
       eip5792BatchCapability.canSendCalls,
       eip5792BatchCapability.reason,
       resolvedOrgId,
+      runtimeConfig.chainId,
       setExecutionState,
       updateTransactionBatch,
       updateTransactionModalItem,
@@ -1157,6 +1180,7 @@ export function useSetupActionExecution({
         capabilityStatus: eip5792BatchCapability.status,
         capabilitySummary: eip5792BatchCapability.reason,
         error: preparationError?.message,
+        lastMethodError: eip5792BatchCapability.lastMethodError,
         execute:
           !preparationError && prepared.length > 0
             ? () =>
@@ -1195,6 +1219,7 @@ export function useSetupActionExecution({
     [
       draft,
       eip5792BatchCapability.details?.atomicStatus,
+      eip5792BatchCapability.lastMethodError,
       eip5792BatchCapability.reason,
       eip5792BatchCapability.status,
       openBatchTransactionModal,
@@ -1401,6 +1426,7 @@ export function useSetupActionExecution({
   return {
     busy,
     eip5792BatchCapability,
+    eip5792BatchChecking,
     eip5792BatchFeatureEnabled,
     executeAssignMandate,
     executeAssignMandateGroupBatch,
@@ -1415,6 +1441,7 @@ export function useSetupActionExecution({
     executeSetPolicyRule,
     executeSetPolicyRuleGroupBatch,
     executeSetPolicyRuleGroup,
+    refreshEip5792BatchCapability,
     readiness,
     reset,
     state: returnedState,

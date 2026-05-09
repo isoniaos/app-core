@@ -12,7 +12,10 @@ import { useRuntimeConfig } from "../../../config/runtime-config";
 import { StatusBadge } from "../../../ui/StatusBadge";
 import { IsoAddressDisplay } from "../../../ui-kit";
 import { formatLabel } from "../../../utils/format";
-import type { Eip5792CapabilityDetection } from "../../../wallet/eip5792";
+import {
+  formatEip5792LikelyReason,
+  type Eip5792CapabilityDetection,
+} from "../../../wallet/eip5792";
 import { useWalletConnection } from "../../../wallet/useWalletConnection";
 import {
   buildActivationGroupProgress,
@@ -102,7 +105,9 @@ export interface OrganizationActivationWizardProps {
   readonly completionLoading: boolean;
   readonly completionReload: () => void;
   readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchChecking: boolean;
   readonly eip5792BatchFeatureEnabled: boolean;
+  readonly refreshEip5792BatchCapability: () => Promise<Eip5792CapabilityDetection>;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
   readonly executeAssignMandateGroupBatch: () => Promise<void>;
   readonly executeAssignMandateGroup: () => Promise<void>;
@@ -130,7 +135,9 @@ export function OrganizationActivationWizard({
   completionLoading,
   completionReload,
   eip5792BatchCapability,
+  eip5792BatchChecking,
   eip5792BatchFeatureEnabled,
+  refreshEip5792BatchCapability,
   executeAssignMandate,
   executeAssignMandateGroupBatch,
   executeAssignMandateGroup,
@@ -357,6 +364,7 @@ export function OrganizationActivationWizard({
                 actions={bodyActions}
                 busy={busy}
                 eip5792BatchCapability={eip5792BatchCapability}
+                eip5792BatchChecking={eip5792BatchChecking}
                 eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                 emptyMessage="No body actions are needed for this draft."
                 executeAction={executeCreateBody}
@@ -364,6 +372,7 @@ export function OrganizationActivationWizard({
                 executeGroup={executeCreateBodyGroup}
                 preflightEnvironment={preflightEnvironment}
                 progress={bodyProgress}
+                refreshEip5792BatchCapability={refreshEip5792BatchCapability}
                 purpose="Bodies define the governance areas that later roles and policy routes reference."
                 runLabel="Run body setup"
                 state={state}
@@ -377,6 +386,7 @@ export function OrganizationActivationWizard({
                 actions={roleActions}
                 busy={busy}
                 eip5792BatchCapability={eip5792BatchCapability}
+                eip5792BatchChecking={eip5792BatchChecking}
                 eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                 emptyMessage="No role actions are needed for this draft."
                 executeAction={executeCreateRole}
@@ -384,6 +394,7 @@ export function OrganizationActivationWizard({
                 executeGroup={executeCreateRoleGroup}
                 preflightEnvironment={preflightEnvironment}
                 progress={roleProgress}
+                refreshEip5792BatchCapability={refreshEip5792BatchCapability}
                 purpose="Roles create the scoped authority that proposal actions use after bootstrap."
                 runLabel="Run role setup"
                 state={state}
@@ -409,6 +420,7 @@ export function OrganizationActivationWizard({
                   actions={mandateActions}
                   busy={busy}
                   eip5792BatchCapability={eip5792BatchCapability}
+                  eip5792BatchChecking={eip5792BatchChecking}
                   eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                   emptyMessage="Add holder addresses above to produce mandate actions."
                   executeAction={executeAssignMandate}
@@ -416,6 +428,7 @@ export function OrganizationActivationWizard({
                   executeGroup={executeAssignMandateGroup}
                   preflightEnvironment={preflightEnvironment}
                   progress={mandateProgress}
+                  refreshEip5792BatchCapability={refreshEip5792BatchCapability}
                   purpose="Mandates bind holder wallets to active roles and proposal scopes."
                   runLabel="Run mandate setup"
                   state={state}
@@ -438,6 +451,7 @@ export function OrganizationActivationWizard({
                   actions={policyActions}
                   busy={busy}
                   eip5792BatchCapability={eip5792BatchCapability}
+                  eip5792BatchChecking={eip5792BatchChecking}
                   eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                   emptyMessage="No policy route actions are needed for this draft."
                   executeAction={executeSetPolicyRule}
@@ -445,6 +459,7 @@ export function OrganizationActivationWizard({
                   executeGroup={executeSetPolicyRuleGroup}
                   preflightEnvironment={preflightEnvironment}
                   progress={policyProgress}
+                  refreshEip5792BatchCapability={refreshEip5792BatchCapability}
                   purpose="Policy routes set approval, veto, executor, and timelock constraints."
                   runLabel="Run policy setup"
                   state={state}
@@ -613,6 +628,7 @@ function ActivationGroupPanel({
   actions,
   busy,
   eip5792BatchCapability,
+  eip5792BatchChecking,
   eip5792BatchFeatureEnabled,
   emptyMessage,
   executeAction,
@@ -620,6 +636,7 @@ function ActivationGroupPanel({
   executeGroup,
   preflightEnvironment,
   progress,
+  refreshEip5792BatchCapability,
   purpose,
   runLabel,
   state,
@@ -632,6 +649,7 @@ function ActivationGroupPanel({
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
   readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchChecking: boolean;
   readonly eip5792BatchFeatureEnabled: boolean;
   readonly emptyMessage: string;
   readonly executeAction: (actionId: string) => Promise<void>;
@@ -639,6 +657,7 @@ function ActivationGroupPanel({
   readonly executeGroup: () => Promise<void>;
   readonly preflightEnvironment: SetupActionExecutionPreflightEnvironment;
   readonly progress: ActivationGroupProgress;
+  readonly refreshEip5792BatchCapability: () => Promise<Eip5792CapabilityDetection>;
   readonly purpose: string;
   readonly runLabel: string;
   readonly state: SetupDraftExecutionState;
@@ -656,6 +675,7 @@ function ActivationGroupPanel({
   const disabled = busy || !progress.canRun || !groupPreflight.canExecute;
   const batchDisabled =
     disabled ||
+    eip5792BatchChecking ||
     !eip5792BatchCapability.canSendCalls ||
     eip5792BatchCapability.status !== "supported";
   const runDisabledReason = getGroupRunDisabledReason({
@@ -692,6 +712,7 @@ function ActivationGroupPanel({
                 batchDisabled
                   ? getBatchDisabledReason(
                       eip5792BatchCapability,
+                      eip5792BatchChecking,
                       runDisabledReason,
                     )
                   : "Run as wallet batch"
@@ -734,10 +755,13 @@ function ActivationGroupPanel({
       ) : null}
 
       {eip5792BatchFeatureEnabled ? (
-        <div className="activation-group-batch-status">
-          <strong>Wallet batch prototype</strong>
-          <span>{eip5792BatchCapability.reason}</span>
-        </div>
+        <Eip5792DiagnosticsDisclosure
+          capability={eip5792BatchCapability}
+          checking={eip5792BatchChecking}
+          preflightEnvironment={preflightEnvironment}
+          serialFallbackAvailable={Boolean(executeGroup)}
+          onRefresh={refreshEip5792BatchCapability}
+        />
       ) : null}
 
       <ActivationActionList
@@ -750,6 +774,246 @@ function ActivationGroupPanel({
         state={state}
       />
     </section>
+  );
+}
+
+function Eip5792DiagnosticsDisclosure({
+  capability,
+  checking,
+  onRefresh,
+  preflightEnvironment,
+  serialFallbackAvailable,
+}: {
+  readonly capability: Eip5792CapabilityDetection;
+  readonly checking: boolean;
+  readonly onRefresh: () => Promise<Eip5792CapabilityDetection>;
+  readonly preflightEnvironment: SetupActionExecutionPreflightEnvironment;
+  readonly serialFallbackAvailable: boolean;
+}): JSX.Element {
+  const diagnostics = capability.diagnostics;
+  const lastError = capability.lastMethodError;
+  const rawCapabilities =
+    capability.details?.rawCapabilities ?? capability.rawCapabilities;
+  const parsedStatus = capability.status;
+  const atomicStatus = capability.details?.atomicStatus ?? "Not reported";
+  const providerAvailable = diagnostics?.providerAvailable ? "Yes" : "No";
+  const providerAppearsMetaMask = diagnostics?.appearsMetaMask
+    ? "Yes"
+    : diagnostics
+      ? "No"
+      : "Not checked";
+
+  async function refreshAndLog(): Promise<void> {
+    const next = await onRefresh();
+    console.info("IsoniaOS EIP-5792 wallet batch diagnostics", {
+      account: preflightEnvironment.connectedAddress,
+      atomicRequired: next.atomicRequired,
+      atomicStatus: next.details?.atomicStatus,
+      canSendCalls: next.canSendCalls,
+      chainId: preflightEnvironment.accountChainId,
+      connector: next.diagnostics?.connector,
+      expectedChainId: preflightEnvironment.runtimeChainId,
+      lastMethodError: next.lastMethodError,
+      provider: {
+        appearsMetaMask: next.diagnostics?.appearsMetaMask,
+        browserInjectedProviderCount:
+          next.diagnostics?.browserInjectedProviderCount,
+        browserMetaMaskAvailable:
+          next.diagnostics?.browserMetaMaskAvailable,
+        flags: next.diagnostics?.providerFlags,
+        label: next.diagnostics?.providerLabel,
+        possibleProviderMismatch: next.diagnostics?.possibleProviderMismatch,
+        rdns: next.diagnostics?.providerRdns,
+      },
+      rawCapabilities: next.details?.rawCapabilities,
+      reason: next.reason,
+      status: next.status,
+    });
+  }
+
+  return (
+    <details className="activation-eip5792-diagnostics">
+      <summary>
+        <span>Wallet batch diagnostics</span>
+        <StatusBadge tone={getEip5792StatusTone(capability.status)}>
+          {checking ? "Checking" : formatLabel(capability.status)}
+        </StatusBadge>
+      </summary>
+      <div className="activation-eip5792-diagnostics-body">
+        <div className="activation-eip5792-diagnostics-header">
+          <div>
+            <strong>Wallet batch prototype</strong>
+            <span>{capability.reason}</span>
+          </div>
+          <button
+            className="button button-small"
+            disabled={checking}
+            type="button"
+            onClick={() => {
+              void refreshAndLog();
+            }}
+          >
+            {checking ? "Checking" : "Check wallet batch capability"}
+          </button>
+        </div>
+
+        <dl className="activation-eip5792-diagnostics-grid">
+          <DiagnosticsItem
+            label="Connector"
+            value={diagnostics?.connector.name ?? "Not reported"}
+          />
+          <DiagnosticsItem
+            label="Connector id"
+            value={diagnostics?.connector.id ?? "Not reported"}
+          />
+          <DiagnosticsItem label="Provider available" value={providerAvailable} />
+          <DiagnosticsItem
+            label="Provider"
+            value={diagnostics?.providerLabel ?? "Not reported"}
+          />
+          <DiagnosticsItem
+            label="Provider rdns"
+            value={diagnostics?.providerRdns ?? "Not reported"}
+          />
+          <DiagnosticsItem
+            label="Provider flags"
+            value={
+              diagnostics?.providerFlags.length
+                ? diagnostics.providerFlags.join(", ")
+                : "None reported"
+            }
+          />
+          <DiagnosticsItem
+            label="MetaMask provider"
+            value={providerAppearsMetaMask}
+          />
+          <DiagnosticsItem
+            label="Browser MetaMask detected"
+            value={
+              diagnostics?.browserMetaMaskAvailable
+                ? "Yes"
+                : diagnostics
+                  ? "No"
+                  : "Not checked"
+            }
+          />
+          <DiagnosticsItem
+            label="Injected providers"
+            value={
+              diagnostics
+                ? String(diagnostics.browserInjectedProviderCount)
+                : "Not checked"
+            }
+          />
+          <DiagnosticsItem
+            label="Possible provider mismatch"
+            value={diagnostics?.possibleProviderMismatch ? "Yes" : "No"}
+          />
+          <DiagnosticsItem
+            label="Selected chain id"
+            value={
+              preflightEnvironment.accountChainId === undefined
+                ? "Not reported"
+                : String(preflightEnvironment.accountChainId)
+            }
+          />
+          <DiagnosticsItem
+            label="Expected runtime chain id"
+            value={String(preflightEnvironment.runtimeChainId)}
+          />
+          <DiagnosticsItem
+            label="Connected account"
+            value={
+              preflightEnvironment.connectedAddress ?? "Not connected"
+            }
+          />
+          <DiagnosticsItem label="Parsed status" value={parsedStatus} />
+          <DiagnosticsItem label="Atomic status" value={atomicStatus} />
+          <DiagnosticsItem
+            label="wallet_sendCalls enabled"
+            value={capability.canSendCalls ? "Yes" : "No"}
+          />
+          <DiagnosticsItem
+            label="atomicRequired"
+            value={capability.atomicRequired ? "true" : "false"}
+          />
+          <DiagnosticsItem
+            label="Serial fallback"
+            value={serialFallbackAvailable ? "Available" : "Unavailable"}
+          />
+        </dl>
+
+        {lastError ? (
+          <div className="activation-eip5792-error">
+            <strong>Last EIP-5792 method error</strong>
+            <span>{lastError.method}</span>
+            <span>{lastError.message}</span>
+            <small>
+              {lastError.code ? `Code ${lastError.code}. ` : ""}
+              Likely reason:{" "}
+              {formatEip5792LikelyReason(lastError.likelyReason)}.
+            </small>
+          </div>
+        ) : null}
+
+        <div className="activation-eip5792-raw">
+          <strong>Raw wallet_getCapabilities</strong>
+          <pre>{formatDiagnosticJson(rawCapabilities ?? "Not checked")}</pre>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function DiagnosticsItem({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}): JSX.Element {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function getEip5792StatusTone(
+  status: Eip5792CapabilityDetection["status"],
+): "danger" | "muted" | "success" | "warning" {
+  switch (status) {
+    case "supported":
+      return "success";
+    case "unsupported":
+      return "warning";
+    case "unknown":
+      return "muted";
+  }
+}
+
+function formatDiagnosticJson(value: unknown): string {
+  return JSON.stringify(
+    value,
+    (_key, nestedValue: unknown) => {
+      if (typeof nestedValue === "bigint") {
+        return nestedValue.toString();
+      }
+      if (typeof nestedValue === "string") {
+        return nestedValue
+          .replace(
+            /:\/\/([^:/\s]+):([^@\s]+)@/g,
+            "://[redacted-credentials]@",
+          )
+          .replace(
+            /\b(password|secret|token|api[_-]?key|private[_-]?key)=([^\s&]+)/gi,
+            "$1=[redacted]",
+          );
+      }
+      return nestedValue;
+    },
+    2,
   );
 }
 
@@ -1199,10 +1463,15 @@ function getGroupDisabledTitle(
 
 function getBatchDisabledReason(
   capability: Eip5792CapabilityDetection,
+  checking: boolean,
   runDisabledReason: string | undefined,
 ): string {
   if (runDisabledReason) {
     return runDisabledReason;
+  }
+
+  if (checking) {
+    return "Checking wallet batch capability.";
   }
 
   return capability.reason;

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "@isonia/types";
 import {
   detectEip5792Capabilities,
-  getEip5792ProviderFromConnector,
+  getEip5792ProviderContext,
   type Eip5792CapabilityDetection,
 } from "./eip5792";
 
@@ -20,6 +20,12 @@ const CHECKING_CAPABILITIES: Eip5792CapabilityDetection = {
   status: "unknown",
 };
 
+export interface UseEip5792CapabilitiesResult {
+  readonly capabilities: Eip5792CapabilityDetection;
+  readonly checking: boolean;
+  readonly refresh: () => Promise<Eip5792CapabilityDetection>;
+}
+
 export function useEip5792Capabilities({
   accountChainId,
   address,
@@ -34,45 +40,62 @@ export function useEip5792Capabilities({
   readonly connected: boolean;
   readonly connector: unknown;
   readonly enabled: boolean;
-}): Eip5792CapabilityDetection {
+}): UseEip5792CapabilitiesResult {
   const [capabilities, setCapabilities] =
     useState<Eip5792CapabilityDetection>(
       enabled ? CHECKING_CAPABILITIES : DISABLED_CAPABILITIES,
     );
+  const [checking, setChecking] = useState(enabled);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!enabled) {
-      setCapabilities(DISABLED_CAPABILITIES);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setCapabilities(CHECKING_CAPABILITIES);
-
-    async function checkCapabilities(): Promise<void> {
-      const provider = await getEip5792ProviderFromConnector(connector);
-      const next = await detectEip5792Capabilities({
-        accountChainId,
-        address,
-        chainId,
-        connected,
-        provider,
-      });
-
-      if (!cancelled) {
-        setCapabilities(next);
-      }
-    }
-
-    void checkCapabilities();
-
     return () => {
-      cancelled = true;
+      mounted.current = false;
     };
+  }, []);
+
+  const refresh = useCallback(async (): Promise<Eip5792CapabilityDetection> => {
+    if (!enabled) {
+      if (mounted.current) {
+        setCapabilities(DISABLED_CAPABILITIES);
+        setChecking(false);
+      }
+      return DISABLED_CAPABILITIES;
+    }
+
+    if (mounted.current) {
+      setCapabilities((current) => ({
+        ...CHECKING_CAPABILITIES,
+        diagnostics: current.diagnostics,
+      }));
+      setChecking(true);
+    }
+
+    const { diagnostics, provider } = await getEip5792ProviderContext(connector);
+    const next = await detectEip5792Capabilities({
+      accountChainId,
+      address,
+      chainId,
+      connected,
+      provider,
+      providerDiagnostics: diagnostics,
+    });
+
+    if (mounted.current) {
+      setCapabilities(next);
+      setChecking(false);
+    }
+
+    return next;
   }, [accountChainId, address, chainId, connected, connector, enabled]);
 
-  return capabilities;
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return {
+    capabilities,
+    checking,
+    refresh,
+  };
 }

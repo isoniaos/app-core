@@ -1292,6 +1292,24 @@ button.address-display {
   font-size: 0.78rem;
 }
 
+.transaction-modal-error-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.5rem 0;
+}
+
+.transaction-modal-error-details div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.transaction-modal-error-details strong,
+.transaction-modal-error-details span {
+  overflow-wrap: anywhere;
+}
+
 .transaction-modal-batch-note {
   margin: 0;
   color: var(--iso-color-muted);
@@ -2829,7 +2847,7 @@ button.address-display {
   background: var(--iso-color-surface-subtle);
 }
 
-.activation-group-batch-status {
+.activation-eip5792-diagnostics {
   display: grid;
   gap: 0.22rem;
   margin: 0.85rem 1rem 0;
@@ -2839,7 +2857,84 @@ button.address-display {
   background: var(--iso-color-surface);
 }
 
-.activation-group-batch-status span {
+.activation-eip5792-diagnostics > summary {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--iso-color-foreground);
+  font-weight: 700;
+}
+
+.activation-eip5792-diagnostics-body {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.activation-eip5792-diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.activation-eip5792-diagnostics-header div,
+.activation-eip5792-error {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.activation-eip5792-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.activation-eip5792-diagnostics-grid div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.activation-eip5792-diagnostics-grid dt {
+  color: var(--iso-color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.activation-eip5792-diagnostics-grid dd {
+  margin: 0;
+  color: var(--iso-color-foreground);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.activation-eip5792-raw {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.activation-eip5792-raw pre {
+  overflow: auto;
+  max-height: 220px;
+  margin: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-sm);
+  padding: 0.65rem;
+  background: var(--iso-color-surface-subtle);
+  color: var(--iso-color-muted);
+  font-size: 0.76rem;
+}
+
+.activation-eip5792-diagnostics-header span,
+.activation-eip5792-error span,
+.activation-eip5792-error small {
   color: var(--iso-color-muted);
   font-size: 0.84rem;
   line-height: 1.45;

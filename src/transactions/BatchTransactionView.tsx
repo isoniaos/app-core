@@ -6,6 +6,7 @@ import {
   IsoHelpTerm,
   IsoTransactionHash,
 } from "../ui-kit";
+import { formatEip5792LikelyReason } from "../wallet/eip5792";
 import {
   getTransactionStageCopy,
   getTransactionStageTone,
@@ -138,6 +139,41 @@ export function BatchTransactionView({
         <details className="transaction-modal-error">
           <summary>Raw error</summary>
           <code>{batch.error}</code>
+        </details>
+      ) : null}
+      {batch.lastMethodError ? (
+        <details className="transaction-modal-error">
+          <summary>Last EIP-5792 method error</summary>
+          <dl className="transaction-modal-error-details">
+            <BatchMetaItem label="Method" value={batch.lastMethodError.method} />
+            <BatchMetaItem
+              label="Provider"
+              value={batch.lastMethodError.providerName ?? "Not reported"}
+            />
+            <BatchMetaItem
+              label="Connector"
+              value={batch.lastMethodError.connectorName ?? "Not reported"}
+            />
+            <BatchMetaItem
+              label="Chain"
+              value={
+                batch.lastMethodError.chainId === undefined
+                  ? "Not reported"
+                  : String(batch.lastMethodError.chainId)
+              }
+            />
+            <BatchMetaItem
+              label="Code"
+              value={batch.lastMethodError.code ?? "Not reported"}
+            />
+            <BatchMetaItem
+              label="Likely reason"
+              value={formatEip5792LikelyReason(
+                batch.lastMethodError.likelyReason,
+              )}
+            />
+          </dl>
+          <code>{batch.lastMethodError.message}</code>
         </details>
       ) : null}
     </div>

@@ -1,3 +1,5 @@
+import type { Eip5792MethodError } from "../wallet/eip5792";
+
 export type TransactionFlowStage =
   | "idle"
   | "preparing"
@@ -57,6 +59,7 @@ export interface TransactionBatchDetails {
   readonly execute?: () => Promise<void> | void;
   readonly fallbackSerial?: () => Promise<void> | void;
   readonly fallbackSerialLabel?: string;
+  readonly lastMethodError?: Eip5792MethodError;
   readonly retry?: () => Promise<void> | void;
   readonly status: BatchTransactionStatus;
   readonly statusDetail?: string;

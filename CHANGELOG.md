@@ -12,6 +12,11 @@ All notable changes to `@isonia/app-core` are documented here.
 - Added wallet capability detection for batch activation calls.
 - Kept read-model completion as the source of activation progress.
 
+### Changed
+
+- Improved EIP-5792 batch capability diagnostics and MetaMask compatibility handling.
+- Clarified unsupported local-chain behavior for activation batch execution.
+
 ## [0.6.0-alpha.13]
 
 ### Changed
