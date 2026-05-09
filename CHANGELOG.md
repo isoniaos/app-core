@@ -6,10 +6,13 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.13]
+
 ### Changed
 
 - Hardened organization activation serial execution with group-level run actions, retry behavior, and sequential progress gating.
 - Improved activation progress recovery from indexed read models.
+- Package version bumped to `0.6.0-alpha.13`.
 
 ## [0.6.0-alpha.12]
 
@@ -174,7 +177,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.12...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.13...HEAD
+[0.6.0-alpha.13]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.13
 [0.6.0-alpha.12]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.12
 [0.6.0-alpha.11]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.11
 [0.6.0-alpha.10]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.10
