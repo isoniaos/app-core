@@ -1149,6 +1149,7 @@ button.address-display {
 }
 
 .transaction-modal-current,
+.transaction-modal-batch-summary,
 .transaction-modal-serial-summary,
 .transaction-modal-item-header,
 .transaction-modal-footer,
@@ -1160,6 +1161,7 @@ button.address-display {
 }
 
 .transaction-modal-current div,
+.transaction-modal-batch-summary div,
 .transaction-modal-item-header div,
 .transaction-modal-serial-summary {
   display: grid;
@@ -1168,6 +1170,8 @@ button.address-display {
 }
 
 .transaction-modal-current span,
+.transaction-modal-batch-summary span,
+.transaction-modal-batch-meta span,
 .transaction-modal-serial-summary span,
 .transaction-modal-item p,
 .transaction-modal-item-header span {
@@ -1262,6 +1266,37 @@ button.address-display {
   gap: 0.45rem;
   margin-top: 0.18rem;
   min-width: 0;
+}
+
+.transaction-modal-batch-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface-subtle);
+}
+
+.transaction-modal-batch-meta div,
+.transaction-modal-batch-id,
+.transaction-modal-batch-hashes {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.transaction-modal-batch-id code {
+  overflow-wrap: anywhere;
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+}
+
+.transaction-modal-batch-note {
+  margin: 0;
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .transaction-modal-item {
@@ -2751,6 +2786,14 @@ button.address-display {
   min-width: 0;
 }
 
+.activation-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .activation-group-header h4,
 .activation-group-header p,
 .activation-group-status strong,
@@ -2784,6 +2827,22 @@ button.address-display {
   border: 1px solid var(--iso-color-border);
   border-radius: var(--iso-radius-md);
   background: var(--iso-color-surface-subtle);
+}
+
+.activation-group-batch-status {
+  display: grid;
+  gap: 0.22rem;
+  margin: 0.85rem 1rem 0;
+  padding: 0.75rem;
+  border: 1px dashed var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface);
+}
+
+.activation-group-batch-status span {
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .activation-group-disabled-reason span {
@@ -3283,6 +3342,7 @@ button.address-display {
   .detail-list,
   .detail-list-wide,
   .diagnostics-indicator-details,
+  .transaction-modal-batch-meta,
   .setup-wizard-body-grid,
   .setup-wizard-route-grid,
   .route-preview-fact {
@@ -3375,6 +3435,11 @@ button.address-display {
   }
 
   .setup-wizard-navigation .button {
+    width: 100%;
+  }
+
+  .activation-group-actions,
+  .activation-group-actions .button {
     width: 100%;
   }
 }

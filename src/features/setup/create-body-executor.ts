@@ -1,7 +1,6 @@
 import type { CreateBodySetupAction } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import {
-  getBodyKindChainCode,
   GOV_CORE_ABI,
   parseBodyCreatedLog,
 } from "../../chain/setup-contracts";
@@ -13,10 +12,13 @@ import {
 } from "./setup-action-execution-helpers";
 import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import type {
-  CreateBodyPayload,
   SetupActionExecutorContext,
   SetupActionTransaction,
 } from "./setup-action-execution-types";
+import {
+  buildCreateBodyCallArgs,
+  buildCreateBodyPayload,
+} from "./setup-prepared-calls";
 
 export async function executeCreateBodyAction({
   actionId,
@@ -133,7 +135,7 @@ export async function executeCreateBodyAction({
       address: runtimeConfig.contracts.govCoreAddress,
       abi: GOV_CORE_ABI,
       functionName: "createBody",
-      args: [payload.orgIdBigInt, payload.bodyKindCode, payload.metadataUri],
+      args: buildCreateBodyCallArgs(payload),
       chainId: runtimeConfig.chainId,
     });
 
@@ -233,38 +235,4 @@ export async function executeCreateBodyAction({
       },
     }));
   }
-}
-
-function buildCreateBodyPayload(
-  action: CreateBodySetupAction,
-  resolvedOrgId: string,
-): CreateBodyPayload | Error {
-  if (!action.active) {
-    return new Error(
-      "GovCore createBody creates active bodies only; inactive body drafts are not executable.",
-    );
-  }
-
-  const bodyKindCode = getBodyKindChainCode(action.bodyKind);
-  if (bodyKindCode === undefined) {
-    return new Error(`Unsupported body kind: ${action.bodyKind}.`);
-  }
-
-  let orgIdBigInt: bigint;
-  try {
-    orgIdBigInt = BigInt(resolvedOrgId);
-  } catch {
-    return new Error(`Resolved orgId is not a valid uint64 value: ${resolvedOrgId}.`);
-  }
-
-  if (orgIdBigInt <= 0n) {
-    return new Error(`Resolved orgId must be greater than zero: ${resolvedOrgId}.`);
-  }
-
-  return {
-    bodyKindCode,
-    metadataUri: action.metadataUri ?? "",
-    orgId: resolvedOrgId,
-    orgIdBigInt,
-  };
 }

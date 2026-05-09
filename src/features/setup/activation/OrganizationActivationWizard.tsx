@@ -12,6 +12,7 @@ import { useRuntimeConfig } from "../../../config/runtime-config";
 import { StatusBadge } from "../../../ui/StatusBadge";
 import { IsoAddressDisplay } from "../../../ui-kit";
 import { formatLabel } from "../../../utils/format";
+import type { Eip5792CapabilityDetection } from "../../../wallet/eip5792";
 import { useWalletConnection } from "../../../wallet/useWalletConnection";
 import {
   buildActivationGroupProgress,
@@ -100,13 +101,19 @@ export interface OrganizationActivationWizardProps {
   readonly completionError?: Error;
   readonly completionLoading: boolean;
   readonly completionReload: () => void;
+  readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchFeatureEnabled: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
+  readonly executeAssignMandateGroupBatch: () => Promise<void>;
   readonly executeAssignMandateGroup: () => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly executeCreateBodyGroupBatch: () => Promise<void>;
   readonly executeCreateBodyGroup: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeCreateRoleGroupBatch: () => Promise<void>;
   readonly executeCreateRoleGroup: () => Promise<void>;
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRuleGroupBatch: () => Promise<void>;
   readonly executeSetPolicyRuleGroup: () => Promise<void>;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
@@ -122,13 +129,19 @@ export function OrganizationActivationWizard({
   completionError,
   completionLoading,
   completionReload,
+  eip5792BatchCapability,
+  eip5792BatchFeatureEnabled,
   executeAssignMandate,
+  executeAssignMandateGroupBatch,
   executeAssignMandateGroup,
   executeCreateBody,
+  executeCreateBodyGroupBatch,
   executeCreateBodyGroup,
   executeCreateRole,
+  executeCreateRoleGroupBatch,
   executeCreateRoleGroup,
   executeSetPolicyRule,
+  executeSetPolicyRuleGroupBatch,
   executeSetPolicyRuleGroup,
   inputs,
   onChange,
@@ -343,8 +356,11 @@ export function OrganizationActivationWizard({
                 actionResultById={actionResultById}
                 actions={bodyActions}
                 busy={busy}
+                eip5792BatchCapability={eip5792BatchCapability}
+                eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                 emptyMessage="No body actions are needed for this draft."
                 executeAction={executeCreateBody}
+                executeGroupBatch={executeCreateBodyGroupBatch}
                 executeGroup={executeCreateBodyGroup}
                 preflightEnvironment={preflightEnvironment}
                 progress={bodyProgress}
@@ -360,8 +376,11 @@ export function OrganizationActivationWizard({
                 actionResultById={actionResultById}
                 actions={roleActions}
                 busy={busy}
+                eip5792BatchCapability={eip5792BatchCapability}
+                eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                 emptyMessage="No role actions are needed for this draft."
                 executeAction={executeCreateRole}
+                executeGroupBatch={executeCreateRoleGroupBatch}
                 executeGroup={executeCreateRoleGroup}
                 preflightEnvironment={preflightEnvironment}
                 progress={roleProgress}
@@ -389,8 +408,11 @@ export function OrganizationActivationWizard({
                   actionResultById={actionResultById}
                   actions={mandateActions}
                   busy={busy}
+                  eip5792BatchCapability={eip5792BatchCapability}
+                  eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                   emptyMessage="Add holder addresses above to produce mandate actions."
                   executeAction={executeAssignMandate}
+                  executeGroupBatch={executeAssignMandateGroupBatch}
                   executeGroup={executeAssignMandateGroup}
                   preflightEnvironment={preflightEnvironment}
                   progress={mandateProgress}
@@ -415,8 +437,11 @@ export function OrganizationActivationWizard({
                   actionResultById={actionResultById}
                   actions={policyActions}
                   busy={busy}
+                  eip5792BatchCapability={eip5792BatchCapability}
+                  eip5792BatchFeatureEnabled={eip5792BatchFeatureEnabled}
                   emptyMessage="No policy route actions are needed for this draft."
                   executeAction={executeSetPolicyRule}
+                  executeGroupBatch={executeSetPolicyRuleGroupBatch}
                   executeGroup={executeSetPolicyRuleGroup}
                   preflightEnvironment={preflightEnvironment}
                   progress={policyProgress}
@@ -587,8 +612,11 @@ function ActivationGroupPanel({
   actionResultById,
   actions,
   busy,
+  eip5792BatchCapability,
+  eip5792BatchFeatureEnabled,
   emptyMessage,
   executeAction,
+  executeGroupBatch,
   executeGroup,
   preflightEnvironment,
   progress,
@@ -603,8 +631,11 @@ function ActivationGroupPanel({
   >;
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
+  readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchFeatureEnabled: boolean;
   readonly emptyMessage: string;
   readonly executeAction: (actionId: string) => Promise<void>;
+  readonly executeGroupBatch: () => Promise<void>;
   readonly executeGroup: () => Promise<void>;
   readonly preflightEnvironment: SetupActionExecutionPreflightEnvironment;
   readonly progress: ActivationGroupProgress;
@@ -623,6 +654,10 @@ function ActivationGroupPanel({
     preflightEnvironment,
   );
   const disabled = busy || !progress.canRun || !groupPreflight.canExecute;
+  const batchDisabled =
+    disabled ||
+    !eip5792BatchCapability.canSendCalls ||
+    eip5792BatchCapability.status !== "supported";
   const runDisabledReason = getGroupRunDisabledReason({
     busy,
     preflight: groupPreflight,
@@ -636,16 +671,40 @@ function ActivationGroupPanel({
           <h4>{title}</h4>
           <p>{purpose}</p>
         </div>
-        <button
-          className="button button-primary"
-          disabled={disabled}
-          type="button"
-          onClick={() => {
-            void executeGroup();
-          }}
-        >
-          {getGroupButtonLabel(progress, groupPreflight, runLabel)}
-        </button>
+        <div className="activation-group-actions">
+          <button
+            className="button button-primary"
+            disabled={disabled}
+            type="button"
+            onClick={() => {
+              void executeGroup();
+            }}
+          >
+            {eip5792BatchFeatureEnabled
+              ? "Run step one by one"
+              : getGroupButtonLabel(progress, groupPreflight, runLabel)}
+          </button>
+          {eip5792BatchFeatureEnabled ? (
+            <button
+              className="button"
+              disabled={batchDisabled}
+              title={
+                batchDisabled
+                  ? getBatchDisabledReason(
+                      eip5792BatchCapability,
+                      runDisabledReason,
+                    )
+                  : "Run as wallet batch"
+              }
+              type="button"
+              onClick={() => {
+                void executeGroupBatch();
+              }}
+            >
+              Run as wallet batch
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <div className="activation-group-status">
@@ -671,6 +730,13 @@ function ActivationGroupPanel({
         <div className="activation-group-disabled-reason">
           <strong>{getGroupDisabledTitle(progress, groupPreflight)}</strong>
           <span>{runDisabledReason}</span>
+        </div>
+      ) : null}
+
+      {eip5792BatchFeatureEnabled ? (
+        <div className="activation-group-batch-status">
+          <strong>Wallet batch prototype</strong>
+          <span>{eip5792BatchCapability.reason}</span>
         </div>
       ) : null}
 
@@ -1129,6 +1195,17 @@ function getGroupDisabledTitle(
   }
 
   return preflight.title;
+}
+
+function getBatchDisabledReason(
+  capability: Eip5792CapabilityDetection,
+  runDisabledReason: string | undefined,
+): string {
+  if (runDisabledReason) {
+    return runDisabledReason;
+  }
+
+  return capability.reason;
 }
 
 function getActionControlNote(

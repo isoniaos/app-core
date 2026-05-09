@@ -4,7 +4,6 @@ import type {
 } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import {
-  getRoleTypeChainCode,
   GOV_CORE_ABI,
   parseRoleCreatedLog,
 } from "../../chain/setup-contracts";
@@ -13,15 +12,17 @@ import { assertSuccessfulReceipt } from "./receipt-parsers";
 import {
   isConfiguredAddress,
   normalizeTransactionError,
-  parsePositiveUint64,
   resolveBodyReference,
 } from "./setup-action-execution-helpers";
 import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import type {
-  CreateRolePayload,
   SetupActionExecutorContext,
   SetupActionTransaction,
 } from "./setup-action-execution-types";
+import {
+  buildCreateRoleCallArgs,
+  buildCreateRolePayload,
+} from "./setup-prepared-calls";
 
 export async function executeCreateRoleAction({
   actionId,
@@ -163,12 +164,7 @@ export async function executeCreateRoleAction({
       address: runtimeConfig.contracts.govCoreAddress,
       abi: GOV_CORE_ABI,
       functionName: "createRole",
-      args: [
-        payload.orgIdBigInt,
-        payload.bodyIdBigInt,
-        payload.roleTypeCode,
-        payload.metadataUri,
-      ],
+      args: buildCreateRoleCallArgs(payload),
       chainId: runtimeConfig.chainId,
     });
 
@@ -285,40 +281,4 @@ export async function executeCreateRoleAction({
       },
     }));
   }
-}
-
-function buildCreateRolePayload(
-  action: CreateRoleSetupAction,
-  resolvedOrgId: string,
-  resolvedBodyId: string,
-): CreateRolePayload | Error {
-  if (!action.active) {
-    return new Error(
-      "GovCore createRole creates active roles only; inactive role drafts are not executable.",
-    );
-  }
-
-  const roleTypeCode = getRoleTypeChainCode(action.roleType);
-  if (roleTypeCode === undefined) {
-    return new Error(`Unsupported role type: ${action.roleType}.`);
-  }
-
-  const orgIdBigInt = parsePositiveUint64(resolvedOrgId, "Resolved orgId");
-  if (orgIdBigInt instanceof Error) {
-    return orgIdBigInt;
-  }
-
-  const bodyIdBigInt = parsePositiveUint64(resolvedBodyId, "Resolved bodyId");
-  if (bodyIdBigInt instanceof Error) {
-    return bodyIdBigInt;
-  }
-
-  return {
-    bodyId: resolvedBodyId,
-    bodyIdBigInt,
-    metadataUri: action.metadataUri ?? "",
-    orgId: resolvedOrgId,
-    orgIdBigInt,
-    roleTypeCode,
-  };
 }

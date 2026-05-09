@@ -6,6 +6,12 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added feature-flagged EIP-5792 activation batch prototype with serial fallback.
+- Added wallet capability detection for batch activation calls.
+- Kept read-model completion as the source of activation progress.
+
 ## [0.6.0-alpha.13]
 
 ### Changed

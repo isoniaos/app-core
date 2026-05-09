@@ -14,24 +14,20 @@ import {
   assertSuccessfulReceipt,
 } from "./receipt-parsers";
 import {
-  getProposalTypeMask,
   isConfiguredAddress,
-  isZeroAddress,
   normalizeTransactionError,
-  parsePositiveUint64,
-  parseUint128,
-  parseUint256,
-  parseUint64,
   resolveRoleReadModel,
   resolveRoleReference,
 } from "./setup-action-execution-helpers";
 import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import type {
-  AssignMandatePayload,
   SetupActionExecutorContext,
   SetupActionTransaction,
 } from "./setup-action-execution-types";
-import { isAddress } from "viem";
+import {
+  buildAssignMandateCallArgs,
+  buildAssignMandatePayload,
+} from "./setup-prepared-calls";
 
 export async function executeAssignMandateAction({
   actionId,
@@ -183,15 +179,7 @@ export async function executeAssignMandateAction({
       address: runtimeConfig.contracts.govCoreAddress,
       abi: GOV_CORE_ABI,
       functionName: "assignMandate",
-      args: [
-        payload.orgIdBigInt,
-        payload.roleIdBigInt,
-        payload.holderAddress,
-        payload.startTimeBigInt,
-        payload.endTimeBigInt,
-        payload.proposalTypeMaskBigInt,
-        payload.spendingLimitBigInt,
-      ],
+      args: buildAssignMandateCallArgs(payload),
       chainId: runtimeConfig.chainId,
     });
 
@@ -311,85 +299,4 @@ export async function executeAssignMandateAction({
       },
     }));
   }
-}
-
-function buildAssignMandatePayload(
-  action: AssignMandateSetupAction,
-  resolvedOrgId: string,
-  resolvedRoleId: string,
-): AssignMandatePayload | Error {
-  if (!isAddress(action.holderAddress) || isZeroAddress(action.holderAddress)) {
-    return new Error("Mandate holder address must be a non-zero EVM address.");
-  }
-
-  const orgIdBigInt = parsePositiveUint64(resolvedOrgId, "Resolved orgId");
-  if (orgIdBigInt instanceof Error) {
-    return orgIdBigInt;
-  }
-
-  const roleIdBigInt = parsePositiveUint64(resolvedRoleId, "Resolved roleId");
-  if (roleIdBigInt instanceof Error) {
-    return roleIdBigInt;
-  }
-
-  const startTimeBigInt = parseUint64(action.startTime, "Mandate start time");
-  if (startTimeBigInt instanceof Error) {
-    return startTimeBigInt;
-  }
-
-  const endTimeBigInt = parseUint64(action.endTime, "Mandate end time");
-  if (endTimeBigInt instanceof Error) {
-    return endTimeBigInt;
-  }
-
-  if (endTimeBigInt !== 0n && endTimeBigInt <= startTimeBigInt) {
-    return new Error(
-      "Mandate end time must be zero or greater than the start time.",
-    );
-  }
-
-  const proposalTypeMaskBigInt = parseUint256(
-    action.proposalTypeMask,
-    "Mandate proposal type mask",
-  );
-  if (proposalTypeMaskBigInt instanceof Error) {
-    return proposalTypeMaskBigInt;
-  }
-
-  if (proposalTypeMaskBigInt === 0n) {
-    return new Error("Mandate proposal type mask must cover at least one proposal type.");
-  }
-
-  if (action.proposalTypes) {
-    const expectedMask = getProposalTypeMask(action.proposalTypes);
-    if (proposalTypeMaskBigInt !== expectedMask) {
-      return new Error(
-        `Mandate proposal type mask ${proposalTypeMaskBigInt.toString()} does not match the selected proposal type scope ${expectedMask.toString()}.`,
-      );
-    }
-  }
-
-  const spendingLimitBigInt = parseUint128(
-    action.spendingLimit,
-    "Mandate spending limit",
-  );
-  if (spendingLimitBigInt instanceof Error) {
-    return spendingLimitBigInt;
-  }
-
-  return {
-    endTime: endTimeBigInt.toString(),
-    endTimeBigInt,
-    holderAddress: action.holderAddress,
-    orgId: resolvedOrgId,
-    orgIdBigInt,
-    proposalTypeMask: proposalTypeMaskBigInt.toString(),
-    proposalTypeMaskBigInt,
-    roleId: resolvedRoleId,
-    roleIdBigInt,
-    spendingLimit: spendingLimitBigInt.toString(),
-    spendingLimitBigInt,
-    startTime: startTimeBigInt.toString(),
-    startTimeBigInt,
-  };
 }

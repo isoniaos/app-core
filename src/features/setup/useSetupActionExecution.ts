@@ -1,15 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SetupAction, SetupDraft } from "@isonia/types";
+import type {
+  AssignMandateSetupAction,
+  CreateBodySetupAction,
+  CreateRoleSetupAction,
+  SetPolicyRuleSetupAction,
+  SetupAction,
+  SetupDraft,
+} from "@isonia/types";
+import { SetupActionKind } from "@isonia/types";
+import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
   useTransactionModal,
+  type TransactionBatchDetails,
   type TransactionFlowItem,
   type TransactionFlowItemStage,
   type TransactionFlowItemPatch,
   type TransactionFlowStage,
 } from "../../transactions";
+import type { PreparedContractCall } from "../../transactions/prepared-contract-call";
+import {
+  extractEip5792TransactionHashes,
+  formatEip5792Error,
+  getEip5792ProviderFromConnector,
+  isSuccessfulCallsStatus,
+  pollEip5792CallsStatus,
+  sendEip5792Calls,
+  type Eip5792CapabilityDetection,
+} from "../../wallet/eip5792";
+import { useEip5792Capabilities } from "../../wallet/useEip5792Capabilities";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
 import { canExecuteActivationActionState } from "./activation/activation-group-progress";
 import { executeAssignMandateAction } from "./assign-mandate-executor";
@@ -23,8 +44,10 @@ import {
   getCreateOrganizationAction,
   getCreateRoleActions,
   getSetPolicyRuleActions,
+  delay,
   isBusyStage,
   normalizeTransactionError,
+  resolveRoleReference,
 } from "./setup-action-execution-helpers";
 import {
   deriveSetupExecutionStateFromReadModels,
@@ -43,7 +66,16 @@ import {
   type SetupActionReadiness,
   type SetupActionTransaction,
   type SetupDraftExecutionState,
+  type SetupExecutionStateUpdater,
 } from "./setup-action-execution-types";
+import {
+  assertPolicyDependenciesResolved,
+  prepareAssignMandateCall,
+  prepareCreateBodyCall,
+  prepareCreateRoleCall,
+  prepareSetPolicyRuleCall,
+  type PreparedActivationCall,
+} from "./setup-prepared-calls";
 import { getReadiness } from "./setup-action-readiness";
 
 export type {
@@ -63,14 +95,20 @@ export function useSetupActionExecution({
   readModels,
 }: UseSetupActionExecutionOptions): {
   readonly busy: boolean;
+  readonly eip5792BatchCapability: Eip5792CapabilityDetection;
+  readonly eip5792BatchFeatureEnabled: boolean;
   readonly executeAssignMandate: (actionId: string) => Promise<void>;
+  readonly executeAssignMandateGroupBatch: () => Promise<void>;
   readonly executeAssignMandateGroup: () => Promise<void>;
   readonly executeCreateBody: (actionId: string) => Promise<void>;
+  readonly executeCreateBodyGroupBatch: () => Promise<void>;
   readonly executeCreateBodyGroup: () => Promise<void>;
   readonly executeCreateOrganization: () => Promise<void>;
   readonly executeCreateRole: (actionId: string) => Promise<void>;
+  readonly executeCreateRoleGroupBatch: () => Promise<void>;
   readonly executeCreateRoleGroup: () => Promise<void>;
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
+  readonly executeSetPolicyRuleGroupBatch: () => Promise<void>;
   readonly executeSetPolicyRuleGroup: () => Promise<void>;
   readonly readiness: SetupActionReadiness | undefined;
   readonly reset: () => void;
@@ -82,11 +120,13 @@ export function useSetupActionExecution({
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
+    openBatch: openBatchTransactionModal,
     openSerial: openSerialTransactionModal,
     openSingle: openTransactionModal,
     reset: resetTransactionModal,
     setActiveItem: setActiveTransactionModalItem,
     state: transactionModalState,
+    updateBatch: updateTransactionBatch,
     updateItem: updateTransactionModalItem,
   } = useTransactionModal();
   const activeTransactionModalItemId = useRef<string | undefined>(undefined);
@@ -155,6 +195,16 @@ export function useSetupActionExecution({
 
   const setupWritesEnabled =
     runtimeConfig.features.writeActions && runtimeConfig.features.manageOrg;
+  const eip5792BatchFeatureEnabled =
+    setupWritesEnabled && runtimeConfig.features.eip5792Batch;
+  const eip5792BatchCapability = useEip5792Capabilities({
+    accountChainId: account.chainId,
+    address: account.address,
+    chainId: runtimeConfig.chainId,
+    connected: account.isConnected,
+    connector: account.connector,
+    enabled: eip5792BatchFeatureEnabled,
+  });
 
   useEffect(() => {
     if (!transactionModalState.open) {
@@ -162,6 +212,27 @@ export function useSetupActionExecution({
     }
 
     if (transactionModalState.mode === "serial") {
+      transactionModalState.items.forEach((item) => {
+        if (!isSetupTransactionModalItemId(item.id)) {
+          return;
+        }
+
+        const patch = buildSetupTransactionModalItemPatch({
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          draft,
+          executionState: returnedState,
+          itemId: item.id,
+          readModels,
+          serial: true,
+        });
+        if (patch) {
+          updateTransactionModalItem(item.id, patch);
+        }
+      });
+      return;
+    }
+
+    if (transactionModalState.mode === "batch") {
       transactionModalState.items.forEach((item) => {
         if (!isSetupTransactionModalItemId(item.id)) {
           return;
@@ -712,6 +783,264 @@ export function useSetupActionExecution({
     ],
   );
 
+  const runSetupGroupBatchTransactions = useCallback(
+    async ({
+      actions,
+      calls,
+      getItemId,
+    }: SetupGroupBatchRunConfig): Promise<void> => {
+      const provider = await getEip5792ProviderFromConnector(account.connector);
+      if (!provider || !account.address) {
+        const message = "Wallet provider is unavailable for EIP-5792 batching.";
+        updateTransactionBatch({
+          error: message,
+          status: "failed",
+          statusDetail:
+            "The batch was not submitted. Use the serial fallback for this activation group.",
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "failed",
+          error: message,
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: message,
+            stage: "failed",
+          },
+          updateTransactionModalItem,
+        });
+        return;
+      }
+
+      if (!eip5792BatchCapability.canSendCalls) {
+        const message = eip5792BatchCapability.reason;
+        updateTransactionBatch({
+          error: message,
+          status: "failed",
+          statusDetail:
+            "The batch was not submitted. Use the serial fallback for this activation group.",
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "failed",
+          error: message,
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: message,
+            stage: "failed",
+          },
+          updateTransactionModalItem,
+        });
+        return;
+      }
+
+      let batchSubmitted = false;
+
+      try {
+        updateTransactionBatch({
+          error: undefined,
+          status: "waiting_for_wallet",
+          statusDetail: "Confirm the wallet batch request.",
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "wallet_pending",
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: undefined,
+            stage: "waiting_for_wallet",
+          },
+          updateTransactionModalItem,
+        });
+
+        const sendResult = await sendEip5792Calls({
+          atomicRequired: eip5792BatchCapability.atomicRequired,
+          calls,
+          from: account.address,
+          provider,
+        });
+        batchSubmitted = true;
+
+        updateTransactionBatch({
+          batchId: sendResult.id,
+          status: "submitted",
+          statusDetail: "Wallet accepted the batch request.",
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "submitted",
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            stage: "submitted",
+          },
+          updateTransactionModalItem,
+        });
+
+        updateTransactionBatch({
+          status: "waiting_for_status",
+          statusDetail: "Waiting for wallet_getCallsStatus.",
+        });
+        const terminalStatus = await pollEip5792CallsStatus({
+          id: sendResult.id,
+          onStatus: (status) => {
+            const txHashes = extractEip5792TransactionHashes(status);
+            updateTransactionBatch({
+              status: "waiting_for_status",
+              txHashes,
+              walletAtomic: status.atomic,
+              walletStatusCode: status.status,
+            });
+            updateBatchModalItemHashes({
+              actions,
+              getItemId,
+              txHashes,
+              updateTransactionModalItem,
+            });
+          },
+          provider,
+        });
+        const txHashes = extractEip5792TransactionHashes(terminalStatus);
+        updateTransactionBatch({
+          txHashes,
+          walletAtomic: terminalStatus.atomic,
+          walletStatusCode: terminalStatus.status,
+        });
+        updateBatchModalItemHashes({
+          actions,
+          getItemId,
+          txHashes,
+          updateTransactionModalItem,
+        });
+
+        if (!isSuccessfulCallsStatus(terminalStatus)) {
+          const message = `Wallet reported batch status ${terminalStatus.status}.`;
+          applyBatchActionTransactionPatch({
+            actions,
+            setState: setExecutionState,
+            stage: "failed",
+            error: message,
+            txHashes,
+          });
+          updateTransactionBatch({
+            error: message,
+            status: "failed",
+            statusDetail:
+              "Some calls may already be indexed. Refresh read models before continuing incomplete actions one by one.",
+          });
+          await refreshBatchReadModelProgress({
+            actions,
+            client,
+            draft: draftRef.current,
+            getExecutionState: () => stateRef.current,
+            getItemId,
+            orgId: stateRef.current.resolvedOrgId ?? resolvedOrgId,
+            readModels: readModelsRef.current,
+            setExecutionState,
+            updateTransactionModalItem,
+          });
+          return;
+        }
+
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "confirmed_waiting_indexer",
+          txHashes,
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            stage: "waiting_for_control_plane",
+          },
+          updateTransactionModalItem,
+        });
+        updateBatchModalItemHashes({
+          actions,
+          getItemId,
+          txHashes,
+          updateTransactionModalItem,
+        });
+        updateTransactionBatch({
+          status: "waiting_for_control_plane",
+          statusDetail:
+            "Wallet reports batch success. Waiting for indexed activation read models.",
+        });
+
+        await waitForBatchReadModelCompletion({
+          actions,
+          client,
+          draft: draftRef.current,
+          getExecutionState: () => stateRef.current,
+          getItemId,
+          orgId: stateRef.current.resolvedOrgId ?? resolvedOrgId,
+          readModels: readModelsRef.current,
+          setExecutionState,
+          updateTransactionModalItem,
+        });
+
+        updateTransactionBatch({
+          error: undefined,
+          status: "completed",
+          statusDetail:
+            "All expected activation read models are indexed for this batch.",
+        });
+      } catch (error: unknown) {
+        const message = formatEip5792Error(error);
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "failed",
+          error: message,
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: message,
+            stage: "failed",
+          },
+          updateTransactionModalItem,
+        });
+        updateTransactionBatch({
+          error: message,
+          status: "failed",
+          statusDetail: batchSubmitted
+            ? "The wallet accepted the batch, but App Core could not finish status tracking. Check wallet UI and indexed progress before retrying incomplete actions."
+            : "The batch was not submitted. Use the serial fallback for this activation group.",
+        });
+      }
+    },
+    [
+      account.address,
+      account.connector,
+      client,
+      eip5792BatchCapability.atomicRequired,
+      eip5792BatchCapability.canSendCalls,
+      eip5792BatchCapability.reason,
+      resolvedOrgId,
+      setExecutionState,
+      updateTransactionBatch,
+      updateTransactionModalItem,
+    ],
+  );
+
   const openSetupGroupTransactionModal = useCallback(
     ({
       actions,
@@ -768,6 +1097,114 @@ export function useSetupActionExecution({
     ],
   );
 
+  const openSetupGroupBatchTransactionModal = useCallback(
+    ({
+      actions,
+      description,
+      getItemId,
+      prepareCall,
+      runSerialFallback,
+      title,
+    }: SetupGroupBatchModalConfig): void => {
+      const runnableActions = actions.filter((action) => {
+        const result = getCompletionResult(
+          action.actionId,
+          draft,
+          returnedState,
+          readModels,
+        );
+        return (
+          result?.state !== "indexed" &&
+          canExecuteActivationActionState(result?.state)
+        );
+      });
+      const prepared: PreparedActivationCall[] = [];
+      let preparationError: Error | undefined;
+
+      for (const action of runnableActions) {
+        const preflight = getSetupActionExecutionPreflight(action, {
+          ...getSetupPreflightEnvironment(executorContextRef.current),
+        });
+        if (!preflight.canExecute) {
+          preparationError = new Error(formatSetupPreflightError(preflight));
+          break;
+        }
+
+        const preparedCall = prepareCall(action);
+        if (preparedCall instanceof Error) {
+          preparationError = preparedCall;
+          break;
+        }
+        prepared.push(preparedCall);
+      }
+
+      const items = runnableActions.map((action, index) => {
+        const itemId = getItemId(action.actionId);
+        const failed = Boolean(preparationError && index >= prepared.length);
+        return {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          description: action.description,
+          error: failed ? preparationError?.message : undefined,
+          id: itemId,
+          stage: failed ? "failed" : "pending",
+          title: action.label,
+        } satisfies TransactionFlowItem;
+      });
+
+      const batchDetails: TransactionBatchDetails = {
+        atomicCapability:
+          eip5792BatchCapability.details?.atomicStatus ?? "Not reported",
+        capabilityStatus: eip5792BatchCapability.status,
+        capabilitySummary: eip5792BatchCapability.reason,
+        error: preparationError?.message,
+        execute:
+          !preparationError && prepared.length > 0
+            ? () =>
+                runSetupGroupBatchTransactions({
+                  actions: runnableActions,
+                  calls: prepared.map((item) => item.call),
+                  getItemId,
+                })
+            : undefined,
+        fallbackSerial: runSerialFallback,
+        fallbackSerialLabel: "Run step one by one",
+        retry:
+          !preparationError && prepared.length > 0
+            ? () =>
+                runSetupGroupBatchTransactions({
+                  actions: runnableActions,
+                  calls: prepared.map((item) => item.call),
+                  getItemId,
+                })
+            : undefined,
+        status: preparationError ? "failed" : "ready",
+        statusDetail: preparationError
+          ? "The batch was not submitted. Use the serial fallback for this activation group."
+          : "Review the prepared calls, then execute the wallet batch.",
+        txHashes: [],
+      };
+
+      activeTransactionModalItemId.current = items[0]?.id;
+      openBatchTransactionModal({
+        batch: batchDetails,
+        description,
+        items,
+        title,
+      });
+    },
+    [
+      draft,
+      eip5792BatchCapability.details?.atomicStatus,
+      eip5792BatchCapability.reason,
+      eip5792BatchCapability.status,
+      openBatchTransactionModal,
+      readModels,
+      returnedState,
+      runSetupGroupBatchTransactions,
+      runtimeConfig.blockExplorerUrl,
+    ],
+  );
+
   const executeCreateBodyGroup = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: createBodyActions,
@@ -780,6 +1217,32 @@ export function useSetupActionExecution({
     });
   }, [createBodyActions, openSetupGroupTransactionModal, runCreateBodyAction]);
 
+  const executeCreateBodyGroupBatch = useCallback(async (): Promise<void> => {
+    openSetupGroupBatchTransactionModal({
+      actions: createBodyActions,
+      description:
+        "Submit ready body setup calls as an EIP-5792 wallet batch, then wait for indexed read models.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("create-body", actionId),
+      prepareCall: (action) =>
+        prepareCreateBodyCall({
+          action: action as CreateBodySetupAction,
+          chainId: runtimeConfig.chainId,
+          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+        }),
+      runSerialFallback: () => executeCreateBodyGroup(),
+      title: "Batch activate bodies",
+    });
+  }, [
+    createBodyActions,
+    executeCreateBodyGroup,
+    openSetupGroupBatchTransactionModal,
+    resolvedOrgId,
+    runtimeConfig.chainId,
+    runtimeConfig.contracts.govCoreAddress,
+  ]);
+
   const executeCreateRoleGroup = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: createRoleActions,
@@ -791,6 +1254,35 @@ export function useSetupActionExecution({
       title: "Activate roles",
     });
   }, [createRoleActions, openSetupGroupTransactionModal, runCreateRoleAction]);
+
+  const executeCreateRoleGroupBatch = useCallback(async (): Promise<void> => {
+    openSetupGroupBatchTransactionModal({
+      actions: createRoleActions,
+      description:
+        "Submit ready role setup calls as an EIP-5792 wallet batch, then wait for indexed read models.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("create-role", actionId),
+      prepareCall: (action) =>
+        prepareCreateRoleCall({
+          action: action as CreateRoleSetupAction,
+          bodyActions: createBodyActions,
+          chainId: runtimeConfig.chainId,
+          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          resolvedBodyIds: stateRef.current.resolvedBodyIds,
+          resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+        }),
+      runSerialFallback: () => executeCreateRoleGroup(),
+      title: "Batch activate roles",
+    });
+  }, [
+    createBodyActions,
+    createRoleActions,
+    executeCreateRoleGroup,
+    openSetupGroupBatchTransactionModal,
+    resolvedOrgId,
+    runtimeConfig.chainId,
+    runtimeConfig.contracts.govCoreAddress,
+  ]);
 
   const executeAssignMandateGroup = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
@@ -806,6 +1298,46 @@ export function useSetupActionExecution({
     assignMandateActions,
     openSetupGroupTransactionModal,
     runAssignMandateAction,
+  ]);
+
+  const executeAssignMandateGroupBatch = useCallback(async (): Promise<void> => {
+    openSetupGroupBatchTransactionModal({
+      actions: assignMandateActions,
+      description:
+        "Submit ready mandate setup calls as an EIP-5792 wallet batch, then wait for indexed read models.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("assign-mandate", actionId),
+      prepareCall: (action) => {
+        const mandateAction = action as AssignMandateSetupAction;
+        const resolvedRoleId = resolveRoleReference({
+          reference: mandateAction.roleRef,
+          resolvedRoleIds: stateRef.current.resolvedRoleIds,
+          roleActions: createRoleActions,
+        });
+        if (!resolvedRoleId) {
+          return new Error(
+            "Assign mandate is blocked until the referenced role is indexed and the real roleId is resolved.",
+          );
+        }
+        return prepareAssignMandateCall({
+          action: mandateAction,
+          chainId: runtimeConfig.chainId,
+          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+          resolvedRoleId,
+        });
+      },
+      runSerialFallback: () => executeAssignMandateGroup(),
+      title: "Batch activate mandates",
+    });
+  }, [
+    assignMandateActions,
+    createRoleActions,
+    executeAssignMandateGroup,
+    openSetupGroupBatchTransactionModal,
+    resolvedOrgId,
+    runtimeConfig.chainId,
+    runtimeConfig.contracts.govCoreAddress,
   ]);
 
   const executeSetPolicyRuleGroup = useCallback(async (): Promise<void> => {
@@ -824,16 +1356,64 @@ export function useSetupActionExecution({
     setPolicyRuleActions,
   ]);
 
+  const executeSetPolicyRuleGroupBatch = useCallback(async (): Promise<void> => {
+    openSetupGroupBatchTransactionModal({
+      actions: setPolicyRuleActions,
+      description:
+        "Submit ready policy route calls as an EIP-5792 wallet batch, then wait for indexed read models.",
+      getItemId: (actionId) =>
+        buildSetupTransactionModalItemId("set-policy-rule", actionId),
+      prepareCall: (action) => {
+        const policyAction = action as SetPolicyRuleSetupAction;
+        const dependencyError = assertPolicyDependenciesResolved({
+          action: policyAction,
+          mandateActions: assignMandateActions,
+          resolvedMandateIds: stateRef.current.resolvedMandateIds,
+          roleActions: createRoleActions,
+        });
+        if (dependencyError) {
+          return dependencyError;
+        }
+        return prepareSetPolicyRuleCall({
+          action: policyAction,
+          bodyActions: createBodyActions,
+          chainId: runtimeConfig.chainId,
+          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          resolvedBodyIds: stateRef.current.resolvedBodyIds,
+          resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+        });
+      },
+      runSerialFallback: () => executeSetPolicyRuleGroup(),
+      title: "Batch activate policy routes",
+    });
+  }, [
+    assignMandateActions,
+    createBodyActions,
+    createRoleActions,
+    executeSetPolicyRuleGroup,
+    openSetupGroupBatchTransactionModal,
+    resolvedOrgId,
+    runtimeConfig.chainId,
+    runtimeConfig.contracts.govCoreAddress,
+    setPolicyRuleActions,
+  ]);
+
   return {
     busy,
+    eip5792BatchCapability,
+    eip5792BatchFeatureEnabled,
     executeAssignMandate,
+    executeAssignMandateGroupBatch,
     executeAssignMandateGroup,
     executeCreateBody,
+    executeCreateBodyGroupBatch,
     executeCreateBodyGroup,
     executeCreateOrganization,
     executeCreateRole,
+    executeCreateRoleGroupBatch,
     executeCreateRoleGroup,
     executeSetPolicyRule,
+    executeSetPolicyRuleGroupBatch,
     executeSetPolicyRuleGroup,
     readiness,
     reset,
@@ -859,6 +1439,21 @@ interface SetupGroupRunConfig {
 interface SetupGroupModalConfig
   extends Omit<SetupGroupRunConfig, "startActionId"> {
   readonly description: string;
+  readonly title: string;
+}
+
+interface SetupGroupBatchRunConfig {
+  readonly actions: readonly SetupAction[];
+  readonly calls: readonly PreparedContractCall[];
+  readonly getItemId: (actionId: string) => string;
+}
+
+interface SetupGroupBatchModalConfig {
+  readonly actions: readonly SetupAction[];
+  readonly description: string;
+  readonly getItemId: (actionId: string) => string;
+  readonly prepareCall: (action: SetupAction) => PreparedActivationCall | Error;
+  readonly runSerialFallback: () => Promise<void> | void;
   readonly title: string;
 }
 
@@ -1152,4 +1747,252 @@ function getCompletionResult(
     executionState,
     readModels,
   }).actionResults.find((result) => result.actionId === actionId);
+}
+
+function applyBatchActionTransactionPatch({
+  actions,
+  error,
+  setState,
+  stage,
+  txHashes = [],
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly error?: string;
+  readonly setState: SetupExecutionStateUpdater;
+  readonly stage: SetupActionLifecycleStage;
+  readonly txHashes?: readonly `0x${string}`[];
+}): void {
+  setState((current) => {
+    let createOrganization = current.createOrganization;
+    const assignMandates = { ...current.assignMandates };
+    const createBodies = { ...current.createBodies };
+    const createRoles = { ...current.createRoles };
+    const setPolicyRules = { ...current.setPolicyRules };
+
+    actions.forEach((action, index) => {
+      const transaction: SetupActionTransaction = {
+        actionId: action.actionId,
+        actionKind: action.kind,
+        error,
+        stage,
+        txHash: getBatchActionTxHash(txHashes, index),
+      };
+
+      switch (action.kind) {
+        case SetupActionKind.CreateOrganization:
+          createOrganization = transaction;
+          break;
+        case SetupActionKind.CreateBody:
+          createBodies[action.actionId] = transaction;
+          break;
+        case SetupActionKind.CreateRole:
+          createRoles[action.actionId] = transaction;
+          break;
+        case SetupActionKind.AssignMandate:
+          assignMandates[action.actionId] = transaction;
+          break;
+        case SetupActionKind.SetPolicyRule:
+          setPolicyRules[action.actionId] = transaction;
+          break;
+      }
+    });
+
+    return {
+      ...current,
+      assignMandates,
+      createBodies,
+      createOrganization,
+      createRoles,
+      setPolicyRules,
+    };
+  });
+}
+
+function updateBatchModalItems({
+  actions,
+  getItemId,
+  patch,
+  updateTransactionModalItem,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly getItemId: (actionId: string) => string;
+  readonly patch: TransactionFlowItemPatch;
+  readonly updateTransactionModalItem: (
+    itemId: string,
+    update: TransactionFlowItemPatch,
+  ) => void;
+}): void {
+  actions.forEach((action) => {
+    updateTransactionModalItem(getItemId(action.actionId), patch);
+  });
+}
+
+function updateBatchModalItemHashes({
+  actions,
+  getItemId,
+  txHashes,
+  updateTransactionModalItem,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly getItemId: (actionId: string) => string;
+  readonly txHashes: readonly `0x${string}`[];
+  readonly updateTransactionModalItem: (
+    itemId: string,
+    update: TransactionFlowItemPatch,
+  ) => void;
+}): void {
+  actions.forEach((action, index) => {
+    const txHash = getBatchActionTxHash(txHashes, index);
+    if (txHash) {
+      updateTransactionModalItem(getItemId(action.actionId), { txHash });
+    }
+  });
+}
+
+async function waitForBatchReadModelCompletion({
+  actions,
+  client,
+  draft,
+  getExecutionState,
+  getItemId,
+  orgId,
+  readModels,
+  setExecutionState,
+  updateTransactionModalItem,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly client: IsoniaControlPlaneClient;
+  readonly draft: SetupDraft;
+  readonly getExecutionState: () => SetupDraftExecutionState;
+  readonly getItemId: (actionId: string) => string;
+  readonly orgId: string | undefined;
+  readonly readModels?: SetupCompletionReadModels;
+  readonly setExecutionState: SetupExecutionStateUpdater;
+  readonly updateTransactionModalItem: (
+    itemId: string,
+    update: TransactionFlowItemPatch,
+  ) => void;
+}): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  let lastError: Error | undefined;
+
+  while (Date.now() < deadline) {
+    try {
+      const complete = await refreshBatchReadModelProgress({
+        actions,
+        client,
+        draft,
+        getExecutionState,
+        getItemId,
+        orgId,
+        readModels,
+        setExecutionState,
+        updateTransactionModalItem,
+      });
+      if (complete) {
+        return;
+      }
+    } catch (error: unknown) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+
+    await delay(1_500);
+  }
+
+  throw new Error(
+    `Indexer timeout: activation batch did not reach indexed read models within 60 seconds.${lastError ? ` Last API error: ${lastError.message}` : ""}`,
+  );
+}
+
+async function refreshBatchReadModelProgress({
+  actions,
+  client,
+  draft,
+  getExecutionState,
+  getItemId,
+  orgId,
+  readModels,
+  setExecutionState,
+  updateTransactionModalItem,
+}: {
+  readonly actions: readonly SetupAction[];
+  readonly client: IsoniaControlPlaneClient;
+  readonly draft: SetupDraft;
+  readonly getExecutionState: () => SetupDraftExecutionState;
+  readonly getItemId: (actionId: string) => string;
+  readonly orgId: string | undefined;
+  readonly readModels?: SetupCompletionReadModels;
+  readonly setExecutionState: SetupExecutionStateUpdater;
+  readonly updateTransactionModalItem: (
+    itemId: string,
+    update: TransactionFlowItemPatch,
+  ) => void;
+}): Promise<boolean> {
+  if (!orgId) {
+    throw new Error("Cannot poll activation read models before orgId is known.");
+  }
+
+  const freshReadModels =
+    (await loadSetupCompletionReadModels(client, orgId)) ?? readModels;
+  const nextState = deriveSetupExecutionStateFromReadModels({
+    draft,
+    executionState: getExecutionState(),
+    readModels: freshReadModels,
+  });
+  setExecutionState(() => nextState);
+
+  for (const action of actions) {
+    const itemId = getItemId(action.actionId);
+    const patch = buildSetupTransactionModalItemPatch({
+      draft,
+      executionState: nextState,
+      itemId,
+      readModels: freshReadModels,
+      serial: true,
+    });
+    if (patch) {
+      updateTransactionModalItem(itemId, patch);
+    }
+  }
+
+  return actions.every((action) => {
+    const result = getCompletionResult(
+      action.actionId,
+      draft,
+      nextState,
+      freshReadModels,
+    );
+    return result?.state === "indexed";
+  });
+}
+
+async function loadSetupCompletionReadModels(
+  client: IsoniaControlPlaneClient,
+  orgId: string,
+): Promise<SetupCompletionReadModels> {
+  const [organization, bodies, roles, mandates, policies] = await Promise.all([
+    client.getOrganization(orgId),
+    client.getBodies(orgId),
+    client.getRoles(orgId),
+    client.getMandates(orgId),
+    client.policies.list(orgId),
+  ]);
+
+  return {
+    bodies,
+    mandates,
+    organization,
+    policies,
+    roles,
+  };
+}
+
+function getBatchActionTxHash(
+  txHashes: readonly `0x${string}`[],
+  index: number,
+): `0x${string}` | undefined {
+  if (txHashes.length === 1) {
+    return txHashes[0];
+  }
+  return txHashes[index];
 }

@@ -9,6 +9,7 @@ export type RuntimeMode = "self-hosted" | "hosted-free" | "saas";
 
 export interface RuntimeFeatureFlags {
   readonly createProposal: boolean;
+  readonly eip5792Batch: boolean;
   readonly writeActions: boolean;
   readonly manageOrg: boolean;
   readonly advancedAnalytics: boolean;
@@ -73,6 +74,7 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   },
   features: {
     createProposal: false,
+    eip5792Batch: false,
     writeActions: false,
     manageOrg: false,
     advancedAnalytics: false,
@@ -267,6 +269,10 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
       createProposal: readBoolean(
         features.createProposal,
         DEFAULT_RUNTIME_CONFIG.features.createProposal,
+      ),
+      eip5792Batch: readBoolean(
+        features.eip5792Batch,
+        DEFAULT_RUNTIME_CONFIG.features.eip5792Batch,
       ),
       writeActions: readBoolean(
         features.writeActions,

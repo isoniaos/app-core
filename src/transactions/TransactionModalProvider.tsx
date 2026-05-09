@@ -7,8 +7,10 @@ import {
 } from "react";
 import { TransactionModal } from "./TransactionModal";
 import type {
+  OpenBatchTransactionModalInput,
   OpenSerialTransactionModalInput,
   OpenSingleTransactionModalInput,
+  TransactionBatchPatch,
   TransactionFlowItemPatch,
   TransactionFlowItemUpdater,
   TransactionModalState,
@@ -23,6 +25,7 @@ const INITIAL_TRANSACTION_MODAL_STATE: TransactionModalState = {
 
 export interface TransactionModalContextValue {
   readonly close: () => void;
+  readonly openBatch: (input: OpenBatchTransactionModalInput) => void;
   readonly openSerial: (input: OpenSerialTransactionModalInput) => void;
   readonly openSingle: (input: OpenSingleTransactionModalInput) => void;
   readonly reset: () => void;
@@ -32,6 +35,7 @@ export interface TransactionModalContextValue {
     itemId: string,
     update: TransactionFlowItemPatch | TransactionFlowItemUpdater,
   ) => void;
+  readonly updateBatch: (update: TransactionBatchPatch) => void;
 }
 
 export const TransactionModalContext =
@@ -59,6 +63,7 @@ export function TransactionModalProvider({
   const openSingle = useCallback((input: OpenSingleTransactionModalInput) => {
     setState({
       activeItemId: input.item.id,
+      batch: undefined,
       description: input.description,
       items: [input.item],
       mode: "single",
@@ -70,9 +75,22 @@ export function TransactionModalProvider({
   const openSerial = useCallback((input: OpenSerialTransactionModalInput) => {
     setState({
       activeItemId: input.activeItemId ?? input.items[0]?.id,
+      batch: undefined,
       description: input.description,
       items: input.items,
       mode: "serial",
+      open: true,
+      title: input.title,
+    });
+  }, []);
+
+  const openBatch = useCallback((input: OpenBatchTransactionModalInput) => {
+    setState({
+      activeItemId: input.items[0]?.id,
+      batch: input.batch,
+      description: input.description,
+      items: input.items,
+      mode: "batch",
       open: true,
       title: input.title,
     });
@@ -105,17 +123,45 @@ export function TransactionModalProvider({
     [],
   );
 
+  const updateBatch = useCallback((update: TransactionBatchPatch) => {
+    setState((current) => {
+      if (!current.batch) {
+        return current;
+      }
+
+      return {
+        ...current,
+        batch:
+          typeof update === "function"
+            ? update(current.batch)
+            : { ...current.batch, ...update },
+      };
+    });
+  }, []);
+
   const value = useMemo<TransactionModalContextValue>(
     () => ({
       close,
+      openBatch,
       openSerial,
       openSingle,
       reset,
       setActiveItem,
       state,
+      updateBatch,
       updateItem,
     }),
-    [close, openSerial, openSingle, reset, setActiveItem, state, updateItem],
+    [
+      close,
+      openBatch,
+      openSerial,
+      openSingle,
+      reset,
+      setActiveItem,
+      state,
+      updateBatch,
+      updateItem,
+    ],
   );
 
   return (

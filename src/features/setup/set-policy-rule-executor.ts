@@ -6,7 +6,6 @@ import type {
 } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import {
-  getProposalTypeChainCode,
   GOV_CORE_ABI,
   parsePolicyRuleSetLog,
 } from "../../chain/setup-contracts";
@@ -16,21 +15,19 @@ import {
   assertSuccessfulReceipt,
 } from "./receipt-parsers";
 import {
-  getPolicyMandateDependencies,
   isConfiguredAddress,
   normalizeTransactionError,
-  parsePolicyBodyIdArray,
-  parsePositiveUint64,
-  parseUint64,
-  resolveBodyReference,
-  resolvePolicyBodyReferences,
 } from "./setup-action-execution-helpers";
 import { getSetupActionExecutionPreflight } from "./setup-action-preflight";
 import type {
-  SetPolicyRulePayload,
   SetupActionExecutorContext,
   SetupActionTransaction,
 } from "./setup-action-execution-types";
+import {
+  assertPolicyDependenciesResolved,
+  buildSetPolicyRuleCallArgs,
+  buildSetPolicyRulePayload,
+} from "./setup-prepared-calls";
 
 export async function executeSetPolicyRuleAction({
   actionId,
@@ -108,16 +105,14 @@ export async function executeSetPolicyRuleAction({
     return;
   }
 
-  const unresolvedMandates = getPolicyMandateDependencies({
+  const dependencyError = assertPolicyDependenciesResolved({
+    action,
     mandateActions,
-    policy: action,
+    resolvedMandateIds,
     roleActions,
-  }).filter((mandate) => !resolvedMandateIds[mandate.actionId]);
-  if (unresolvedMandates.length > 0) {
-    setPolicyActionFailed(
-      action,
-      `Set policy rule is blocked until ${unresolvedMandates.length.toLocaleString()} related mandate action${unresolvedMandates.length === 1 ? "" : "s"} are indexed.`,
-    );
+  });
+  if (dependencyError) {
+    setPolicyActionFailed(action, dependencyError.message);
     return;
   }
 
@@ -186,15 +181,7 @@ export async function executeSetPolicyRuleAction({
       address: runtimeConfig.contracts.govCoreAddress,
       abi: GOV_CORE_ABI,
       functionName: "setPolicyRule",
-      args: [
-        payload.orgIdBigInt,
-        payload.proposalTypeCode,
-        payload.requiredApprovalBodyIdsBigInt,
-        payload.vetoBodyIdsBigInt,
-        payload.executorBodyIdBigInt,
-        payload.timelockSecondsBigInt,
-        payload.enabled,
-      ],
+      args: buildSetPolicyRuleCallArgs(payload),
       chainId: runtimeConfig.chainId,
     });
 
@@ -296,121 +283,4 @@ export async function executeSetPolicyRuleAction({
       },
     }));
   }
-}
-
-function buildSetPolicyRulePayload({
-  action,
-  bodyActions,
-  resolvedBodyIds,
-  resolvedOrgId,
-}: {
-  readonly action: SetPolicyRuleSetupAction;
-  readonly bodyActions: readonly CreateBodySetupAction[];
-  readonly resolvedBodyIds: Readonly<Record<string, string>>;
-  readonly resolvedOrgId: string;
-}): SetPolicyRulePayload | Error {
-  if (action.warnings.some((warning) => warning.severity === "error")) {
-    return new Error(
-      "Resolve this policy action's validation errors before submitting.",
-    );
-  }
-
-  if (typeof action.enabled !== "boolean") {
-    return new Error("Policy enabled state must be a boolean before submission.");
-  }
-
-  const orgIdBigInt = parsePositiveUint64(resolvedOrgId, "Resolved orgId");
-  if (orgIdBigInt instanceof Error) {
-    return orgIdBigInt;
-  }
-
-  const proposalTypeCode = getProposalTypeChainCode(action.proposalType);
-  if (proposalTypeCode === undefined) {
-    return new Error(`Unsupported proposal type: ${action.proposalType}.`);
-  }
-
-  const requiredApprovalBodyIds = resolvePolicyBodyReferences({
-    bodyActions,
-    label: "required approval body",
-    references: action.requiredApprovalBodies,
-    resolvedBodyIds,
-  });
-  if (requiredApprovalBodyIds instanceof Error) {
-    return requiredApprovalBodyIds;
-  }
-
-  const vetoBodyIds = resolvePolicyBodyReferences({
-    bodyActions,
-    label: "veto body",
-    references: action.vetoBodies,
-    resolvedBodyIds,
-  });
-  if (vetoBodyIds instanceof Error) {
-    return vetoBodyIds;
-  }
-
-  const executorBodyId = action.executorBody
-    ? resolveBodyReference({
-        bodyActions,
-        reference: action.executorBody,
-        resolvedBodyIds,
-      })
-    : undefined;
-  if (action.executorBody && !executorBodyId) {
-    return new Error(
-      "Set policy rule is blocked until the executor body action resolves to a real bodyId.",
-    );
-  }
-  if (action.enabled && !executorBodyId) {
-    return new Error(
-      "Enabled policy rules require a resolved executor body before submission.",
-    );
-  }
-
-  const requiredApprovalBodyIdsBigInt = parsePolicyBodyIdArray(
-    requiredApprovalBodyIds,
-    "Required approval bodyId",
-  );
-  if (requiredApprovalBodyIdsBigInt instanceof Error) {
-    return requiredApprovalBodyIdsBigInt;
-  }
-
-  const vetoBodyIdsBigInt = parsePolicyBodyIdArray(
-    vetoBodyIds,
-    "Veto bodyId",
-  );
-  if (vetoBodyIdsBigInt instanceof Error) {
-    return vetoBodyIdsBigInt;
-  }
-
-  const executorBodyIdBigInt = executorBodyId
-    ? parsePositiveUint64(executorBodyId, "Executor bodyId")
-    : 0n;
-  if (executorBodyIdBigInt instanceof Error) {
-    return executorBodyIdBigInt;
-  }
-
-  const timelockSecondsBigInt = parseUint64(
-    action.timelockSeconds,
-    "Policy timelock seconds",
-  );
-  if (timelockSecondsBigInt instanceof Error) {
-    return timelockSecondsBigInt;
-  }
-
-  return {
-    enabled: action.enabled,
-    executorBodyId: executorBodyId ?? "0",
-    executorBodyIdBigInt,
-    orgId: resolvedOrgId,
-    orgIdBigInt,
-    proposalType: action.proposalType,
-    proposalTypeCode,
-    requiredApprovalBodyIds,
-    requiredApprovalBodyIdsBigInt,
-    timelockSeconds: timelockSecondsBigInt.toString(),
-    timelockSecondsBigInt,
-    vetoBodyIds,
-    vetoBodyIdsBigInt,
-  };
 }
