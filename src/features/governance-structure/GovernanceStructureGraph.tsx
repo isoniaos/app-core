@@ -2,7 +2,6 @@ import "@xyflow/react/dist/style.css";
 import {
   Background,
   Controls,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -106,14 +105,6 @@ function GovernanceStructureGraphCanvas({
     >
       <Background color="#CBD5E1" gap={24} size={1} />
       <Controls fitViewOptions={{ padding: 0.18 }} showInteractive={false} />
-      <MiniMap
-        className="governance-flow-minimap"
-        maskColor="rgba(248, 247, 242, 0.72)"
-        nodeBorderRadius={8}
-        nodeColor="#E2E8F0"
-        pannable
-        zoomable
-      />
     </ReactFlow>
   );
 }

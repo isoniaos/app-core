@@ -1,4 +1,5 @@
 import type {
+  BodyDto,
   ProposalRouteExplanationDto,
   RouteBlockedReasonDto,
   RouteBodyRequirementDto,
@@ -10,6 +11,14 @@ import {
   formatChainTime,
   formatLabel,
 } from "../../utils/format";
+import {
+  formatRouteBlockedReasonMessage,
+  getApprovalBodyLabel,
+  getExecutorBodyLabel,
+  getRelatedRouteBodyLabel,
+  getVetoBodyLabel,
+  type ProposalBodyActionRole,
+} from "./proposal-body-labels";
 
 export type RouteFallbackContext = Pick<
   ProposalRouteExplanationDto,
@@ -17,6 +26,7 @@ export type RouteFallbackContext = Pick<
 >;
 
 interface RouteExplanationPanelProps {
+  readonly bodies?: readonly BodyDto[];
   readonly fallback: RouteFallbackContext;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
@@ -26,6 +36,7 @@ interface RouteExplanationPanelProps {
 type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
 
 export function RouteExplanationPanel({
+  bodies = [],
   fallback,
   route,
   routeError,
@@ -45,7 +56,7 @@ export function RouteExplanationPanel({
   const vetoCounts = getVetoCounts(route.vetoBodies);
   const blockedReasons = route.execution.blockedReasons;
   const executionTone = getExecutionTone(route);
-  const nextAction = getNextActionSummary(route);
+  const nextAction = getNextActionSummary(route, bodies);
 
   return (
     <section className="panel route-panel">
@@ -74,7 +85,7 @@ export function RouteExplanationPanel({
           <p>
             {route.execution.executable
               ? "Approvals, veto checks, and timelock state all allow execution."
-              : getBlockedSummary(blockedReasons)}
+              : getBlockedSummary(blockedReasons, route, bodies)}
           </p>
         </div>
         <StatusBadge tone={executionTone}>
@@ -119,7 +130,11 @@ export function RouteExplanationPanel({
             label="Executor"
             value={
               route.execution.executorBody
-                ? `Body #${route.execution.executorBody}`
+                ? getExecutorBodyLabel({
+                    bodies,
+                    bodyId: route.execution.executorBody,
+                    route,
+                  })
                 : "Not reported"
             }
             detail="Body allowed to execute when the route is eligible"
@@ -144,7 +159,7 @@ export function RouteExplanationPanel({
         ) : (
           <div className="route-list">
             {route.requiredApprovalBodies.map((body) => (
-              <ApprovalRow body={body} key={body.bodyId} />
+              <ApprovalRow bodies={bodies} body={body} key={body.bodyId} />
             ))}
           </div>
         )}
@@ -162,7 +177,7 @@ export function RouteExplanationPanel({
         ) : (
           <div className="route-list">
             {route.vetoBodies.map((body) => (
-              <VetoRow body={body} key={body.bodyId} />
+              <VetoRow bodies={bodies} body={body} key={body.bodyId} />
             ))}
           </div>
         )}
@@ -215,7 +230,11 @@ export function RouteExplanationPanel({
             </strong>
             <span>
               {route.execution.executorBody
-                ? `Executor body #${route.execution.executorBody}`
+                ? `${getExecutorBodyLabel({
+                    bodies,
+                    bodyId: route.execution.executorBody,
+                    route,
+                  })} can execute when the route is eligible`
                 : "No executor body was reported by the route explainer."}
             </span>
           </div>
@@ -234,7 +253,12 @@ export function RouteExplanationPanel({
         ) : (
           <div className="blocked-reason-list">
             {blockedReasons.map((reason) => (
-              <BlockedReason reason={reason} key={getReasonKey(reason)} />
+              <BlockedReason
+                bodies={bodies}
+                reason={reason}
+                route={route}
+                key={getReasonKey(reason)}
+              />
             ))}
           </div>
         )}
@@ -261,7 +285,11 @@ export function RouteExplanationPanel({
               label="Executor body"
               value={
                 route.execution.executorBody
-                  ? `Body #${route.execution.executorBody}`
+                  ? getExecutorBodyLabel({
+                      bodies,
+                      bodyId: route.execution.executorBody,
+                      route,
+                    })
                   : "Not reported"
               }
             />
@@ -373,14 +401,16 @@ function RouteSummaryItem({
 }
 
 function ApprovalRow({
+  bodies,
   body,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly body: RouteBodyRequirementDto;
 }): JSX.Element {
   return (
     <div className="route-list-row">
       <div className="route-row-main">
-        <strong>{getBodyName(body.bodyName, body.bodyId)}</strong>
+        <strong>{getApprovalBodyLabel({ bodies, body })}</strong>
         <span>
           {body.approvedBy
             ? `${formatAddress(body.approvedBy)} - ${formatChainTime(
@@ -397,11 +427,17 @@ function ApprovalRow({
   );
 }
 
-function VetoRow({ body }: { readonly body: RouteBodyVetoDto }): JSX.Element {
+function VetoRow({
+  bodies,
+  body,
+}: {
+  readonly bodies: readonly BodyDto[];
+  readonly body: RouteBodyVetoDto;
+}): JSX.Element {
   return (
     <div className="route-list-row">
       <div className="route-row-main">
-        <strong>{getBodyName(body.bodyName, body.bodyId)}</strong>
+        <strong>{getVetoBodyLabel({ bodies, body })}</strong>
         <span>
           {body.vetoedBy
             ? `${formatAddress(body.vetoedBy)} - ${formatChainTime(
@@ -434,11 +470,16 @@ function RouteEmptyState({
 }
 
 function BlockedReason({
+  bodies,
   reason,
+  route,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly reason: RouteBlockedReasonDto;
+  readonly route: ProposalRouteExplanationDto;
 }): JSX.Element {
   const tone = getBlockedReasonTone(reason);
+  const role = getBlockedReasonBodyRole(reason);
 
   return (
     <div className={`blocked-reason blocked-reason-${tone}`}>
@@ -446,9 +487,24 @@ function BlockedReason({
         <strong>{formatLabel(reason.code)}</strong>
         <StatusBadge tone={tone}>{reason.code}</StatusBadge>
       </div>
-      <span>{reason.message}</span>
+      <span>
+        {formatRouteBlockedReasonMessage({
+          bodies,
+          reason,
+          role,
+          route,
+        })}
+      </span>
       {reason.relatedBodyId ? (
-        <small>Related body #{reason.relatedBodyId}</small>
+        <small>
+          Related{" "}
+          {getRelatedRouteBodyLabel({
+            bodies,
+            bodyId: reason.relatedBodyId,
+            route,
+            role,
+          })}
+        </small>
       ) : null}
     </div>
   );
@@ -511,13 +567,21 @@ function getBlockedReasonTone(reason: RouteBlockedReasonDto): BadgeTone {
 
 function getBlockedSummary(
   blockedReasons: readonly RouteBlockedReasonDto[],
+  route: ProposalRouteExplanationDto,
+  bodies: readonly BodyDto[],
 ): string {
   if (blockedReasons.length === 0) {
     return "The route explainer has not reported a blocker, but execution is not currently eligible.";
   }
 
   if (blockedReasons.length === 1) {
-    return blockedReasons[0].message;
+    return formatRouteBlockedReasonMessage({
+      bodies,
+      reason: blockedReasons[0],
+      role:
+        blockedReasons[0].code === "missing_approval" ? "Approver" : undefined,
+      route,
+    });
   }
 
   return `${blockedReasons.length} blockers must be resolved before execution.`;
@@ -533,7 +597,10 @@ function getTimelockSummary(route: ProposalRouteExplanationDto): string {
     : `${formatDuration(route.timelock.seconds)} pending`;
 }
 
-function getNextActionSummary(route: ProposalRouteExplanationDto): {
+function getNextActionSummary(
+  route: ProposalRouteExplanationDto,
+  bodies: readonly BodyDto[],
+): {
   readonly detail: string;
   readonly value: string;
 } {
@@ -541,7 +608,11 @@ function getNextActionSummary(route: ProposalRouteExplanationDto): {
     return {
       value: "Execute",
       detail: route.execution.executorBody
-        ? `Executor body #${route.execution.executorBody} can execute`
+        ? `${getExecutorBodyLabel({
+            bodies,
+            bodyId: route.execution.executorBody,
+            route,
+          })} can execute`
         : "Route is executable",
     };
   }
@@ -652,11 +723,15 @@ function formatDuration(value: string): string {
   return parts.join(" ");
 }
 
-function getBodyName(bodyName: string, bodyId: string): string {
-  const trimmed = bodyName.trim();
-  return trimmed.length > 0 ? trimmed : `Body #${bodyId}`;
-}
-
 function getReasonKey(reason: RouteBlockedReasonDto): string {
   return `${reason.code}:${reason.relatedBodyId ?? "none"}:${reason.message}`;
+}
+
+function getBlockedReasonBodyRole(
+  reason: RouteBlockedReasonDto,
+): ProposalBodyActionRole | undefined {
+  if (reason.code === "missing_approval") {
+    return "Approver";
+  }
+  return undefined;
 }

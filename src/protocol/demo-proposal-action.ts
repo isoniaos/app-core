@@ -22,14 +22,14 @@ export function buildDemoExecution({
   if (!demoTargetAddress) {
     return {
       ready: false,
-      message: "DemoTarget address is missing from runtime config.",
+      message: "Configured target address is missing from runtime config.",
     };
   }
 
   if (!sameAddress(proposal.targetAddress, demoTargetAddress)) {
     return {
       ready: false,
-      message: "Only proposals targeting the configured DemoTarget can execute here.",
+      message: "Only proposals targeting the current configured target can execute here.",
     };
   }
 
@@ -45,7 +45,7 @@ export function buildDemoExecution({
     return { ready: false, message: orgId.message };
   }
 
-  const parsedDemoNumber = parseUint(demoNumber.trim(), "Demo number");
+  const parsedDemoNumber = parseUint(demoNumber.trim(), "setNumber value");
   if (parsedDemoNumber instanceof Error) {
     return { ready: false, message: parsedDemoNumber.message };
   }
@@ -60,14 +60,15 @@ export function buildDemoExecution({
     return {
       dataHash: action.dataHash,
       ready: false,
-      message: "Generated DemoTarget.setNumber hash does not match the proposal data hash.",
+      message:
+        "Generated setNumber action hash does not match the proposal data hash.",
     };
   }
 
   return {
     actionData: action.actionData,
     dataHash: action.dataHash,
-    message: "Generated DemoTarget.setNumber action matches this proposal.",
+    message: "Generated setNumber action matches this proposal.",
     ready: true,
     value,
   };
@@ -94,7 +95,7 @@ export function inferDemoNumber({
   );
 
   return candidates.find((candidate) => {
-    const parsed = parseUint(candidate, "Demo number");
+    const parsed = parseUint(candidate, "setNumber value");
     if (parsed instanceof Error) {
       return false;
     }

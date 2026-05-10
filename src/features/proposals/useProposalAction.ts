@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type {
   Address,
@@ -11,6 +11,7 @@ import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { GOV_PROPOSALS_ABI } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import { useTransactionModal, type TransactionFlowStage } from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
 
 export type ProposalActionKind =
@@ -53,6 +54,7 @@ export type ProposalActionRequest =
 export interface ProposalActionTransaction {
   readonly stage: ProposalActionStage;
   readonly action?: ProposalActionKind;
+  readonly bodyId?: string;
   readonly txHash?: `0x${string}`;
   readonly error?: string;
 }
@@ -90,6 +92,16 @@ export function useProposalAction({
   const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
+  const {
+    openSingle: openTransactionModal,
+    reset: resetTransactionModal,
+    updateItem: updateTransactionModalItem,
+  } = useTransactionModal();
+  const activeTransactionModalItemId = useRef<string | undefined>(undefined);
+  const executeActionRef = useRef<
+    | ((request: ProposalActionRequest, itemId: string) => Promise<void>)
+    | undefined
+  >(undefined);
   const [transaction, setTransaction] = useState<ProposalActionTransaction>({
     stage: "idle",
   });
@@ -122,70 +134,97 @@ export function useProposalAction({
 
   const reset = useCallback(() => {
     setTransaction({ stage: "idle" });
-  }, []);
+    activeTransactionModalItemId.current = undefined;
+    resetTransactionModal();
+  }, [resetTransactionModal]);
 
-  const runAction = useCallback(
-    async (request: ProposalActionRequest): Promise<void> => {
-      if (!runtimeConfig.features.writeActions) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: "Proposal write actions are disabled by runtime config.",
+  const executeAction = useCallback(
+    async (
+      request: ProposalActionRequest,
+      itemId: string,
+    ): Promise<void> => {
+      activeTransactionModalItemId.current = itemId;
+      const bodyId = getRequestBodyId(request);
+      const setActionTransaction = (
+        next: ProposalActionTransaction,
+        patch: {
+          readonly retry?: () => Promise<void> | void;
+          readonly retryLabel?: string;
+        } = {},
+      ): void => {
+        setTransaction(next);
+        updateTransactionModalItem(itemId, {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          error: next.error,
+          retry: undefined,
+          retryLabel: undefined,
+          stage: mapProposalActionStageToTransactionFlowStage(next.stage),
+          txHash: next.txHash,
+          ...patch,
         });
+      };
+      const fail = (
+        error: string,
+        txHash?: `0x${string}`,
+      ): void => {
+        setActionTransaction(
+          {
+            action: request.kind,
+            bodyId,
+            error,
+            stage: "failed",
+            txHash,
+          },
+          {
+            retry: () => executeActionRef.current?.(request, itemId),
+            retryLabel: `Retry ${actionLabel(request.kind)}`,
+          },
+        );
+      };
+
+      if (!runtimeConfig.features.writeActions) {
+        fail("Proposal write actions are disabled by runtime config.");
         return;
       }
 
       if (!account.isConnected || !account.address) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: "Wallet is not connected.",
-        });
+        fail("Wallet is not connected.");
         return;
       }
 
       if (account.chainId !== runtimeConfig.chainId) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: `Wallet is connected to chain ${String(
+        fail(
+          `Wallet is connected to chain ${String(
             account.chainId,
           )}; expected chain ${runtimeConfig.chainId}.`,
-        });
+        );
         return;
       }
 
       if (!isConfiguredAddress(runtimeConfig.contracts.govProposalsAddress)) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: "GovProposals contract address is missing from runtime config.",
-        });
+        fail("GovProposals contract address is missing from runtime config.");
         return;
       }
 
       if (!publicClient) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: "Wallet client is unavailable for the configured chain.",
-        });
+        fail("Wallet client is unavailable for the configured chain.");
         return;
       }
 
       const parsedIds = parseActionIds(proposal, request);
       if (parsedIds instanceof Error) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: parsedIds.message,
-        });
+        fail(parsedIds.message);
         return;
       }
 
+      let txHash: `0x${string}` | undefined;
       try {
-        setTransaction({ action: request.kind, stage: "wallet_pending" });
-        const txHash = await writeProposalAction({
+        setActionTransaction({
+          action: request.kind,
+          bodyId,
+          stage: "wallet_pending",
+        });
+        txHash = await writeProposalAction({
           address: runtimeConfig.contracts.govProposalsAddress,
           chainId: runtimeConfig.chainId,
           ids: parsedIds,
@@ -193,15 +232,26 @@ export function useProposalAction({
           writeContractAsync,
         });
 
-        setTransaction({ action: request.kind, stage: "submitted", txHash });
-        setTransaction({ action: request.kind, stage: "confirming", txHash });
+        setActionTransaction({
+          action: request.kind,
+          bodyId,
+          stage: "submitted",
+          txHash,
+        });
+        setActionTransaction({
+          action: request.kind,
+          bodyId,
+          stage: "confirming",
+          txHash,
+        });
         const receipt = await publicClient.waitForTransactionReceipt({
           hash: txHash,
         });
 
         assertSuccessfulReceipt(receipt);
-        setTransaction({
+        setActionTransaction({
           action: request.kind,
+          bodyId,
           stage: "confirmed_waiting_indexer",
           txHash,
         });
@@ -213,18 +263,15 @@ export function useProposalAction({
           request,
         });
 
-        setTransaction({
+        setActionTransaction({
           action: request.kind,
+          bodyId,
           stage: "indexed",
           txHash,
         });
         onIndexed?.(indexed);
       } catch (error: unknown) {
-        setTransaction({
-          action: request.kind,
-          stage: "failed",
-          error: normalizeTransactionError(error),
-        });
+        fail(normalizeTransactionError(error), txHash);
       }
     },
     [
@@ -235,11 +282,38 @@ export function useProposalAction({
       onIndexed,
       proposal,
       publicClient,
+      runtimeConfig.blockExplorerUrl,
       runtimeConfig.chainId,
       runtimeConfig.contracts.govProposalsAddress,
       runtimeConfig.features.writeActions,
+      updateTransactionModalItem,
       writeContractAsync,
     ],
+  );
+
+  executeActionRef.current = executeAction;
+
+  const runAction = useCallback(
+    async (request: ProposalActionRequest): Promise<void> => {
+      const itemId = buildProposalActionTransactionModalItemId(proposal, request);
+      const bodyId = getRequestBodyId(request);
+      activeTransactionModalItemId.current = itemId;
+      setTransaction({ action: request.kind, bodyId, stage: "idle" });
+      openTransactionModal({
+        description: getProposalActionModalDescription(request),
+        item: {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          description: getProposalActionModalItemDescription(request),
+          execute: () => executeActionRef.current?.(request, itemId),
+          executeLabel: actionLabel(request.kind),
+          id: itemId,
+          stage: "idle",
+          title: actionLabel(request.kind),
+        },
+        title: `${actionLabel(request.kind)} proposal`,
+      });
+    },
+    [openTransactionModal, proposal, runtimeConfig.blockExplorerUrl],
   );
 
   return { busy, readiness, reset, runAction, transaction };
@@ -249,6 +323,61 @@ interface ParsedActionIds {
   readonly orgId: bigint;
   readonly proposalId: bigint;
   readonly bodyId?: bigint;
+}
+
+function buildProposalActionTransactionModalItemId(
+  proposal: ProposalDto,
+  request: ProposalActionRequest,
+): string {
+  return [
+    "proposal-action",
+    proposal.orgId,
+    proposal.proposalId,
+    request.kind,
+    getRequestBodyId(request) ?? "route",
+  ].join(":");
+}
+
+function getProposalActionModalDescription(
+  request: ProposalActionRequest,
+): string {
+  if (request.kind === "approve") {
+    return "Approve this proposal through the selected governance body.";
+  }
+  if (request.kind === "veto") {
+    return "Record a veto through the selected governance body.";
+  }
+  if (request.kind === "queue") {
+    return "Queue the approved proposal and wait for Control Plane indexing.";
+  }
+  if (request.kind === "execute") {
+    return "Execute the proposal action and wait for Control Plane indexing.";
+  }
+  return "Cancel this proposal and wait for Control Plane indexing.";
+}
+
+function getProposalActionModalItemDescription(
+  request: ProposalActionRequest,
+): string {
+  if (request.kind === "approve" || request.kind === "veto") {
+    return `Body #${request.bodyId}`;
+  }
+  return "Proposal lifecycle transaction";
+}
+
+function getRequestBodyId(request: ProposalActionRequest): string | undefined {
+  return request.kind === "approve" || request.kind === "veto"
+    ? request.bodyId
+    : undefined;
+}
+
+function mapProposalActionStageToTransactionFlowStage(
+  stage: ProposalActionStage,
+): TransactionFlowStage {
+  if (stage === "indexed") {
+    return "completed";
+  }
+  return stage;
 }
 
 function parseActionIds(

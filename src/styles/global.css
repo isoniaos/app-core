@@ -189,7 +189,7 @@ td {
 .brand-name {
   overflow: hidden;
   font-size: 0.98rem;
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -230,7 +230,7 @@ td {
 }
 
 .iso-logo-text {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .brand-logo {
@@ -245,7 +245,7 @@ td {
   border-radius: var(--iso-radius-md);
   background: var(--iso-color-primary);
   color: var(--iso-color-primary-foreground);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .shell-body {
@@ -379,7 +379,7 @@ td {
 .eyebrow {
   color: var(--iso-color-primary);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -469,6 +469,9 @@ td {
   cursor: pointer;
   font-weight: 700;
   white-space: nowrap;
+  font-size: 0.9em;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
 }
 
 .button:hover {
@@ -573,6 +576,13 @@ td {
 .field-required-marker {
   margin-left: 0.2rem;
   color: var(--iso-color-danger);
+}
+
+.form-field-error-message {
+  color: var(--iso-color-danger);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .form-field input,
@@ -786,7 +796,7 @@ button.address-display {
   color: var(--iso-state-color, var(--iso-color-muted));
   cursor: pointer;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .address-copy-button:hover {
@@ -972,7 +982,7 @@ button.address-display {
   background: transparent;
   color: var(--iso-color-muted);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .segment:last-child {
@@ -1162,8 +1172,8 @@ button.address-display {
 .technical-detail-grid dt,
 .context-detail-list dt {
   color: var(--iso-color-muted);
-  font-size: 0.72rem;
-  font-weight: 820;
+  font-size: 0.8rem;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -1175,7 +1185,7 @@ button.address-display {
   overflow-wrap: anywhere;
   color: var(--iso-color-foreground);
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: 400;
 }
 
 .technical-detail-grid dd,
@@ -1510,18 +1520,69 @@ button.address-display {
   gap: 0.25rem;
 }
 
+.proposal-action-disabled-reason {
+  border-left: 3px solid var(--iso-color-border);
+  padding-left: 0.7rem;
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.proposal-action-disabled-reason-warning {
+  border-left-color: var(--iso-color-warning);
+}
+
+.proposal-action-disabled-reason-danger {
+  border-left-color: var(--iso-color-danger);
+  color: var(--iso-color-danger);
+}
+
 .proposal-action-lifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
   border-top: 1px solid var(--iso-color-border);
+  padding-top: 1rem;
 }
 
-.proposal-action-lifecycle-header {
-  border-bottom: 0;
+.proposal-action-lifecycle > div:first-child,
+.proposal-transaction-status-card > div:first-child {
+  display: grid;
+  min-width: min(100%, 320px);
+  gap: 0.25rem;
 }
 
-.proposal-transaction-idle {
-  padding: 0 1rem 1rem;
+.proposal-action-lifecycle strong,
+.proposal-transaction-status-card strong {
+  font-size: 0.9rem;
+}
+
+.proposal-action-lifecycle span,
+.proposal-transaction-status-card span {
   color: var(--iso-color-muted);
   font-size: 0.84rem;
+}
+
+.proposal-action-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.proposal-transaction-status-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  background: var(--iso-color-surface-subtle);
+  padding: 0.85rem 1rem;
 }
 
 .proposal-transaction-details {
@@ -1533,7 +1594,7 @@ button.address-display {
   padding: 0.75rem 1rem;
   color: var(--iso-color-muted);
   font-size: 0.84rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .proposal-transaction-details[open] summary {
@@ -1868,7 +1929,7 @@ button.address-display {
   background: var(--iso-color-surface-subtle);
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .transaction-modal-item-complete {
@@ -1888,7 +1949,7 @@ button.address-display {
   color: var(--iso-color-muted);
   cursor: pointer;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -2021,7 +2082,7 @@ button.address-display {
   border-radius: 999px;
   padding: 0.12rem 0.5rem;
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .wallet-diagnostic-info {
@@ -2118,7 +2179,7 @@ button.address-display {
 .wallet-chip-address {
   font-family: var(--iso-font-mono);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .wallet-chip-chain {
@@ -2157,7 +2218,7 @@ button.address-display {
   background: color-mix(in srgb, var(--iso-color-surface-raised) 84%, transparent);
   color: var(--iso-color-foreground);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .system-status:hover,
@@ -2207,13 +2268,15 @@ button.address-display {
 .badge,
 .chip {
   display: inline-flex;
-  min-height: 24px;
+  min-height: 22px;
   align-items: center;
   border-radius: var(--iso-radius-sm);
   padding: 0.12rem 0.5rem;
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: 0.70rem;
+  font-weight: 700;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .badge-default {
@@ -2251,7 +2314,7 @@ button.address-display {
   border-radius: 999px;
   padding: 0.12rem 0.58rem;
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -2375,14 +2438,15 @@ button.address-display {
 .detail-list dt {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.01rem;
 }
 
 .detail-list dd {
   margin: 0.22rem 0 0;
   overflow-wrap: anywhere;
-  font-weight: 650;
+  font-weight: 400;
 }
 
 .mono-value {
@@ -2674,7 +2738,7 @@ button.address-display {
 .route-summary-item span,
 .route-technical-grid dt {
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -3340,7 +3404,7 @@ button.address-display {
 .setup-validation-count span {
   color: var(--iso-color-muted);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -3479,7 +3543,7 @@ button.address-display {
   background: var(--iso-color-surface-subtle);
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .setup-action-meta {
@@ -3751,14 +3815,14 @@ button.address-display {
 .setup-execution-summary dt {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
 .setup-execution-summary dd {
   margin: 0;
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .setup-execution-action {
@@ -3834,7 +3898,7 @@ button.address-display {
 .setup-transaction-hash-label {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -3888,7 +3952,7 @@ button.address-display {
 .setup-transaction-raw-error span {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -4144,12 +4208,6 @@ button.address-display {
   stroke: var(--iso-color-primary-strong);
 }
 
-.governance-flow-minimap {
-  border: 1px solid var(--iso-color-border);
-  border-radius: var(--iso-radius-md);
-  background: var(--iso-color-surface);
-}
-
 .governance-graph-footer {
   display: flex;
   flex-wrap: wrap;
@@ -4255,7 +4313,7 @@ button.address-display {
 .governance-structure-detail-list dd {
   margin: 0;
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 700;
   overflow-wrap: anywhere;
   text-align: right;
 }

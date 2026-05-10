@@ -44,8 +44,10 @@ export interface TransactionFlowItem extends TransactionFlowHash {
   readonly description?: string;
   readonly error?: string;
   readonly execute?: () => Promise<void> | void;
+  readonly executeLabel?: string;
   readonly id: string;
   readonly retry?: () => Promise<void> | void;
+  readonly retryLabel?: string;
   readonly stage: TransactionFlowItemStage;
   readonly title: string;
 }

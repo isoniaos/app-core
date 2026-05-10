@@ -1,5 +1,5 @@
-import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type { Address, Bytes32Hash, ProposalDto } from "@isonia/types";
 import { ProposalType } from "@isonia/types";
@@ -18,9 +18,9 @@ import {
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
+import { useTransactionModal, type TransactionFlowStage } from "../../transactions";
 import { formatAddress, formatLabel } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
-import { SetupTransactionHash } from "../setup/SetupTransactionStatus";
 import {
   useWalletConnection,
   type WalletConnection,
@@ -48,6 +48,17 @@ interface FormState {
   readonly dataHash: string;
 }
 
+type ProposalFormField =
+  | "proposalType"
+  | "title"
+  | "targetAddress"
+  | "value"
+  | "demoNumber"
+  | "dataHash";
+
+type ProposalFormErrors = Partial<Record<ProposalFormField, string>>;
+type ProposalFormTouched = Partial<Record<ProposalFormField, boolean>>;
+
 interface TransactionState {
   readonly stage: TransactionStage;
   readonly txHash?: `0x${string}`;
@@ -74,8 +85,13 @@ export function CreateProposalPage(): JSX.Element {
   const account = useWalletConnection();
   const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
   const { writeContractAsync } = useWriteContract();
+  const {
+    openSingle: openTransactionModal,
+    updateItem: updateTransactionModalItem,
+  } = useTransactionModal();
   const orgId = requireParam(useParams().orgId, "orgId");
   const demoTargetAddress = runtimeConfig.contracts.demoTargetAddress;
+  const activeTransactionModalItemId = useRef<string | undefined>(undefined);
   const [form, setForm] = useState<FormState>(() => ({
     proposalType: ProposalType.Standard,
     title: "",
@@ -83,9 +99,11 @@ export function CreateProposalPage(): JSX.Element {
     targetMode: demoTargetAddress ? "demo" : "custom",
     targetAddress: "",
     value: "0",
-    demoNumber: "101",
+    demoNumber: "",
     dataHash: "",
   }));
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState<ProposalFormTouched>({});
   const [transaction, setTransaction] = useState<TransactionState>({
     stage: "idle",
   });
@@ -96,6 +114,14 @@ export function CreateProposalPage(): JSX.Element {
   const demoActionPreview = useMemo(
     () => previewDemoAction(orgId, form.demoNumber),
     [orgId, form.demoNumber],
+  );
+  const formErrors = useMemo(
+    () => validateForm(form, orgId, demoTargetAddress),
+    [demoTargetAddress, form, orgId],
+  );
+  const visibleErrors = useMemo(
+    () => getVisibleErrors(formErrors, touched, submitAttempted),
+    [formErrors, submitAttempted, touched],
   );
   const blockingNotice = getBlockingNotice({
     account,
@@ -109,40 +135,155 @@ export function CreateProposalPage(): JSX.Element {
     transaction.stage === "confirming" ||
     transaction.stage === "confirmed_waiting_indexer";
 
+  const markTouched = (field: ProposalFormField): void => {
+    setTouched((current) => ({ ...current, [field]: true }));
+  };
+
+  const executeCreateProposal = useCallback(
+    async (payload: CreateProposalPayload, itemId: string): Promise<void> => {
+      activeTransactionModalItemId.current = itemId;
+      const setCreateTransaction = (
+        next: TransactionState,
+        patch: {
+          readonly retry?: () => Promise<void> | void;
+          readonly retryLabel?: string;
+        } = {},
+      ): void => {
+        setTransaction(next);
+        updateTransactionModalItem(itemId, {
+          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          error: next.error,
+          retry: undefined,
+          retryLabel: undefined,
+          stage: mapCreateProposalStageToTransactionFlowStage(next.stage),
+          txHash: next.txHash,
+          ...patch,
+        });
+      };
+      const fail = (
+        error: string,
+        txHash?: `0x${string}`,
+        proposalId?: string,
+      ): void => {
+        setCreateTransaction(
+          {
+            error,
+            proposalId,
+            stage: "failed",
+            txHash,
+          },
+          {
+            retry: () => executeCreateProposal(payload, itemId),
+            retryLabel: "Retry create",
+          },
+        );
+      };
+
+      if (!writeFlowEnabled) {
+        fail("Create proposal is disabled by runtime config.");
+        return;
+      }
+
+      if (!account.isConnected || !account.address) {
+        fail("Wallet is not connected.");
+        return;
+      }
+
+      if (account.chainId !== runtimeConfig.chainId) {
+        fail(
+          `Wallet is connected to chain ${String(
+            account.chainId,
+          )}; expected chain ${runtimeConfig.chainId}.`,
+        );
+        return;
+      }
+
+      if (!publicClient) {
+        fail("Wallet client is unavailable for the configured chain.");
+        return;
+      }
+
+      let txHash: `0x${string}` | undefined;
+      let proposalId: string | undefined;
+      try {
+        setCreateTransaction({ stage: "wallet_pending" });
+        txHash = await writeContractAsync({
+          address: runtimeConfig.contracts.govProposalsAddress,
+          abi: GOV_PROPOSALS_ABI,
+          functionName: "createProposal",
+          args: [
+            payload.orgId,
+            payload.proposalTypeCode,
+            payload.targetAddress,
+            payload.value,
+            payload.dataHash,
+            payload.metadataUri,
+          ],
+          chainId: runtimeConfig.chainId,
+        });
+
+        setCreateTransaction({ stage: "submitted", txHash });
+        setCreateTransaction({ stage: "confirming", txHash });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+
+        if (receipt.status !== "success") {
+          throw new Error("Transaction failed on-chain.");
+        }
+
+        const created = parseProposalCreatedLog(
+          receipt,
+          runtimeConfig.contracts.govProposalsAddress,
+        );
+
+        if (!created || created.orgId !== orgId) {
+          throw new Error(
+            "Transaction confirmed, but ProposalCreated was not found in the receipt.",
+          );
+        }
+
+        proposalId = created.proposalId;
+        setCreateTransaction({
+          stage: "confirmed_waiting_indexer",
+          txHash,
+          proposalId: created.proposalId,
+        });
+        await waitForIndexedProposal(client, orgId, created.proposalId);
+
+        setCreateTransaction({
+          stage: "indexed",
+          txHash,
+          proposalId: created.proposalId,
+        });
+        await delay(350);
+        navigate(`/orgs/${orgId}/proposals/${created.proposalId}`);
+      } catch (error: unknown) {
+        fail(normalizeTransactionError(error), txHash, proposalId);
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      account.isConnected,
+      client,
+      navigate,
+      orgId,
+      publicClient,
+      runtimeConfig.blockExplorerUrl,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govProposalsAddress,
+      updateTransactionModalItem,
+      writeContractAsync,
+      writeFlowEnabled,
+    ],
+  );
+
   async function submitProposal(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!writeFlowEnabled) {
-      setTransaction({
-        stage: "failed",
-        error: "Create proposal is disabled by runtime config.",
-      });
-      return;
-    }
-
-    if (!account.isConnected || !account.address) {
-      setTransaction({
-        stage: "failed",
-        error: "Wallet is not connected.",
-      });
-      return;
-    }
-
-    if (account.chainId !== runtimeConfig.chainId) {
-      setTransaction({
-        stage: "failed",
-        error: `Wallet is connected to chain ${String(
-          account.chainId,
-        )}; expected chain ${runtimeConfig.chainId}.`,
-      });
-      return;
-    }
-
-    if (!publicClient) {
-      setTransaction({
-        stage: "failed",
-        error: "Wallet client is unavailable for the configured chain.",
-      });
+    if (Object.keys(formErrors).length > 0) {
       return;
     }
 
@@ -152,64 +293,23 @@ export function CreateProposalPage(): JSX.Element {
       return;
     }
 
-    try {
-      setTransaction({ stage: "wallet_pending" });
-      const txHash = await writeContractAsync({
-        address: runtimeConfig.contracts.govProposalsAddress,
-        abi: GOV_PROPOSALS_ABI,
-        functionName: "createProposal",
-        args: [
-          payload.orgId,
-          payload.proposalTypeCode,
-          payload.targetAddress,
-          payload.value,
-          payload.dataHash,
-          payload.metadataUri,
-        ],
-        chainId: runtimeConfig.chainId,
-      });
-
-      setTransaction({ stage: "submitted", txHash });
-      setTransaction({ stage: "confirming", txHash });
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-      });
-
-      if (receipt.status !== "success") {
-        throw new Error("Transaction failed on-chain.");
-      }
-
-      const created = parseProposalCreatedLog(
-        receipt,
-        runtimeConfig.contracts.govProposalsAddress,
-      );
-
-      if (!created || created.orgId !== orgId) {
-        throw new Error(
-          "Transaction confirmed, but ProposalCreated was not found in the receipt.",
-        );
-      }
-
-      setTransaction({
-        stage: "confirmed_waiting_indexer",
-        txHash,
-        proposalId: created.proposalId,
-      });
-      await waitForIndexedProposal(client, orgId, created.proposalId);
-
-      setTransaction({
-        stage: "indexed",
-        txHash,
-        proposalId: created.proposalId,
-      });
-      await delay(350);
-      navigate(`/orgs/${orgId}/proposals/${created.proposalId}`);
-    } catch (error: unknown) {
-      setTransaction({
-        stage: "failed",
-        error: normalizeTransactionError(error),
-      });
-    }
+    const itemId = buildCreateProposalTransactionModalItemId(orgId);
+    activeTransactionModalItemId.current = itemId;
+    setTransaction({ stage: "idle" });
+    openTransactionModal({
+      description:
+        "Create the proposal on-chain, then wait for Control Plane to index the ProposalCreated event.",
+      item: {
+        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        description: `${formatLabel(form.proposalType)} proposal for org #${orgId}`,
+        execute: () => executeCreateProposal(payload, itemId),
+        executeLabel: "Create",
+        id: itemId,
+        stage: "idle",
+        title: "Create proposal",
+      },
+      title: "Create proposal",
+    });
   }
 
   return (
@@ -247,10 +347,11 @@ export function CreateProposalPage(): JSX.Element {
             </div>
           </div>
           <div className="form-grid">
-            <label className="form-field">
-              <span>Proposal type</span>
+            <label className={formFieldClassName(visibleErrors.proposalType)}>
+              <RequiredLabel>Proposal type</RequiredLabel>
               <select
                 value={form.proposalType}
+                onBlur={() => markTouched("proposalType")}
                 onChange={(event) =>
                   setForm({
                     ...form,
@@ -264,19 +365,22 @@ export function CreateProposalPage(): JSX.Element {
                   </option>
                 ))}
               </select>
+              <FieldError message={visibleErrors.proposalType} />
             </label>
 
-            <label className="form-field">
-              <span>Title</span>
+            <label className={formFieldClassName(visibleErrors.title)}>
+              <RequiredLabel>Title</RequiredLabel>
               <input
                 autoComplete="off"
                 maxLength={120}
                 type="text"
                 value={form.title}
+                onBlur={() => markTouched("title")}
                 onChange={(event) =>
                   setForm({ ...form, title: event.target.value })
                 }
               />
+              <FieldError message={visibleErrors.title} />
             </label>
 
             <label className="form-field form-field-wide">
@@ -297,10 +401,9 @@ export function CreateProposalPage(): JSX.Element {
         <section className="panel">
           <div className="panel-header">
             <div>
-              <h2>Action Anchor</h2>
+              <h2>Execution Action</h2>
               <p className="panel-subtitle">
-                Demo mode anchors DemoTarget.setNumber; custom mode accepts an
-                existing target and data hash only.
+                Store the target, value, and data hash for this proposal.
               </p>
             </div>
           </div>
@@ -314,20 +417,20 @@ export function CreateProposalPage(): JSX.Element {
                   type="button"
                   onClick={() => setForm({ ...form, targetMode: "demo" })}
                 >
-                  Demo target
+                  Current configured target
                 </button>
                 <button
                   className={segmentClassName(form.targetMode === "custom")}
                   type="button"
                   onClick={() => setForm({ ...form, targetMode: "custom" })}
                 >
-                  Custom target
+                  Custom data hash
                 </button>
               </div>
             </div>
 
-            <label className="form-field form-field-wide">
-              <span>Target address</span>
+            <label className={formFieldClassName(visibleErrors.targetAddress, true)}>
+              <RequiredLabel>Target address</RequiredLabel>
               <input
                 autoComplete="off"
                 readOnly={form.targetMode === "demo"}
@@ -340,35 +443,41 @@ export function CreateProposalPage(): JSX.Element {
                 onChange={(event) =>
                   setForm({ ...form, targetAddress: event.target.value })
                 }
+                onBlur={() => markTouched("targetAddress")}
               />
+              <FieldError message={visibleErrors.targetAddress} />
             </label>
 
-            <label className="form-field">
-              <span>Value</span>
+            <label className={formFieldClassName(visibleErrors.value)}>
+              <RequiredLabel>Value (wei)</RequiredLabel>
               <input
                 inputMode="numeric"
                 min="0"
                 type="number"
                 value={form.value}
+                onBlur={() => markTouched("value")}
                 onChange={(event) =>
                   setForm({ ...form, value: event.target.value })
                 }
               />
+              <FieldError message={visibleErrors.value} />
             </label>
 
             {form.targetMode === "demo" ? (
               <>
-                <label className="form-field">
-                  <span>Demo number</span>
+                <label className={formFieldClassName(visibleErrors.demoNumber)}>
+                  <RequiredLabel>setNumber value</RequiredLabel>
                   <input
                     inputMode="numeric"
                     min="0"
                     type="number"
                     value={form.demoNumber}
+                    onBlur={() => markTouched("demoNumber")}
                     onChange={(event) =>
                       setForm({ ...form, demoNumber: event.target.value })
                     }
                   />
+                  <FieldError message={visibleErrors.demoNumber} />
                 </label>
                 <label className="form-field form-field-wide">
                   <span>Data hash</span>
@@ -381,24 +490,26 @@ export function CreateProposalPage(): JSX.Element {
                 </label>
               </>
             ) : (
-              <label className="form-field form-field-wide">
-                <span>Data hash</span>
+              <label className={formFieldClassName(visibleErrors.dataHash, true)}>
+                <RequiredLabel>Data hash</RequiredLabel>
                 <input
                   autoComplete="off"
                   className="mono-input"
                   placeholder="0x..."
                   type="text"
                   value={form.dataHash}
+                  onBlur={() => markTouched("dataHash")}
                   onChange={(event) =>
                     setForm({ ...form, dataHash: event.target.value })
                   }
                 />
+                <FieldError message={visibleErrors.dataHash} />
               </label>
             )}
           </div>
         </section>
 
-        <TransactionLifecycle
+        <CreateProposalTransactionStatus
           blockExplorerUrl={runtimeConfig.blockExplorerUrl}
           transaction={transaction}
         />
@@ -422,215 +533,159 @@ export function CreateProposalPage(): JSX.Element {
   );
 }
 
-function TransactionLifecycle({
+function CreateProposalTransactionStatus({
   blockExplorerUrl,
   transaction,
 }: {
   readonly blockExplorerUrl?: string;
   readonly transaction: TransactionState;
 }): JSX.Element {
-  const steps = [
-    {
-      id: "wallet_pending",
-      title: "Waiting for wallet",
-      detail: "Confirm or reject the create proposal transaction in the connected wallet.",
-    },
-    {
-      id: "submitted",
-      title: "Transaction submitted",
-      detail: (
-        <CreateProposalSubmittedDetail
-          blockExplorerUrl={blockExplorerUrl}
-          txHash={transaction.txHash}
-        />
-      ),
-    },
-    {
-      id: "confirming",
-      title: "Waiting for receipt",
-      detail: "App Core submitted the transaction and is waiting for the chain receipt.",
-    },
-    {
-      id: "confirmed_waiting_indexer",
-      title: "Mined, waiting for Control Plane",
-      detail: (
-        <CreateProposalControlPlaneWaitingDetail
-          blockExplorerUrl={blockExplorerUrl}
-          proposalId={transaction.proposalId}
-          showDiagnosticsLink={transaction.stage === "confirmed_waiting_indexer"}
-          txHash={transaction.txHash}
-        />
-      ),
-    },
-    {
-      id: "indexed",
-      title: "Indexed and projected",
-      detail: "Control Plane returned the new proposal.",
-    },
-  ] satisfies readonly {
-    readonly id: Exclude<TransactionStage, "idle" | "failed">;
-    readonly detail: ReactNode;
-    readonly title: string;
-  }[];
-
   return (
-    <section className="panel transaction-panel">
-      <div className="panel-header">
-        <div>
-          <h2>Transaction</h2>
-          <p className="panel-subtitle">{transactionSummary(transaction)}</p>
-        </div>
-        <StatusBadge tone={transactionTone(transaction.stage)}>
-          {formatLabel(transaction.stage)}
-        </StatusBadge>
-      </div>
-      <div className="transaction-steps">
-        {transaction.stage === "idle" ? (
-          <TransactionStep
-            active
-            detail="Ready for proposal input."
-            title="Idle"
-          />
-        ) : null}
-        {steps.map((step) => (
-          <TransactionStep
-            active={isTransactionStepActive(transaction.stage, step.id)}
-            complete={isTransactionStepComplete(transaction.stage, step.id)}
-            detail={step.detail}
-            key={step.id}
-            title={step.title}
-          />
-        ))}
-        {transaction.stage === "failed" ? (
-          <TransactionStep
-            active
-            danger
-            detail={
-              <CreateProposalFailedDetail
-                blockExplorerUrl={blockExplorerUrl}
-                transaction={transaction}
-              />
-            }
-            title="Failed"
-          />
+    <section className="proposal-transaction-status-card">
+      <div>
+        <strong>Transaction status</strong>
+        <span>{transactionSummary(transaction)}</span>
+        {transaction.txHash || transaction.stage === "confirmed_waiting_indexer" || transaction.stage === "failed" ? (
+          <div className="proposal-action-status-meta">
+            {transaction.txHash ? (
+              <span className="technical-code">{transaction.txHash}</span>
+            ) : null}
+            {blockExplorerUrl && transaction.txHash ? (
+              <a
+                className="diagnostics-text-link"
+                href={`${blockExplorerUrl.replace(/\/+$/, "")}/tx/${transaction.txHash}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                View transaction
+              </a>
+            ) : null}
+            {transaction.stage === "confirmed_waiting_indexer" ||
+            transaction.stage === "failed" ? (
+              <Link className="diagnostics-text-link" to="/diagnostics">
+                View diagnostics
+              </Link>
+            ) : null}
+          </div>
         ) : null}
       </div>
+      <StatusBadge tone={transactionTone(transaction.stage)}>
+        {formatLabel(transaction.stage)}
+      </StatusBadge>
     </section>
   );
 }
 
-function TransactionStep({
-  active,
-  complete,
-  danger,
-  detail,
-  title,
+function RequiredLabel({
+  children,
 }: {
-  readonly active?: boolean;
-  readonly complete?: boolean;
-  readonly danger?: boolean;
-  readonly detail: ReactNode;
-  readonly title: string;
+  readonly children: string;
 }): JSX.Element {
-  const className = [
-    "transaction-step",
-    active ? "transaction-step-active" : "",
-    complete ? "transaction-step-complete" : "",
-    danger ? "transaction-step-danger" : "",
+  return (
+    <span>
+      {children}
+      <span aria-hidden="true" className="field-required-marker">
+        *
+      </span>
+    </span>
+  );
+}
+
+function FieldError({
+  message,
+}: {
+  readonly message?: string;
+}): JSX.Element | null {
+  return message ? <span className="form-field-error-message">{message}</span> : null;
+}
+
+function formFieldClassName(error: string | undefined, wide = false): string {
+  return [
+    "form-field",
+    wide ? "form-field-wide" : "",
+    error ? "form-field-error" : "",
   ]
     .filter(Boolean)
     .join(" ");
-
-  return (
-    <div className={className}>
-      <strong>{title}</strong>
-      <div className="transaction-step-detail">{detail}</div>
-    </div>
-  );
 }
 
-function CreateProposalSubmittedDetail({
-  blockExplorerUrl,
-  txHash,
-}: {
-  readonly blockExplorerUrl?: string;
-  readonly txHash?: `0x${string}`;
-}): JSX.Element {
-  return (
-    <div className="setup-transaction-status-detail">
-      <span>
-        App Core has the transaction hash. The transaction may still be waiting
-        to be mined.
-      </span>
-      <SetupTransactionHash
-        blockExplorerUrl={blockExplorerUrl}
-        txHash={txHash}
-      />
-    </div>
-  );
+function validateForm(
+  form: FormState,
+  orgId: string,
+  demoTargetAddress: Address | undefined,
+): ProposalFormErrors {
+  const errors: ProposalFormErrors = {};
+
+  if (!formValue(form.proposalType)) {
+    errors.proposalType = "Proposal type is required.";
+  }
+
+  if (!formValue(form.title)) {
+    errors.title = "Title is required.";
+  }
+
+  if (parseUint(formValue(orgId), "Organization ID") instanceof Error) {
+    errors.title = "Organization ID is not valid.";
+  }
+
+  const value = parseUint(form.value, "Value");
+  if (value instanceof Error) {
+    errors.value = value.message;
+  }
+
+  if (form.targetMode === "demo") {
+    if (!demoTargetAddress) {
+      errors.targetAddress = "Configured target address is missing.";
+    }
+    const number = parseUint(form.demoNumber, "setNumber value");
+    if (number instanceof Error) {
+      errors.demoNumber = number.message;
+    }
+    return errors;
+  }
+
+  const targetAddress = formValue(form.targetAddress);
+  if (!targetAddress) {
+    errors.targetAddress = "Target address is required.";
+  } else if (!isAddress(targetAddress)) {
+    errors.targetAddress = "Target address must be a valid EVM address.";
+  }
+
+  const dataHash = formValue(form.dataHash);
+  if (!dataHash) {
+    errors.dataHash = "Data hash is required.";
+  } else if (!isBytes32Hash(dataHash)) {
+    errors.dataHash = "Data hash must be a 32-byte 0x-prefixed hash.";
+  }
+
+  return errors;
 }
 
-function CreateProposalControlPlaneWaitingDetail({
-  blockExplorerUrl,
-  proposalId,
-  showDiagnosticsLink,
-  txHash,
-}: {
-  readonly blockExplorerUrl?: string;
-  readonly proposalId?: string;
-  readonly showDiagnosticsLink: boolean;
-  readonly txHash?: `0x${string}`;
-}): JSX.Element {
-  return (
-    <div className="setup-transaction-status-detail">
-      <span>
-        The transaction is mined and ProposalCreated was found in the receipt.
-        App Core is waiting for Control Plane indexing, projection, and proposal
-        read model updates.
-      </span>
-      {proposalId ? <span>Proposal #{proposalId} was emitted on-chain.</span> : null}
-      <SetupTransactionHash
-        blockExplorerUrl={blockExplorerUrl}
-        txHash={txHash}
-      />
-      <span>
-        Local Hardhat restarts, a stopped indexer, or stale runtime config can
-        delay this step.
-      </span>
-      {showDiagnosticsLink ? (
-        <Link className="diagnostics-text-link" to="/diagnostics">
-          View diagnostics
-        </Link>
-      ) : null}
-    </div>
-  );
+function getVisibleErrors(
+  errors: ProposalFormErrors,
+  touched: ProposalFormTouched,
+  submitAttempted: boolean,
+): ProposalFormErrors {
+  if (submitAttempted) {
+    return errors;
+  }
+
+  return Object.fromEntries(
+    Object.entries(errors).filter(([field]) => touched[field as ProposalFormField]),
+  ) as ProposalFormErrors;
 }
 
-function CreateProposalFailedDetail({
-  blockExplorerUrl,
-  transaction,
-}: {
-  readonly blockExplorerUrl?: string;
-  readonly transaction: TransactionState;
-}): JSX.Element {
-  const errorMessage = transaction.error ?? "Unknown transaction error.";
+function buildCreateProposalTransactionModalItemId(orgId: string): string {
+  return `proposal-create:${orgId}`;
+}
 
-  return (
-    <div className="setup-transaction-status-detail">
-      <span>{errorMessage}</span>
-      <SetupTransactionHash
-        blockExplorerUrl={blockExplorerUrl}
-        txHash={transaction.txHash}
-      />
-      <span>
-        If the transaction was mined but the proposal does not appear, check
-        Control Plane/indexer health, local Hardhat state, and runtime config.
-      </span>
-      <Link className="diagnostics-text-link" to="/diagnostics">
-        View diagnostics
-      </Link>
-    </div>
-  );
+function mapCreateProposalStageToTransactionFlowStage(
+  stage: TransactionStage,
+): TransactionFlowStage {
+  if (stage === "indexed") {
+    return "completed";
+  }
+  return stage;
 }
 
 function buildPayload(
@@ -661,9 +716,9 @@ function buildPayload(
 
   if (form.targetMode === "demo") {
     if (!demoTargetAddress) {
-      return new Error("Demo target address is missing from runtime config.");
+      return new Error("Configured target address is missing from runtime config.");
     }
-    const demoNumber = parseUint(form.demoNumber, "Demo number");
+    const demoNumber = parseUint(form.demoNumber, "setNumber value");
     if (demoNumber instanceof Error) {
       return demoNumber;
     }
@@ -702,7 +757,7 @@ function previewDemoAction(
   demoNumber: string,
 ): { readonly dataHash: Bytes32Hash } | undefined {
   const parsedOrgId = parseUint(formValue(orgId), "Organization ID");
-  const parsedDemoNumber = parseUint(demoNumber, "Demo number");
+  const parsedDemoNumber = parseUint(demoNumber, "setNumber value");
 
   if (parsedOrgId instanceof Error || parsedDemoNumber instanceof Error) {
     return undefined;
@@ -841,27 +896,6 @@ function transactionTone(
     return "muted";
   }
   return "warning";
-}
-
-function isTransactionStepActive(
-  current: TransactionStage,
-  step: Exclude<TransactionStage, "idle" | "failed">,
-): boolean {
-  return current === step;
-}
-
-function isTransactionStepComplete(
-  current: TransactionStage,
-  step: Exclude<TransactionStage, "idle" | "failed">,
-): boolean {
-  const order: Record<Exclude<TransactionStage, "idle" | "failed">, number> = {
-    wallet_pending: 1,
-    submitted: 2,
-    confirming: 3,
-    confirmed_waiting_indexer: 4,
-    indexed: 5,
-  };
-  return current !== "failed" && current !== "idle" && order[current] > order[step];
 }
 
 function normalizeTransactionError(error: unknown): string {

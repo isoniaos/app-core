@@ -6,6 +6,20 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Recorded the Proposal Action Builder as a future roadmap item.
+
+### Changed
+
+- Moved proposal creation and proposal actions to the single transaction modal UX.
+- Improved proposal action disabled states and authority guidance.
+- Replaced unhelpful body identifiers with role/body labels where read models allow.
+
+### Fixed
+
+- Removed the empty Governance Structure minimap while keeping graph controls and Fit to view.
+
 ## [0.6.0-alpha.17]
 
 ### Added

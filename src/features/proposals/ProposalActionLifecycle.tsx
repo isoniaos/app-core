@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SetupTransactionHash } from "../setup/SetupTransactionStatus";
 import { StatusBadge } from "../../ui/StatusBadge";
@@ -20,194 +19,52 @@ export function ProposalActionLifecycle({
   reset,
   transaction,
 }: ProposalActionLifecycleProps): JSX.Element {
-  const steps = [
-    {
-      id: "wallet_pending",
-      title: "Waiting for wallet",
-      detail: "Confirm or reject the transaction in the connected wallet.",
-    },
-    {
-      id: "submitted",
-      title: "Transaction submitted",
-      detail: (
-        <ProposalSubmittedDetail
-          blockExplorerUrl={blockExplorerUrl}
-          txHash={transaction.txHash}
-        />
-      ),
-    },
-    {
-      id: "confirming",
-      title: "Waiting for receipt",
-      detail: "App Core submitted the transaction and is waiting for the chain receipt.",
-    },
-    {
-      id: "confirmed_waiting_indexer",
-      title: "Mined, waiting for Control Plane",
-      detail: (
-        <ProposalControlPlaneWaitingDetail
-          blockExplorerUrl={blockExplorerUrl}
-          showDiagnosticsLink={transaction.stage === "confirmed_waiting_indexer"}
-          txHash={transaction.txHash}
-        />
-      ),
-    },
-    {
-      id: "indexed",
-      title: "Indexed and projected",
-      detail: "Control Plane has reflected the proposal action in read models and route state.",
-    },
-  ] satisfies readonly {
-    readonly id: Exclude<ProposalActionStage, "idle" | "failed">;
-    readonly detail: ReactNode;
-    readonly title: string;
-  }[];
-
-  const showSteps = transaction.stage !== "idle";
-  const detailsOpen =
-    transaction.stage !== "idle" && transaction.stage !== "indexed";
-
   return (
-    <section className="proposal-action-lifecycle">
-      <div className="panel-header proposal-action-lifecycle-header">
-        <div>
-          <h3>Transaction</h3>
-          <p className="panel-subtitle">
-            {transaction.action
-              ? `${actionLabel(transaction.action)} - ${formatLabel(
-                  transaction.stage,
-                )}`
-              : "No proposal action submitted yet."}
-          </p>
-        </div>
-        <div className="chip-row">
-          <StatusBadge tone={transactionTone(transaction.stage)}>
-            {formatLabel(transaction.stage)}
-          </StatusBadge>
-          {transaction.stage === "failed" || transaction.stage === "indexed" ? (
-            <button
-              className="button button-small"
-              type="button"
-              onClick={reset}
-            >
-              Reset
-            </button>
-          ) : null}
-        </div>
+    <section className="proposal-action-lifecycle proposal-action-status-card">
+      <div>
+        <strong>Transaction status</strong>
+        <span>{getActionStatusSummary(transaction)}</span>
+        <ProposalActionStatusMeta
+          blockExplorerUrl={blockExplorerUrl}
+          transaction={transaction}
+        />
       </div>
-      {showSteps ? (
-        <details className="proposal-transaction-details" open={detailsOpen}>
-          <summary>Transaction details</summary>
-          <div className="transaction-steps">
-            {steps.map((step) => (
-              <TransactionStep
-                active={isTransactionStepActive(transaction.stage, step.id)}
-                complete={isTransactionStepComplete(transaction.stage, step.id)}
-                detail={step.detail}
-                key={step.id}
-                title={step.title}
-              />
-            ))}
-            {transaction.stage === "failed" ? (
-              <TransactionStep
-                active
-                danger
-                detail={
-                  <ProposalFailedDetail
-                    blockExplorerUrl={blockExplorerUrl}
-                    transaction={transaction}
-                  />
-                }
-                title="Failed"
-              />
-            ) : null}
-          </div>
-        </details>
-      ) : (
-        <div className="proposal-transaction-idle">
-          Transaction status appears here after an action is submitted.
-        </div>
-      )}
+      <div className="chip-row">
+        <StatusBadge tone={transactionTone(transaction.stage)}>
+          {formatLabel(transaction.stage)}
+        </StatusBadge>
+        {transaction.stage === "failed" || transaction.stage === "indexed" ? (
+          <button className="button button-small" type="button" onClick={reset}>
+            Reset
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }
 
-function TransactionStep({
-  active,
-  complete,
-  danger,
-  detail,
-  title,
-}: {
-  readonly active?: boolean;
-  readonly complete?: boolean;
-  readonly danger?: boolean;
-  readonly detail: ReactNode;
-  readonly title: string;
-}): JSX.Element {
-  const className = [
-    "transaction-step",
-    active ? "transaction-step-active" : "",
-    complete ? "transaction-step-complete" : "",
-    danger ? "transaction-step-danger" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <div className={className}>
-      <strong>{title}</strong>
-      <div className="transaction-step-detail">{detail}</div>
-    </div>
-  );
-}
-
-function ProposalSubmittedDetail({
+function ProposalActionStatusMeta({
   blockExplorerUrl,
-  txHash,
+  transaction,
 }: {
   readonly blockExplorerUrl?: string;
-  readonly txHash?: `0x${string}`;
-}): JSX.Element {
-  return (
-    <div className="setup-transaction-status-detail">
-      <span>
-        App Core has the transaction hash. The transaction may still be waiting
-        to be mined.
-      </span>
-      <SetupTransactionHash
-        blockExplorerUrl={blockExplorerUrl}
-        txHash={txHash}
-      />
-    </div>
-  );
-}
+  readonly transaction: ProposalActionTransaction;
+}): JSX.Element | null {
+  if (transaction.stage === "idle") {
+    return null;
+  }
 
-function ProposalControlPlaneWaitingDetail({
-  blockExplorerUrl,
-  showDiagnosticsLink,
-  txHash,
-}: {
-  readonly blockExplorerUrl?: string;
-  readonly showDiagnosticsLink: boolean;
-  readonly txHash?: `0x${string}`;
-}): JSX.Element {
+  const showDiagnostics =
+    transaction.stage === "confirmed_waiting_indexer" ||
+    transaction.stage === "failed";
+
   return (
-    <div className="setup-transaction-status-detail">
-      <span>
-        The transaction is mined and the receipt is confirmed. App Core is
-        waiting for Control Plane indexing, projection, and route read model
-        updates.
-      </span>
+    <div className="proposal-action-status-meta">
       <SetupTransactionHash
         blockExplorerUrl={blockExplorerUrl}
-        txHash={txHash}
+        txHash={transaction.txHash}
       />
-      <span>
-        Local Hardhat restarts, a stopped indexer, or stale runtime config can
-        delay this step.
-      </span>
-      {showDiagnosticsLink ? (
+      {showDiagnostics ? (
         <Link className="diagnostics-text-link" to="/diagnostics">
           View diagnostics
         </Link>
@@ -216,82 +73,22 @@ function ProposalControlPlaneWaitingDetail({
   );
 }
 
-function ProposalFailedDetail({
-  blockExplorerUrl,
-  transaction,
-}: {
-  readonly blockExplorerUrl?: string;
-  readonly transaction: ProposalActionTransaction;
-}): JSX.Element {
-  const errorMessage = normalizeProposalErrorMessage(transaction.error);
-  const guidance = getFailureGuidance(errorMessage);
-
-  return (
-    <div className="setup-transaction-status-detail">
-      <span>
-        <strong>{guidance.label}.</strong> {guidance.summary}
-      </span>
-      <span>{guidance.recoveryHint}</span>
-      <SetupTransactionHash
-        blockExplorerUrl={blockExplorerUrl}
-        txHash={transaction.txHash}
-      />
-      <div className="setup-transaction-raw-error">
-        <span>Raw error</span>
-        <code>{errorMessage}</code>
-      </div>
-      <Link className="diagnostics-text-link" to="/diagnostics">
-        View diagnostics
-      </Link>
-    </div>
-  );
-}
-
-interface FailureGuidance {
-  readonly label: string;
-  readonly recoveryHint: string;
-  readonly summary: string;
-}
-
-function getFailureGuidance(errorMessage: string): FailureGuidance {
-  if (/wallet transaction was rejected|user rejected|rejected request|denied/i.test(errorMessage)) {
-    return {
-      label: "Wallet rejection",
-      recoveryHint: "Retry when you are ready to sign the proposal action.",
-      summary: "The connected wallet rejected the signature request.",
-    };
+function getActionStatusSummary(
+  transaction: ProposalActionTransaction,
+): string {
+  if (!transaction.action) {
+    return "No proposal action transaction is active.";
   }
 
-  if (/transaction reverted|execution reverted|contract function execution|reverted/i.test(errorMessage)) {
-    return {
-      label: "Transaction revert",
-      recoveryHint:
-        "Check the signer, authority, route state, and DemoTarget action hash before retrying.",
-      summary: "The chain rejected execution after submission or simulation.",
-    };
+  if (transaction.stage === "failed") {
+    return transaction.error ?? `${actionLabel(transaction.action)} failed.`;
   }
 
-  if (/indexer timeout|timeout|timed out|control plane|read model|projection|indexed/i.test(errorMessage)) {
-    return {
-      label: "Timeout or indexer delay",
-      recoveryHint:
-        "View diagnostics, confirm Control Plane/indexer health, then reload after projections catch up.",
-      summary:
-        "The transaction may be mined, but App Core did not see the expected proposal read model update in time.",
-    };
+  if (transaction.stage === "indexed") {
+    return `${actionLabel(transaction.action)} is indexed; route state is refreshing.`;
   }
 
-  return {
-    label: "Unknown error",
-    recoveryHint:
-      "Inspect diagnostics, wallet chain, runtime config, and browser console for the next debugging step.",
-    summary: "App Core could not classify this proposal action failure.",
-  };
-}
-
-function normalizeProposalErrorMessage(error: string | undefined): string {
-  const trimmed = error?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : "Unknown transaction error.";
+  return `${actionLabel(transaction.action)} - ${formatLabel(transaction.stage)}.`;
 }
 
 function transactionTone(
@@ -307,29 +104,4 @@ function transactionTone(
     return "muted";
   }
   return "warning";
-}
-
-function isTransactionStepActive(
-  current: ProposalActionStage,
-  step: Exclude<ProposalActionStage, "idle" | "failed">,
-): boolean {
-  return current === step;
-}
-
-function isTransactionStepComplete(
-  current: ProposalActionStage,
-  step: Exclude<ProposalActionStage, "idle" | "failed">,
-): boolean {
-  const order: Record<Exclude<ProposalActionStage, "idle" | "failed">, number> =
-    {
-      wallet_pending: 1,
-      submitted: 2,
-      confirming: 3,
-      confirmed_waiting_indexer: 4,
-      indexed: 5,
-    };
-
-  return (
-    current !== "failed" && current !== "idle" && order[current] > order[step]
-  );
 }

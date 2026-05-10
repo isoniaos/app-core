@@ -1,7 +1,9 @@
 import type {
+  BodyDto,
   ProposalDto,
   ProposalRouteExplanationDto,
   RouteBlockedReasonDto,
+  RoleDto,
 } from "@isonia/types";
 import { ProposalStatus } from "@isonia/types";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
@@ -34,11 +36,19 @@ import {
 } from "./RouteExplanationPanel";
 import { useDemoProposalExecution } from "./useDemoProposalExecution";
 import { useProposalAction } from "./useProposalAction";
+import {
+  formatRouteBlockedReasonMessage,
+  getExecutorBodyLabel,
+  getRelatedRouteBodyLabel,
+} from "./proposal-body-labels";
 
 interface ProposalDetailsData {
+  readonly bodies: readonly BodyDto[];
+  readonly orgAdminAddress: string | undefined;
   readonly proposal: ProposalDto;
   readonly route: ProposalRouteExplanationDto | undefined;
   readonly routeError: Error | undefined;
+  readonly roles: readonly RoleDto[];
 }
 
 interface RouteLoadResult {
@@ -53,11 +63,20 @@ export function ProposalDetailsPage(): JSX.Element {
   const proposalId = requireParam(params.proposalId, "proposalId");
   const details = useIsoniaQuery(
     async (): Promise<ProposalDetailsData> => {
-      const [proposal, routeResult] = await Promise.all([
+      const [proposal, routeResult, overview, bodies, roles] = await Promise.all([
         client.getProposal(orgId, proposalId),
         loadProposalRoute(client, orgId, proposalId),
+        client.getOrganizationOverview(orgId),
+        client.getBodies(orgId),
+        client.getRoles(orgId),
       ]);
-      return { proposal, ...routeResult };
+      return {
+        bodies,
+        orgAdminAddress: overview.organization.adminAddress,
+        proposal,
+        roles,
+        ...routeResult,
+      };
     },
     [client, orgId, proposalId],
   );
@@ -73,11 +92,14 @@ export function ProposalDetailsPage(): JSX.Element {
         emptyMessage={`No indexed proposal #${proposalId} was found for org #${orgId}.`}
         errorTitle="Unable to load proposal"
       >
-        {({ proposal, route, routeError }) => (
+        {({ bodies, orgAdminAddress, proposal, roles, route, routeError }) => (
           <ProposalDetailsContent
+            bodies={bodies}
             metadata={metadata}
+            orgAdminAddress={orgAdminAddress}
             orgId={orgId}
             proposal={proposal}
+            roles={roles}
             route={route}
             routeError={routeError}
             onReload={() => details.reload()}
@@ -89,17 +111,23 @@ export function ProposalDetailsPage(): JSX.Element {
 }
 
 function ProposalDetailsContent({
+  bodies,
   metadata,
+  orgAdminAddress,
   orgId,
   onReload,
   proposal,
+  roles,
   route,
   routeError,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly metadata: MetadataState;
+  readonly orgAdminAddress: string | undefined;
   readonly orgId: string;
   readonly onReload: () => void;
   readonly proposal: ProposalDto;
+  readonly roles: readonly RoleDto[];
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
 }): JSX.Element {
@@ -169,6 +197,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <ProposalOverviewTab
+                    bodies={bodies}
                     metadata={metadata}
                     proposal={proposal}
                     route={route}
@@ -181,6 +210,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <RouteExplanationPanel
+                    bodies={bodies}
                     fallback={routeFallback}
                     route={route}
                     routeError={routeError}
@@ -193,13 +223,16 @@ function ProposalDetailsContent({
               {
                 content: (
                   <ProposalActionsPanel
+                    bodies={bodies}
                     busy={proposalAction.busy}
                     demoExecution={demoExecution}
                     demoNumber={demoNumber}
                     onDemoNumberChange={setDemoNumber}
+                    orgAdminAddress={orgAdminAddress}
                     proposal={proposal}
                     readiness={proposalAction.readiness}
                     reset={proposalAction.reset}
+                    roles={roles}
                     route={route}
                     routeError={routeError}
                     runAction={proposalAction.runAction}
@@ -225,6 +258,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <ProposalTechnicalTab
+                    bodies={bodies}
                     blockExplorerUrl={runtimeConfig.blockExplorerUrl}
                     proposal={proposal}
                     route={route}
@@ -244,6 +278,7 @@ function ProposalDetailsContent({
             proposal={proposal}
           />
           <NextActionCard
+            bodies={bodies}
             proposal={proposal}
             route={route}
             routeError={routeError}
@@ -255,11 +290,13 @@ function ProposalDetailsContent({
 }
 
 function ProposalOverviewTab({
+  bodies,
   metadata,
   proposal,
   route,
   routeError,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly metadata: MetadataState;
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
@@ -345,6 +382,7 @@ function ProposalOverviewTab({
           </IsoStatusPill>
         </div>
         <RouteOverviewCards
+          bodies={bodies}
           proposal={proposal}
           route={route}
           routeError={routeError}
@@ -420,15 +458,17 @@ function ProposalInfoCard({
 }
 
 function NextActionCard({
+  bodies,
   proposal,
   route,
   routeError,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
 }): JSX.Element {
-  const action = getNextActionContext(proposal, route, routeError);
+  const action = getNextActionContext(proposal, route, routeError, bodies);
 
   return (
     <section className="context-card">
@@ -452,11 +492,13 @@ function NextActionCard({
 }
 
 function ProposalTechnicalTab({
+  bodies,
   blockExplorerUrl,
   proposal,
   route,
   routeError,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly blockExplorerUrl?: string;
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
@@ -562,7 +604,11 @@ function ProposalTechnicalTab({
               label="Executor body"
               value={
                 route.execution.executorBody
-                  ? `Body #${route.execution.executorBody}`
+                  ? getExecutorBodyLabel({
+                      bodies,
+                      bodyId: route.execution.executorBody,
+                      route,
+                    })
                   : "Not reported"
               }
             />
@@ -610,10 +656,12 @@ function ProposalTechnicalTab({
 }
 
 function RouteOverviewCards({
+  bodies,
   proposal,
   route,
   routeError,
 }: {
+  readonly bodies: readonly BodyDto[];
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
@@ -634,7 +682,7 @@ function RouteOverviewCards({
   const approvedCount = approvals.filter((body) => body.approved).length;
   const vetoes = route.vetoBodies;
   const vetoedCount = vetoes.filter((body) => body.vetoed).length;
-  const nextAction = getNextActionContext(proposal, route, undefined);
+  const nextAction = getNextActionContext(proposal, route, undefined, bodies);
 
   return (
     <div className="proposal-route-metric-grid">
@@ -846,6 +894,7 @@ function getNextActionContext(
   proposal: ProposalDto,
   route: ProposalRouteExplanationDto | undefined,
   routeError: Error | undefined,
+  bodies: readonly BodyDto[],
 ): {
   readonly actor: string;
   readonly detail: string;
@@ -892,7 +941,11 @@ function getNextActionContext(
   if (route.execution.executable) {
     return {
       actor: route.execution.executorBody
-        ? `Executor body #${route.execution.executorBody}`
+        ? getExecutorBodyLabel({
+            bodies,
+            bodyId: route.execution.executorBody,
+            route,
+          })
         : "Configured executor body",
       detail: "Approvals, veto checks, and timelock state allow execution.",
       label: "Execute",
@@ -914,10 +967,14 @@ function getNextActionContext(
     };
   }
 
-  return contextFromBlockedReason(firstReason);
+  return contextFromBlockedReason(firstReason, route, bodies);
 }
 
-function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
+function contextFromBlockedReason(
+  reason: RouteBlockedReasonDto,
+  route: ProposalRouteExplanationDto,
+  bodies: readonly BodyDto[],
+): {
   readonly actor: string;
   readonly detail: string;
   readonly label: string;
@@ -927,9 +984,19 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
   if (reason.code === "missing_approval") {
     return {
       actor: reason.relatedBodyId
-        ? `Body #${reason.relatedBodyId}`
+        ? getRelatedRouteBodyLabel({
+            bodies,
+            bodyId: reason.relatedBodyId,
+            route,
+            role: "Approver",
+          })
         : "Required approval body",
-      detail: reason.message,
+      detail: formatRouteBlockedReasonMessage({
+        bodies,
+        reason,
+        role: "Approver",
+        route,
+      }),
       label: "Approval",
       title: "Approval needed",
       tone: "warning",
@@ -939,7 +1006,7 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
   if (reason.code === "not_queued") {
     return {
       actor: "Any authorized queue caller",
-      detail: reason.message,
+      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
       label: "Queue",
       title: "Queue needed",
       tone: "warning",
@@ -949,7 +1016,7 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
   if (reason.code === "timelock_not_satisfied") {
     return {
       actor: "No one yet",
-      detail: reason.message,
+      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
       label: "Waiting",
       title: "Timelock active",
       tone: "warning",
@@ -959,7 +1026,7 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
   if (reason.code === "vetoed") {
     return {
       actor: "No standard action",
-      detail: reason.message,
+      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
       label: "Vetoed",
       title: "Execution blocked",
       tone: "danger",
@@ -969,7 +1036,7 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
   if (reason.code === "policy_snapshot_missing") {
     return {
       actor: "Indexer/projection recovery",
-      detail: reason.message,
+      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
       label: "Snapshot",
       title: "Policy snapshot missing",
       tone: "danger",
@@ -978,9 +1045,13 @@ function contextFromBlockedReason(reason: RouteBlockedReasonDto): {
 
   return {
     actor: reason.relatedBodyId
-      ? `Body #${reason.relatedBodyId}`
+      ? getRelatedRouteBodyLabel({
+          bodies,
+          bodyId: reason.relatedBodyId,
+          route,
+        })
       : "Governance route",
-    detail: reason.message,
+    detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
     label: "Blocked",
     title: formatLabel(reason.code),
     tone: ["already_executed", "cancelled", "expired"].includes(reason.code)

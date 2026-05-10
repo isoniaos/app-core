@@ -91,7 +91,7 @@ function TransactionModalPrimaryAction({
   if (failedItem?.retry) {
     return (
       <IsoButton onClick={() => void failedItem.retry?.()}>
-        Retry
+        {failedItem.retryLabel ?? "Retry"}
       </IsoButton>
     );
   }
@@ -99,7 +99,8 @@ function TransactionModalPrimaryAction({
   if (executableItem?.execute) {
     return (
       <IsoButton onClick={() => void executableItem.execute?.()}>
-        {state.mode === "serial" ? "Start" : "Execute"}
+        {executableItem.executeLabel ??
+          (state.mode === "serial" ? "Start" : "Execute")}
       </IsoButton>
     );
   }

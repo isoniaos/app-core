@@ -118,9 +118,12 @@ function TransactionStageMeta({
     return null;
   }
 
-  const showDiagnostics = stage === "failed";
+  const showDiagnostics =
+    stage === "failed" || stage === "confirmed_waiting_indexer";
   const showHash =
-    stage === "submitted" || stage === "failed";
+    stage === "submitted" ||
+    stage === "confirmed_waiting_indexer" ||
+    stage === "failed";
   const showError = stage === "failed" && item.error;
 
   if (!showHash && !showDiagnostics && !showError) {
