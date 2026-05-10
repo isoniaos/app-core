@@ -14,7 +14,10 @@ import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import {
   IsoAddressDisplay,
+  IsoIcon,
+  IsoSegmentedControl,
   IsoTabs,
+  IsoToggleTip,
   type IsoTabItem,
 } from "../../ui-kit";
 import { bodyDisplay, roleDisplay } from "../../utils/display-labels";
@@ -35,12 +38,15 @@ import {
   type StructureNodeDetail,
 } from "./governance-structure-model";
 
+const GOVERNANCE_ABOUT_TITLE = "Authority on-chain, visualization off-chain";
+const GOVERNANCE_ABOUT_TEXT =
+  "This page uses indexed Control Plane read models to show bodies, roles, holder mandates, and policy route references. Conceptual checks are labeled as modeled or unverified rather than treated as production health scores.";
+
 export function GovernanceStructurePage(): JSX.Element {
   const client = useIsoniaClient();
   const orgId = requireParam(useParams().orgId, "orgId");
   const [activeTab, setActiveTab] = useState("graph");
   const [fitSignal, setFitSignal] = useState(0);
-  const [showAbout, setShowAbout] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const governance = useIsoniaQuery(
@@ -78,45 +84,20 @@ export function GovernanceStructurePage(): JSX.Element {
           <p>Explore how authority flows through this organization.</p>
         </div>
         <div className="governance-structure-header-actions">
-          <button
-            className="button"
-            type="button"
-            onClick={() => setActiveTab("bodies")}
+          <IsoToggleTip
+            content={GOVERNANCE_ABOUT_TEXT}
+            title={GOVERNANCE_ABOUT_TITLE}
           >
-            View as list
-          </button>
-          <button
-            className="button"
-            type="button"
-            onClick={() => {
-              setActiveTab("graph");
-              setFitSignal((value) => value + 1);
-            }}
-          >
-            Fit to view
-          </button>
-          <button
-            className="button button-primary"
-            type="button"
-            aria-pressed={showAbout}
-            onClick={() => setShowAbout((value) => !value)}
-          >
-            About this view
-          </button>
+            <button
+              aria-label="About this view"
+              className="button button-icon button-borderless governance-structure-about-trigger"
+              type="button"
+            >
+              <IsoIcon name="info" size={18} />
+            </button>
+          </IsoToggleTip>
         </div>
       </header>
-
-      {showAbout ? (
-        <div className="inline-state inline-state-muted governance-structure-about">
-          <strong>Authority on-chain, visualization off-chain</strong>
-          <span>
-            This page uses indexed Control Plane read models to show bodies,
-            roles, holder mandates, and policy route references. Conceptual
-            checks are labeled as modeled or unverified rather than treated as
-            production health scores.
-          </span>
-        </div>
-      ) : null}
 
       <AsyncContent
         state={governance}
@@ -197,6 +178,8 @@ function GovernanceStructureContent({
     data,
     model,
     nowSeconds,
+    activeTab,
+    onActiveTabChange,
     orgId,
     graphContent: (
       <GovernanceStructureGraphTab
@@ -211,6 +194,8 @@ function GovernanceStructureContent({
         selectedNodeId={selectedNodeId}
         showInactive={showInactive}
         onFit={onFit}
+        onViewModeChange={onActiveTabChange}
+        viewMode={activeTab === "bodies" ? "bodies" : "graph"}
         onSelectedNodeChange={onSelectedNodeChange}
         onShowInactiveChange={onShowInactiveChange}
       />
@@ -296,10 +281,12 @@ function GovernanceStructureGraphTab({
   onFit,
   onSelectedNodeChange,
   onShowInactiveChange,
+  onViewModeChange,
   orgId,
   selectedNode,
   selectedNodeId,
   showInactive,
+  viewMode,
 }: {
   readonly activePolicyCount: number;
   readonly data: GovernanceStructureData;
@@ -310,10 +297,12 @@ function GovernanceStructureGraphTab({
   readonly onFit: () => void;
   readonly onSelectedNodeChange: (nodeId: string | undefined) => void;
   readonly onShowInactiveChange: (showInactive: boolean) => void;
+  readonly onViewModeChange: (value: string) => void;
   readonly orgId: string;
   readonly selectedNode: GovernanceStructureNode | undefined;
   readonly selectedNodeId: string | undefined;
   readonly showInactive: boolean;
+  readonly viewMode: "graph" | "bodies";
 }): JSX.Element {
   return (
     <section className="panel governance-graph-panel">
@@ -326,6 +315,10 @@ function GovernanceStructureGraphTab({
           </p>
         </div>
         <div className="governance-graph-controls">
+          <GovernanceGraphListSwitch
+            value={viewMode}
+            onValueChange={onViewModeChange}
+          />
           {hasInactiveData ? (
             <label className="governance-structure-switch">
               <input
@@ -336,9 +329,6 @@ function GovernanceStructureGraphTab({
               <span>Show inactive</span>
             </label>
           ) : null}
-          <button className="button button-small" type="button" onClick={onFit}>
-            Fit to view
-          </button>
         </div>
       </div>
 
@@ -438,7 +428,7 @@ function GovernanceStructureAside({
         {selectedNode ? (
           <SelectedNodeDetails node={selectedNode} />
         ) : (
-          <div className="inline-state inline-state-muted">
+          <div className="inline-state inline-state-muted governance-selected-empty">
             <strong>No node selected</strong>
             <span>Select a graph node to inspect its indexed details.</span>
           </div>
@@ -466,12 +456,16 @@ function GovernanceStructureAside({
 }
 
 function BodiesTab({
+  activeTab,
   bodies,
   mandates,
+  onActiveTabChange,
   roles,
 }: {
+  readonly activeTab: string;
   readonly bodies: readonly BodyDto[];
   readonly mandates: readonly MandateDto[];
+  readonly onActiveTabChange: (value: string) => void;
   readonly roles: readonly RoleDto[];
 }): JSX.Element {
   if (bodies.length === 0) {
@@ -486,8 +480,14 @@ function BodiesTab({
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Bodies</h2>
-        <StatusBadge tone="muted">{bodies.length}</StatusBadge>
+        <div>
+          <h2>Bodies</h2>
+          <p className="panel-subtitle">Total {bodies.length} bodies</p>
+        </div>
+        <GovernanceGraphListSwitch
+          value={activeTab === "bodies" ? "bodies" : "graph"}
+          onValueChange={onActiveTabChange}
+        />
       </div>
       <div className="card-grid governance-card-grid">
         {sortByNumeric(bodies, (body) => body.bodyId).map((body) => {
@@ -894,12 +894,16 @@ function GraphEmptyState({ orgId }: { readonly orgId: string }): JSX.Element {
 }
 
 function getTabs({
+  activeTab,
+  onActiveTabChange,
   data,
   graphContent,
   model,
   nowSeconds,
   orgId: _orgId,
 }: {
+  readonly activeTab: string;
+  readonly onActiveTabChange: (value: string) => void;
   readonly data: GovernanceStructureData;
   readonly graphContent: JSX.Element;
   readonly model: GovernanceStructureModel;
@@ -915,8 +919,10 @@ function getTabs({
     {
       content: (
         <BodiesTab
+          activeTab={activeTab}
           bodies={data.bodies}
           mandates={data.mandates}
+          onActiveTabChange={onActiveTabChange}
           roles={data.roles}
         />
       ),
@@ -954,6 +960,35 @@ function getTabs({
       value: "routes",
     },
   ];
+}
+
+function GovernanceGraphListSwitch({
+  onValueChange,
+  value,
+}: {
+  readonly onValueChange: (value: string) => void;
+  readonly value: "graph" | "bodies";
+}): JSX.Element {
+  return (
+    <IsoSegmentedControl
+      ariaLabel="Switch governance structure view"
+      items={[
+        {
+          icon: <IsoIcon name="graph" size={15} />,
+          label: "Graph",
+          value: "graph",
+        },
+        {
+          icon: <IsoIcon name="list" size={15} />,
+          label: "List",
+          value: "bodies",
+        },
+      ]}
+      size="sm"
+      value={value}
+      onValueChange={onValueChange}
+    />
+  );
 }
 
 function isNodeVisibleWhenActive(node: GovernanceStructureNode): boolean {

@@ -495,6 +495,22 @@ td {
   font-size: 0.86rem;
 }
 
+.button-icon {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.button-borderless {
+  border-color: transparent;
+  background: transparent;
+}
+
+.button-borderless:hover {
+  border-color: transparent;
+  background: var(--iso-color-surface-subtle);
+}
+
 .diagnostics-text-link {
   color: var(--iso-color-primary);
   font-size: 0.86rem;
@@ -2390,6 +2406,78 @@ button.address-display {
   min-width: 0;
 }
 
+.iso-segmented-control {
+  display: inline-flex;
+  overflow: hidden;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.18rem;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.18rem;
+  background: var(--iso-color-surface-subtle);
+}
+
+.iso-segmented-control-sm {
+  min-height: 32px;
+}
+
+.iso-segmented-control-md {
+  min-height: 38px;
+}
+
+.iso-segmented-control-item {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: calc(var(--iso-radius-md) - 2px);
+  padding: 0 0.68rem;
+  background: transparent;
+  color: var(--iso-color-muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.iso-segmented-control-sm .iso-segmented-control-item {
+  min-height: 26px;
+  padding: 0 0.55rem;
+  font-size: 0.8rem;
+}
+
+.iso-segmented-control-item:hover:not(:disabled) {
+  color: var(--iso-color-muted);
+}
+
+.iso-segmented-control-item:focus-visible {
+  outline: 2px solid var(--iso-color-primary);
+  outline-offset: 2px;
+}
+
+.iso-segmented-control-item[aria-pressed="true"] {
+  background: var(--iso-color-primary);
+  color: var(--iso-color-primary-foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--iso-color-foreground) 8%, transparent);
+}
+
+.iso-segmented-control-item[aria-pressed="true"]:hover {
+  color: var(--iso-color-primary-foreground);
+}
+
+.iso-segmented-control-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.iso-segmented-control-icon {
+  display: inline-flex;
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4070,10 +4158,6 @@ button.address-display {
   min-width: 0;
 }
 
-.governance-graph-header {
-  align-items: flex-start;
-}
-
 .governance-flow-shell {
   height: min(68vh, 720px);
   min-height: 560px;
@@ -4289,6 +4373,10 @@ button.address-display {
   accent-color: var(--iso-color-primary);
 }
 
+.governance-selected-empty {
+  margin-top: 1em;
+}
+
 .governance-structure-detail-list {
   display: grid;
   gap: 0.65rem;
@@ -4392,9 +4480,13 @@ button.address-display {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.governance-structure-about,
 .governance-structure-activation {
   margin: 0;
+}
+
+.governance-structure-header-actions .iso-toggle-tip__content {
+  right: 0;
+  left: auto;
 }
 
 .state-panel {

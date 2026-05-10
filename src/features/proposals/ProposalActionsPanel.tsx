@@ -18,7 +18,6 @@ import type { DemoExecutionState } from "../../protocol/demo-proposal-action";
 import { StatusBadge } from "../../ui/StatusBadge";
 import { formatLabel } from "../../utils/format";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
-import { ProposalActionLifecycle } from "./ProposalActionLifecycle";
 import {
   formatRouteBlockedReasonMessage,
   formatBodyList as formatLabeledBodyList,
@@ -43,7 +42,6 @@ interface ProposalActionsPanelProps {
   readonly orgAdminAddress?: string;
   readonly proposal: ProposalDto;
   readonly readiness?: ProposalActionReadiness;
-  readonly reset: () => void;
   readonly roles: readonly RoleDto[];
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
@@ -76,7 +74,6 @@ export function ProposalActionsPanel({
   orgAdminAddress,
   proposal,
   readiness,
-  reset,
   roles,
   route,
   routeError,
@@ -372,12 +369,6 @@ export function ProposalActionsPanel({
           </div>
         ) : null}
       </div>
-
-      <ProposalActionLifecycle
-        blockExplorerUrl={runtimeConfig.blockExplorerUrl}
-        reset={reset}
-        transaction={transaction}
-      />
     </section>
   );
 }

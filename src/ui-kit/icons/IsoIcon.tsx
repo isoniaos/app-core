@@ -1,6 +1,7 @@
 import {
   AlertCircleIcon,
   Building02Icon,
+  Blockchain06Icon,
   BulbIcon,
   Cancel01Icon,
   CancelCircleIcon,
@@ -11,6 +12,7 @@ import {
   HierarchySquare03Icon,
   Home01Icon,
   InformationCircleIcon,
+  LeftToRightListBulletIcon,
   Moon02Icon,
   NewJobIcon,
   PlusSignCircleIcon,
@@ -31,9 +33,11 @@ export type IsoIconName =
   | "building"
   | "cancel"
   | "check"
+  | "graph"
   | "home"
   | "help"
   | "info"
+  | "list"
   | "lightbulb"
   | "moon"
   | "proposals"
@@ -62,9 +66,11 @@ const ICONS = {
   building: Building02Icon,
   cancel: Cancel01Icon,
   check: CheckmarkCircle02Icon,
+  graph: Blockchain06Icon,
   home: Home01Icon,
   help: HelpCircleIcon,
   info: InformationCircleIcon,
+  list: LeftToRightListBulletIcon,
   lightbulb: BulbIcon,
   moon: Moon02Icon,
   proposals: FileChartColumnIcon,

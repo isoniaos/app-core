@@ -231,7 +231,6 @@ function ProposalDetailsContent({
                     orgAdminAddress={orgAdminAddress}
                     proposal={proposal}
                     readiness={proposalAction.readiness}
-                    reset={proposalAction.reset}
                     roles={roles}
                     route={route}
                     routeError={routeError}

@@ -52,6 +52,11 @@ export { IsoAddressDisplay } from "./identity/IsoAddressDisplay";
 export type { IsoAddressDisplayProps } from "./identity/IsoAddressDisplay";
 export { IsoMenu } from "./navigation/IsoMenu";
 export type { IsoMenuItem, IsoMenuProps } from "./navigation/IsoMenu";
+export { IsoSegmentedControl } from "./navigation/IsoSegmentedControl";
+export type {
+  IsoSegmentedControlItem,
+  IsoSegmentedControlProps,
+} from "./navigation/IsoSegmentedControl";
 export { IsoTabs } from "./navigation/IsoTabs";
 export type { IsoTabItem, IsoTabsProps } from "./navigation/IsoTabs";
 export { IsoConfirmDialog } from "./overlay/IsoConfirmDialog";

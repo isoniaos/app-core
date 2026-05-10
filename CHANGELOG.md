@@ -6,19 +6,24 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.18]
+
 ### Added
 
+- Added a reusable segmented control UI primitive.
 - Recorded the Proposal Action Builder as a future roadmap item.
 
 ### Changed
 
 - Moved proposal creation and proposal actions to the single transaction modal UX.
 - Improved proposal action disabled states and authority guidance.
+- Polished Governance Structure header controls and graph/list segmented switching.
 - Replaced unhelpful body identifiers with role/body labels where read models allow.
 
 ### Fixed
 
 - Removed the empty Governance Structure minimap while keeping graph controls and Fit to view.
+- Removed the old inline proposal transaction status from the Actions tab.
 
 ## [0.6.0-alpha.17]
 
@@ -242,7 +247,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.17...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.18...HEAD
+[0.6.0-alpha.18]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.18
 [0.6.0-alpha.17]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.17
 [0.6.0-alpha.16]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.16
 [0.6.0-alpha.15]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.15
