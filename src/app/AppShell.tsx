@@ -58,18 +58,21 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
                 </NavLink>
                 <NavLink
                   to={`/orgs/${orgId}/governance`}
-                  className={navClassName}
+                  className={({ isActive }) =>
+                    navClassName({
+                      isActive:
+                        isActive ||
+                        isGovernanceStructureAlias(location.pathname, orgId),
+                    })
+                  }
                 >
-                  Governance
+                  Governance Structure
                 </NavLink>
                 <NavLink
                   to={`/orgs/${orgId}/proposals`}
                   className={navClassName}
                 >
                   Proposals
-                </NavLink>
-                <NavLink to={`/orgs/${orgId}/graph`} className={navClassName}>
-                  Governance Structure
                 </NavLink>
               </>
             ) : null}
@@ -89,4 +92,11 @@ function getOrgIdFromPath(pathname: string): string | undefined {
   const match = /^\/orgs\/([^/]+)/.exec(pathname);
   const orgId = match?.[1];
   return orgId && orgId !== "new" ? orgId : undefined;
+}
+
+function isGovernanceStructureAlias(
+  pathname: string,
+  orgId: string,
+): boolean {
+  return pathname === `/orgs/${orgId}/graph`;
 }

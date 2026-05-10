@@ -3,8 +3,7 @@ import {
   DiagnosticsHomePage,
   DiagnosticsPage,
 } from "../features/diagnostics/DiagnosticsPage";
-import { GraphPage } from "../features/graph/GraphPage";
-import { GovernancePage } from "../features/governance/GovernancePage";
+import { GovernanceStructurePage } from "../features/governance-structure/GovernanceStructurePage";
 import { OrganizationOverviewPage } from "../features/organizations/OrganizationOverviewPage";
 import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
 import { CreateProposalPage } from "../features/proposals/CreateProposalPage";
@@ -28,7 +27,10 @@ export function App(): JSX.Element {
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/orgs/:orgId" element={<OrganizationOverviewPage />} />
             <Route path="/orgs/:orgId/setup" element={<OrganizationSetupPage />} />
-            <Route path="/orgs/:orgId/governance" element={<GovernancePage />} />
+            <Route
+              path="/orgs/:orgId/governance"
+              element={<GovernanceStructurePage />}
+            />
             <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
             <Route
               path="/orgs/:orgId/proposals/new"
@@ -38,7 +40,10 @@ export function App(): JSX.Element {
               path="/orgs/:orgId/proposals/:proposalId"
               element={<ProposalDetailsPage />}
             />
-            <Route path="/orgs/:orgId/graph" element={<GraphPage />} />
+            <Route
+              path="/orgs/:orgId/graph"
+              element={<GovernanceStructurePage />}
+            />
             <Route path="/organizations" element={<Navigate to="/orgs" replace />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

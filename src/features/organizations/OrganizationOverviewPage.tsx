@@ -118,13 +118,10 @@ function OrganizationOverviewContent({
           Setup
         </Link>
         <Link className="button" to={`/orgs/${orgId}/governance`}>
-          Governance
+          Governance Structure
         </Link>
         <Link className="button" to={`/orgs/${orgId}/proposals`}>
           Proposals
-        </Link>
-        <Link className="button" to={`/orgs/${orgId}/graph`}>
-          Governance Structure
         </Link>
       </div>
 

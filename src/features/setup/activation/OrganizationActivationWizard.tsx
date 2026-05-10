@@ -1255,7 +1255,7 @@ function ActivationReview({
           <strong>Activation indexed</strong>
           <span>All expected activation actions match indexed read models.</span>
           <Link className="button button-small" to={`/orgs/${orgId}/governance`}>
-            Open governance
+            Open Governance Structure
           </Link>
         </div>
       ) : (

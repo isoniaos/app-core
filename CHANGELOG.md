@@ -6,12 +6,22 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.16]
+
+### Changed
+
+- Replaced the legacy governance page with the new Governance Structure view.
+
+### Fixed
+
+- Kept the graph route as a compatibility alias for the Governance Structure view.
+
+## [0.6.0-alpha.15]
+
 ### Added
 
 - Added Governance Structure visual view with authority graph, structure metrics, and tabs for bodies, roles, mandates, policies, and routes.
 - Added React Flow-powered graph rendering for organization authority relationships.
-
-## [0.6.0-alpha.15]
 
 ### Changed
 
@@ -203,7 +213,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.15...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.16...HEAD
+[0.6.0-alpha.16]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.16
 [0.6.0-alpha.15]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.15
 [0.6.0-alpha.14]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.14
 [0.6.0-alpha.13]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.13

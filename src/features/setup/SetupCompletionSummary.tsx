@@ -255,7 +255,7 @@ function CompletedNextSteps({
   return (
     <div className="setup-completion-next">
       <Link className="button button-primary" to={`/orgs/${orgId}/governance`}>
-        Governance Structure / Power Map
+        Governance Structure
       </Link>
       <Link className="button" to={`/orgs/${orgId}/setup#indexed-policies`}>
         Indexed Policies

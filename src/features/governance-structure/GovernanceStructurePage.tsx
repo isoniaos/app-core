@@ -457,7 +457,7 @@ function GovernanceStructureAside({
             Proposals
           </Link>
           <Link className="button" to={`/orgs/${orgId}/governance`}>
-            Governance
+            Governance Structure
           </Link>
         </div>
       </section>
