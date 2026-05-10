@@ -1,15 +1,25 @@
 import {
   AlertCircleIcon,
+  Building02Icon,
   BulbIcon,
   Cancel01Icon,
   CancelCircleIcon,
   CheckmarkCircle02Icon,
+  ComputerSettingsIcon,
+  FileChartColumnIcon,
   HelpCircleIcon,
+  HierarchySquare03Icon,
+  Home01Icon,
   InformationCircleIcon,
-  QuestionIcon,
-  Tick02Icon,
+  Moon02Icon,
   NewJobIcon,
+  PlusSignCircleIcon,
+  QuestionIcon,
+  Settings02Icon,
+  Sun01Icon,
+  Tick02Icon,
   TimeQuarter02Icon,
+  Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentProps } from "react";
@@ -17,14 +27,24 @@ import type { ComponentProps } from "react";
 type HugeiconsIconProps = ComponentProps<typeof HugeiconsIcon>;
 
 export type IsoIconName =
+  | "add"
+  | "building"
   | "cancel"
   | "check"
+  | "home"
   | "help"
   | "info"
   | "lightbulb"
+  | "moon"
+  | "proposals"
   | "question"
+  | "setup"
+  | "structure"
+  | "sun"
+  | "system"
   | "tick"
   | "warning"
+  | "wallet"
   | "job"
   | "x"
   | "timelock";
@@ -38,14 +58,24 @@ export interface IsoIconProps
 }
 
 const ICONS = {
+  add: PlusSignCircleIcon,
+  building: Building02Icon,
   cancel: Cancel01Icon,
   check: CheckmarkCircle02Icon,
+  home: Home01Icon,
   help: HelpCircleIcon,
   info: InformationCircleIcon,
   lightbulb: BulbIcon,
+  moon: Moon02Icon,
+  proposals: FileChartColumnIcon,
   question: QuestionIcon,
+  setup: Settings02Icon,
+  structure: HierarchySquare03Icon,
+  sun: Sun01Icon,
+  system: ComputerSettingsIcon,
   tick: Tick02Icon,
   warning: AlertCircleIcon,
+  wallet: Wallet02Icon,
   x: CancelCircleIcon,
   job: NewJobIcon,
   timelock: TimeQuarter02Icon,

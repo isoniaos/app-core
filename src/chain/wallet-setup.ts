@@ -3,6 +3,8 @@ import { defineChain as defineViemChain, type Chain } from "viem";
 import { createConfig, http, type Config } from "wagmi";
 import { injected } from "wagmi/connectors";
 import type { RuntimeConfig } from "../config/runtime-config";
+import { getInitialIsoResolvedColorMode } from "../theme/color-mode";
+import { createReownThemeVariables } from "../wallet/reown-theme";
 
 export interface WalletSetup {
   readonly appKitEnabled: boolean;
@@ -76,6 +78,7 @@ export async function createWalletSetup(
         projectId: reownProjectId,
         ssr: false,
       });
+      const initialThemeMode = getInitialIsoResolvedColorMode();
 
       const setupKey = `${reownProjectId}:${runtimeConfig.chainId}`;
       if (!initializedAppKitKeys.has(setupKey)) {
@@ -92,6 +95,8 @@ export async function createWalletSetup(
           features: {
             analytics: false,
           },
+          themeMode: initialThemeMode,
+          themeVariables: createReownThemeVariables(initialThemeMode),
         });
         initializedAppKitKeys.add(setupKey);
       }

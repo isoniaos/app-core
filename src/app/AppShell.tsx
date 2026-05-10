@@ -3,7 +3,12 @@ import type { PropsWithChildren } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useRuntimeConfig } from "../config/runtime-config";
 import { DiagnosticsStatusIndicator } from "../features/diagnostics/DiagnosticsStatusIndicator";
-import { IsoLogo } from "../ui-kit";
+import {
+  ColorModeToggle,
+  IsoIcon,
+  IsoLogo,
+  type IsoIconName,
+} from "../ui-kit";
 import { WalletStatus } from "../wallet/WalletStatus";
 
 export function AppShell({ children }: PropsWithChildren): JSX.Element {
@@ -33,54 +38,102 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
         </NavLink>
         <div className="topbar-actions">
           <DiagnosticsStatusIndicator />
+          <ColorModeToggle />
           <WalletStatus />
         </div>
       </header>
 
       <div className="shell-body">
         <aside className="sidebar" aria-label="Primary navigation">
-          <div className="sidebar-heading">Workspace</div>
-          <nav className="nav-stack">
-            <NavLink to="/orgs" className={navClassName}>
-              Organizations
-            </NavLink>
-            <NavLink to="/orgs/new" className={navClassName}>
-              New organization
-            </NavLink>
+          {orgId ? (
+            <div className="sidebar-org-card">
+              <span className="sidebar-org-eyebrow">Current organization</span>
+              <strong>Org #{orgId}</strong>
+              <span className="sidebar-org-state">
+                <span className="sidebar-org-state-dot" aria-hidden="true" />
+                Selected workspace
+              </span>
+            </div>
+          ) : null}
+
+          <nav className="nav-stack" aria-label="Workspace navigation">
+            <div className="nav-section">
+              <div className="nav-section-label">Workspace</div>
+              <ShellNavLink
+                end
+                icon="building"
+                label="Organizations"
+                to="/orgs"
+              />
+              <ShellNavLink
+                icon="add"
+                label="New organization"
+                to="/orgs/new"
+              />
+            </div>
+
             {orgId ? (
-              <>
-                <div className="nav-group-label">Org #{orgId}</div>
-                <NavLink to={`/orgs/${orgId}`} end className={navClassName}>
-                  Overview
-                </NavLink>
-                <NavLink to={`/orgs/${orgId}/setup`} className={navClassName}>
-                  Setup
-                </NavLink>
-                <NavLink
-                  to={`/orgs/${orgId}/governance`}
-                  className={({ isActive }) =>
-                    navClassName({
-                      isActive:
-                        isActive ||
-                        isGovernanceStructureAlias(location.pathname, orgId),
-                    })
-                  }
-                >
-                  Governance Structure
-                </NavLink>
-                <NavLink
+              <div className="nav-section">
+                <div className="nav-section-label">Governance</div>
+                <ShellNavLink
+                  end
+                  icon="home"
+                  label="Overview"
+                  to={`/orgs/${orgId}`}
+                />
+                <ShellNavLink
+                  icon="proposals"
+                  label="Proposals"
                   to={`/orgs/${orgId}/proposals`}
-                  className={navClassName}
-                >
-                  Proposals
-                </NavLink>
-              </>
+                />
+                <ShellNavLink
+                  icon="structure"
+                  isActiveOverride={isGovernanceStructureAlias(
+                    location.pathname,
+                    orgId,
+                  )}
+                  label="Governance Structure"
+                  to={`/orgs/${orgId}/governance`}
+                />
+                <ShellNavLink
+                  icon="setup"
+                  label="Setup / Activation"
+                  to={`/orgs/${orgId}/setup`}
+                />
+              </div>
             ) : null}
           </nav>
         </aside>
         <main className="content-shell">{children}</main>
       </div>
     </div>
+  );
+}
+
+function ShellNavLink({
+  end = false,
+  icon,
+  isActiveOverride = false,
+  label,
+  to,
+}: {
+  readonly end?: boolean;
+  readonly icon: IsoIconName;
+  readonly isActiveOverride?: boolean;
+  readonly label: string;
+  readonly to: string;
+}): JSX.Element {
+  return (
+    <NavLink
+      className={({ isActive }) =>
+        navClassName({ isActive: isActive || isActiveOverride })
+      }
+      end={end}
+      to={to}
+    >
+      <IsoIcon className="nav-link-icon" name={icon} size={17} />
+      <span>{label}</span>
+    </NavLink>
   );
 }
 

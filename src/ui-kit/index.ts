@@ -5,6 +5,10 @@ export type {
   IsoLogoSize,
   IsoLogoVariant,
 } from "./brand/IsoLogo";
+export { ColorModeProvider } from "./color-mode/ColorModeProvider";
+export { ColorModeToggle } from "./color-mode/ColorModeToggle";
+export { useIsoColorMode } from "./color-mode/useIsoColorMode";
+export type { UseIsoColorModeResult } from "./color-mode/useIsoColorMode";
 export { IsoToaster, isoToaster } from "./feedback/IsoToaster";
 export { useIsoToast } from "./feedback/useIsoToast";
 export type { IsoToastApi, IsoToastStatus } from "./feedback/useIsoToast";

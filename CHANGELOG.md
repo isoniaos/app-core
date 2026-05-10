@@ -6,6 +6,17 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0-alpha.17]
+
+### Added
+
+- Added light/dark color mode support and a compact header theme toggle.
+
+### Changed
+
+- Aligned Reown/AppKit theme variables with the Isonia visual system.
+- Refined AppShell topbar, wallet chip, and sidebar navigation.
+
 ## [0.6.0-alpha.16]
 
 ### Changed
@@ -213,7 +224,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.16...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.6.0-alpha.17...HEAD
+[0.6.0-alpha.17]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.17
 [0.6.0-alpha.16]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.16
 [0.6.0-alpha.15]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.15
 [0.6.0-alpha.14]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.14
