@@ -17,6 +17,10 @@ All notable changes to `@isonia/app-core` are documented here.
 - Aligned Reown/AppKit theme variables with the Isonia visual system.
 - Refined AppShell topbar, wallet chip, and sidebar navigation.
 
+### Fixed
+
+- Fixed a color-mode toggle freeze by stabilizing theme synchronization.
+
 ## [0.6.0-alpha.16]
 
 ### Changed

@@ -20,6 +20,13 @@ const CHECKING_CAPABILITIES: Eip5792CapabilityDetection = {
   status: "unknown",
 };
 
+const WALLET_DISCONNECTED_CAPABILITIES: Eip5792CapabilityDetection = {
+  atomicRequired: false,
+  canSendCalls: false,
+  reason: "Connect a wallet before checking batch support.",
+  status: "unsupported",
+};
+
 export interface UseEip5792CapabilitiesResult {
   readonly capabilities: Eip5792CapabilityDetection;
   readonly checking: boolean;
@@ -47,12 +54,18 @@ export function useEip5792Capabilities({
     );
   const [checking, setChecking] = useState(enabled);
   const mounted = useRef(true);
+  const connectorRef = useRef(connector);
+  const connectorKey = getConnectorKey(connector);
 
   useEffect(() => {
     return () => {
       mounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    connectorRef.current = connector;
+  }, [connector]);
 
   const refresh = useCallback(async (): Promise<Eip5792CapabilityDetection> => {
     if (!enabled) {
@@ -63,6 +76,14 @@ export function useEip5792Capabilities({
       return DISABLED_CAPABILITIES;
     }
 
+    if (!connected || !address) {
+      if (mounted.current) {
+        setCapabilities(WALLET_DISCONNECTED_CAPABILITIES);
+        setChecking(false);
+      }
+      return WALLET_DISCONNECTED_CAPABILITIES;
+    }
+
     if (mounted.current) {
       setCapabilities((current) => ({
         ...CHECKING_CAPABILITIES,
@@ -71,7 +92,9 @@ export function useEip5792Capabilities({
       setChecking(true);
     }
 
-    const { diagnostics, provider } = await getEip5792ProviderContext(connector);
+    const { diagnostics, provider } = await getEip5792ProviderContext(
+      connectorRef.current,
+    );
     const next = await detectEip5792Capabilities({
       accountChainId,
       address,
@@ -87,15 +110,38 @@ export function useEip5792Capabilities({
     }
 
     return next;
-  }, [accountChainId, address, chainId, connected, connector, enabled]);
+  }, [accountChainId, address, chainId, connected, enabled]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [connectorKey, refresh]);
 
   return {
     capabilities,
     checking,
     refresh,
   };
+}
+
+function getConnectorKey(connector: unknown): string {
+  if (!connector || typeof connector !== "object") {
+    return "none";
+  }
+
+  const record = connector as Record<string, unknown>;
+  return [
+    readConnectorKeyPart(record.id),
+    readConnectorKeyPart(record.name),
+    readConnectorKeyPart(record.uid),
+    readConnectorKeyPart(record.type),
+    readConnectorKeyPart(record.rdns),
+  ]
+    .filter(Boolean)
+    .join(":") || "object";
+}
+
+function readConnectorKeyPart(value: unknown): string {
+  return typeof value === "string" || typeof value === "number"
+    ? String(value)
+    : "";
 }
