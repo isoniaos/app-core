@@ -124,7 +124,7 @@ function OrganizationOverviewContent({
           Proposals
         </Link>
         <Link className="button" to={`/orgs/${orgId}/graph`}>
-          Graph
+          Governance Structure
         </Link>
       </div>
 

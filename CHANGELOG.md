@@ -6,6 +6,11 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added Governance Structure visual view with authority graph, structure metrics, and tabs for bodies, roles, mandates, policies, and routes.
+- Added React Flow-powered graph rendering for organization authority relationships.
+
 ## [0.6.0-alpha.15]
 
 ### Changed

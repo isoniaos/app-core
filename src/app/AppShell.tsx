@@ -69,7 +69,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
                   Proposals
                 </NavLink>
                 <NavLink to={`/orgs/${orgId}/graph`} className={navClassName}>
-                  Graph
+                  Governance Structure
                 </NavLink>
               </>
             ) : null}
