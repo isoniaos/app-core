@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  ActivationCapabilities,
   AssignMandateSetupAction,
   CreateBodySetupAction,
   CreateRoleSetupAction,
@@ -8,9 +9,20 @@ import type {
   SetupDraft,
 } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
-import type { IsoniaControlPlaneClient } from "@isonia/sdk";
+import {
+  createAdminBatchActivationPlan,
+  getAdminBatchActivationFunctionName,
+  isContractBatchActivationMode,
+  type AdminBatchActivationPlanCall,
+  type AssignMandatesActivationPlanCall,
+  type CreateBodiesActivationPlanCall,
+  type CreateRolesActivationPlanCall,
+  type IsoniaControlPlaneClient,
+  type SetPolicyRulesActivationPlanCall,
+} from "@isonia/sdk";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import { GOV_CORE_ABI } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
   useTransactionModal,
@@ -46,10 +58,12 @@ import {
   getCreateRoleActions,
   getSetPolicyRuleActions,
   delay,
+  isConfiguredAddress,
   isBusyStage,
   normalizeTransactionError,
   resolveRoleReference,
 } from "./setup-action-execution-helpers";
+import { assertSuccessfulReceipt } from "./receipt-parsers";
 import {
   deriveSetupExecutionStateFromReadModels,
   verifySetupCompletion,
@@ -71,6 +85,14 @@ import {
 } from "./setup-action-execution-types";
 import {
   assertPolicyDependenciesResolved,
+  buildBatchAssignMandatesCallArgs,
+  buildBatchAssignMandatesInput,
+  buildBatchCreateBodiesCallArgs,
+  buildBatchCreateBodiesInput,
+  buildBatchCreateRolesCallArgs,
+  buildBatchCreateRolesInput,
+  buildBatchSetPolicyRulesCallArgs,
+  buildBatchSetPolicyRulesInput,
   prepareAssignMandateCall,
   prepareCreateBodyCall,
   prepareCreateRoleCall,
@@ -87,11 +109,13 @@ export type {
 } from "./setup-action-execution-types";
 
 interface UseSetupActionExecutionOptions {
+  readonly activationCapabilities?: ActivationCapabilities;
   readonly draft: SetupDraft;
   readonly readModels?: SetupCompletionReadModels;
 }
 
 export function useSetupActionExecution({
+  activationCapabilities,
   draft,
   readModels,
 }: UseSetupActionExecutionOptions): {
@@ -1064,6 +1088,268 @@ export function useSetupActionExecution({
     ],
   );
 
+  const submitContractBatchPlanCall = useCallback(
+    async (call: AdminBatchActivationPlanCall): Promise<`0x${string}`> => {
+      switch (call.group) {
+        case "bodies": {
+          const args = buildBatchCreateBodiesCallArgs({
+            orgId: call.orgId,
+            inputs: call.inputs,
+          });
+          if (args instanceof Error) {
+            throw args;
+          }
+          return await writeContractAsync({
+            address: runtimeConfig.contracts.govCoreAddress,
+            abi: GOV_CORE_ABI,
+            functionName: getAdminBatchActivationFunctionName("bodies"),
+            args,
+            chainId: runtimeConfig.chainId,
+          });
+        }
+        case "roles": {
+          const args = buildBatchCreateRolesCallArgs({
+            orgId: call.orgId,
+            inputs: call.inputs,
+          });
+          if (args instanceof Error) {
+            throw args;
+          }
+          return await writeContractAsync({
+            address: runtimeConfig.contracts.govCoreAddress,
+            abi: GOV_CORE_ABI,
+            functionName: getAdminBatchActivationFunctionName("roles"),
+            args,
+            chainId: runtimeConfig.chainId,
+          });
+        }
+        case "mandates": {
+          const args = buildBatchAssignMandatesCallArgs({
+            orgId: call.orgId,
+            inputs: call.inputs,
+          });
+          if (args instanceof Error) {
+            throw args;
+          }
+          return await writeContractAsync({
+            address: runtimeConfig.contracts.govCoreAddress,
+            abi: GOV_CORE_ABI,
+            functionName: getAdminBatchActivationFunctionName("mandates"),
+            args,
+            chainId: runtimeConfig.chainId,
+          });
+        }
+        case "policyRules": {
+          const args = buildBatchSetPolicyRulesCallArgs({
+            orgId: call.orgId,
+            inputs: call.inputs,
+          });
+          if (args instanceof Error) {
+            throw args;
+          }
+          return await writeContractAsync({
+            address: runtimeConfig.contracts.govCoreAddress,
+            abi: GOV_CORE_ABI,
+            functionName: getAdminBatchActivationFunctionName("policyRules"),
+            args,
+            chainId: runtimeConfig.chainId,
+          });
+        }
+      }
+      throw new Error("Unsupported contract batch group.");
+    },
+    [
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      writeContractAsync,
+    ],
+  );
+
+  const runSetupGroupContractBatchTransaction = useCallback(
+    async ({
+      actions,
+      call,
+      getItemId,
+    }: SetupGroupContractBatchRunConfig): Promise<void> => {
+      const failBatch = (message: string, txHash?: `0x${string}`): void => {
+        applyBatchActionTransactionPatch({
+          actions,
+          error: message,
+          setState: setExecutionState,
+          stage: "failed",
+          txHashes: txHash ? [txHash] : [],
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: message,
+            stage: "failed",
+            txHash,
+          },
+          updateTransactionModalItem,
+        });
+        updateTransactionBatch({
+          error: message,
+          status: "failed",
+          statusDetail:
+            "The typed contract batch did not complete. Use the serial fallback for incomplete actions after checking indexed progress.",
+          txHashes: txHash ? [txHash] : [],
+        });
+      };
+
+      if (!account.address) {
+        failBatch("Wallet is not connected.");
+        return;
+      }
+
+      if (account.chainId !== runtimeConfig.chainId) {
+        failBatch(
+          `Wallet is connected to chain ${String(
+            account.chainId,
+          )}; expected chain ${runtimeConfig.chainId}.`,
+        );
+        return;
+      }
+
+      if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+        failBatch("GovCore contract address is missing from runtime config.");
+        return;
+      }
+
+      if (!publicClient) {
+        failBatch("Wallet client is unavailable for the configured chain.");
+        return;
+      }
+
+      let txHash: `0x${string}` | undefined;
+
+      try {
+        updateTransactionBatch({
+          error: undefined,
+          status: "waiting_for_wallet",
+          statusDetail: "Confirm the typed GovCore batch transaction.",
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "wallet_pending",
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            error: undefined,
+            stage: "waiting_for_wallet",
+          },
+          updateTransactionModalItem,
+        });
+
+        txHash = await submitContractBatchPlanCall(call);
+
+        updateTransactionBatch({
+          status: "submitted",
+          statusDetail:
+            "Batch transaction submitted. Waiting for receipt confirmation.",
+          txHashes: [txHash],
+        });
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "submitted",
+          txHashes: [txHash],
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            stage: "submitted",
+            txHash,
+          },
+          updateTransactionModalItem,
+        });
+
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "confirming",
+          txHashes: [txHash],
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            stage: "confirming",
+            txHash,
+          },
+          updateTransactionModalItem,
+        });
+
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+        assertSuccessfulReceipt(receipt);
+
+        applyBatchActionTransactionPatch({
+          actions,
+          setState: setExecutionState,
+          stage: "confirmed_waiting_indexer",
+          txHashes: [txHash],
+        });
+        updateBatchModalItems({
+          actions,
+          getItemId,
+          patch: {
+            stage: "waiting_for_control_plane",
+            txHash,
+          },
+          updateTransactionModalItem,
+        });
+        updateTransactionBatch({
+          status: "waiting_for_control_plane",
+          statusDetail:
+            "Contract batch confirmed. Waiting for indexed activation read models.",
+          txHashes: [txHash],
+        });
+
+        await waitForBatchReadModelCompletion({
+          actions,
+          client,
+          draft: draftRef.current,
+          getExecutionState: () => stateRef.current,
+          getItemId,
+          orgId: stateRef.current.resolvedOrgId ?? resolvedOrgId,
+          readModels: readModelsRef.current,
+          setExecutionState,
+          updateTransactionModalItem,
+        });
+
+        updateTransactionBatch({
+          error: undefined,
+          status: "completed",
+          statusDetail:
+            "All expected activation read models are indexed for this contract batch.",
+          txHashes: [txHash],
+        });
+      } catch (error: unknown) {
+        failBatch(normalizeTransactionError(error), txHash);
+      }
+    },
+    [
+      account.address,
+      account.chainId,
+      client,
+      publicClient,
+      resolvedOrgId,
+      runtimeConfig.chainId,
+      runtimeConfig.contracts.govCoreAddress,
+      setExecutionState,
+      submitContractBatchPlanCall,
+      updateTransactionBatch,
+      updateTransactionModalItem,
+    ],
+  );
+
   const openSetupGroupTransactionModal = useCallback(
     ({
       actions,
@@ -1192,6 +1478,7 @@ export function useSetupActionExecution({
             : undefined,
         fallbackSerial: runSerialFallback,
         fallbackSerialLabel: "Run step one by one",
+        kind: "wallet_eip5792",
         retry:
           !preparationError && prepared.length > 0
             ? () =>
@@ -1230,7 +1517,104 @@ export function useSetupActionExecution({
     ],
   );
 
-  const executeCreateBodyGroup = useCallback(async (): Promise<void> => {
+  const openSetupGroupContractBatchTransactionModal = useCallback(
+    ({
+      actions,
+      call,
+      description,
+      getItemId,
+      runSerialFallback,
+      title,
+    }: SetupGroupContractBatchModalConfig): void => {
+      const runnableActions = actions.filter((action) => {
+        const result = getCompletionResult(
+          action.actionId,
+          draft,
+          returnedState,
+          readModels,
+        );
+        return (
+          result?.state !== "indexed" &&
+          canExecuteActivationActionState(result?.state)
+        );
+      });
+      let preparationError: Error | undefined;
+
+      if (runnableActions.length === 0) {
+        preparationError = new Error("No executable setup actions are pending.");
+      }
+
+      for (const action of runnableActions) {
+        const preflight = getSetupActionExecutionPreflight(action, {
+          ...getSetupPreflightEnvironment(executorContextRef.current),
+        });
+        if (!preflight.canExecute) {
+          preparationError = new Error(formatSetupPreflightError(preflight));
+          break;
+        }
+      }
+
+      const items = runnableActions.map((action) => ({
+        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        description: action.description,
+        error: preparationError?.message,
+        id: getItemId(action.actionId),
+        stage: preparationError ? "failed" : "pending",
+        title: action.label,
+      })) satisfies readonly TransactionFlowItem[];
+
+      const batchDetails: TransactionBatchDetails = {
+        atomicCapability: "Single GovCore transaction",
+        capabilityStatus: "supported",
+        capabilitySummary: `${call.label}: ${call.itemCount.toLocaleString()} item${call.itemCount === 1 ? "" : "s"}.`,
+        error: preparationError?.message,
+        execute:
+          !preparationError && runnableActions.length > 0
+            ? () =>
+                runSetupGroupContractBatchTransaction({
+                  actions: runnableActions,
+                  call,
+                  getItemId,
+                })
+            : undefined,
+        fallbackSerial: runSerialFallback,
+        fallbackSerialLabel: "Run step one by one",
+        kind: "contract_batch",
+        retry:
+          !preparationError && runnableActions.length > 0
+            ? () =>
+                runSetupGroupContractBatchTransaction({
+                  actions: runnableActions,
+                  call,
+                  getItemId,
+                })
+            : undefined,
+        status: preparationError ? "failed" : "ready",
+        statusDetail: preparationError
+          ? "The contract batch was not submitted. Use the serial fallback for this activation group."
+          : "Review the typed contract batch, then submit one GovCore transaction.",
+        txHashes: [],
+      };
+
+      activeTransactionModalItemId.current = items[0]?.id;
+      openBatchTransactionModal({
+        batch: batchDetails,
+        description,
+        items,
+        title,
+      });
+    },
+    [
+      draft,
+      openBatchTransactionModal,
+      readModels,
+      returnedState,
+      runSetupGroupContractBatchTransaction,
+      runtimeConfig.blockExplorerUrl,
+    ],
+  );
+
+  const openCreateBodyGroupSerial = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: createBodyActions,
       description:
@@ -1241,6 +1625,44 @@ export function useSetupActionExecution({
       title: "Activate bodies",
     });
   }, [createBodyActions, openSetupGroupTransactionModal, runCreateBodyAction]);
+
+  const executeCreateBodyGroup = useCallback(async (): Promise<void> => {
+    const batchInput = buildBatchCreateBodiesInput({
+      actions: createBodyActions,
+      resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+    });
+    if (!(batchInput instanceof Error)) {
+      const plan = createAdminBatchActivationPlan({
+        bodies: batchInput,
+        capabilities: activationCapabilities,
+      });
+      const call = plan.calls.find(
+        (candidate): candidate is CreateBodiesActivationPlanCall =>
+          candidate.group === "bodies",
+      );
+      if (isContractBatchActivationMode(plan.executionMode) && call) {
+        openSetupGroupContractBatchTransactionModal({
+          actions: createBodyActions,
+          call,
+          description:
+            "Submit one typed GovCore batch for ready body setup calls, then wait for indexed read models.",
+          getItemId: (actionId) =>
+            buildSetupTransactionModalItemId("create-body", actionId),
+          runSerialFallback: () => openCreateBodyGroupSerial(),
+          title: "Batch activate bodies",
+        });
+        return;
+      }
+    }
+
+    await openCreateBodyGroupSerial();
+  }, [
+    activationCapabilities,
+    createBodyActions,
+    openCreateBodyGroupSerial,
+    openSetupGroupContractBatchTransactionModal,
+    resolvedOrgId,
+  ]);
 
   const executeCreateBodyGroupBatch = useCallback(async (): Promise<void> => {
     openSetupGroupBatchTransactionModal({
@@ -1256,19 +1678,19 @@ export function useSetupActionExecution({
           govCoreAddress: runtimeConfig.contracts.govCoreAddress,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
         }),
-      runSerialFallback: () => executeCreateBodyGroup(),
+      runSerialFallback: () => openCreateBodyGroupSerial(),
       title: "Batch activate bodies",
     });
   }, [
     createBodyActions,
-    executeCreateBodyGroup,
+    openCreateBodyGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
     runtimeConfig.chainId,
     runtimeConfig.contracts.govCoreAddress,
   ]);
 
-  const executeCreateRoleGroup = useCallback(async (): Promise<void> => {
+  const openCreateRoleGroupSerial = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: createRoleActions,
       description:
@@ -1279,6 +1701,47 @@ export function useSetupActionExecution({
       title: "Activate roles",
     });
   }, [createRoleActions, openSetupGroupTransactionModal, runCreateRoleAction]);
+
+  const executeCreateRoleGroup = useCallback(async (): Promise<void> => {
+    const batchInput = buildBatchCreateRolesInput({
+      actions: createRoleActions,
+      bodyActions: createBodyActions,
+      resolvedBodyIds: stateRef.current.resolvedBodyIds,
+      resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+    });
+    if (!(batchInput instanceof Error)) {
+      const plan = createAdminBatchActivationPlan({
+        roles: batchInput,
+        capabilities: activationCapabilities,
+      });
+      const call = plan.calls.find(
+        (candidate): candidate is CreateRolesActivationPlanCall =>
+          candidate.group === "roles",
+      );
+      if (isContractBatchActivationMode(plan.executionMode) && call) {
+        openSetupGroupContractBatchTransactionModal({
+          actions: createRoleActions,
+          call,
+          description:
+            "Submit one typed GovCore batch for ready role setup calls, then wait for indexed read models.",
+          getItemId: (actionId) =>
+            buildSetupTransactionModalItemId("create-role", actionId),
+          runSerialFallback: () => openCreateRoleGroupSerial(),
+          title: "Batch activate roles",
+        });
+        return;
+      }
+    }
+
+    await openCreateRoleGroupSerial();
+  }, [
+    activationCapabilities,
+    createBodyActions,
+    createRoleActions,
+    openCreateRoleGroupSerial,
+    openSetupGroupContractBatchTransactionModal,
+    resolvedOrgId,
+  ]);
 
   const executeCreateRoleGroupBatch = useCallback(async (): Promise<void> => {
     openSetupGroupBatchTransactionModal({
@@ -1296,20 +1759,20 @@ export function useSetupActionExecution({
           resolvedBodyIds: stateRef.current.resolvedBodyIds,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
         }),
-      runSerialFallback: () => executeCreateRoleGroup(),
+      runSerialFallback: () => openCreateRoleGroupSerial(),
       title: "Batch activate roles",
     });
   }, [
     createBodyActions,
     createRoleActions,
-    executeCreateRoleGroup,
+    openCreateRoleGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
     runtimeConfig.chainId,
     runtimeConfig.contracts.govCoreAddress,
   ]);
 
-  const executeAssignMandateGroup = useCallback(async (): Promise<void> => {
+  const openAssignMandateGroupSerial = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: assignMandateActions,
       description:
@@ -1323,6 +1786,47 @@ export function useSetupActionExecution({
     assignMandateActions,
     openSetupGroupTransactionModal,
     runAssignMandateAction,
+  ]);
+
+  const executeAssignMandateGroup = useCallback(async (): Promise<void> => {
+    const batchInput = buildBatchAssignMandatesInput({
+      actions: assignMandateActions,
+      resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+      resolvedRoleIds: stateRef.current.resolvedRoleIds,
+      roleActions: createRoleActions,
+    });
+    if (!(batchInput instanceof Error)) {
+      const plan = createAdminBatchActivationPlan({
+        mandates: batchInput,
+        capabilities: activationCapabilities,
+      });
+      const call = plan.calls.find(
+        (candidate): candidate is AssignMandatesActivationPlanCall =>
+          candidate.group === "mandates",
+      );
+      if (isContractBatchActivationMode(plan.executionMode) && call) {
+        openSetupGroupContractBatchTransactionModal({
+          actions: assignMandateActions,
+          call,
+          description:
+            "Submit one typed GovCore batch for ready mandate setup calls, then wait for indexed read models.",
+          getItemId: (actionId) =>
+            buildSetupTransactionModalItemId("assign-mandate", actionId),
+          runSerialFallback: () => openAssignMandateGroupSerial(),
+          title: "Batch activate mandates",
+        });
+        return;
+      }
+    }
+
+    await openAssignMandateGroupSerial();
+  }, [
+    activationCapabilities,
+    assignMandateActions,
+    createRoleActions,
+    openAssignMandateGroupSerial,
+    openSetupGroupContractBatchTransactionModal,
+    resolvedOrgId,
   ]);
 
   const executeAssignMandateGroupBatch = useCallback(async (): Promise<void> => {
@@ -1352,20 +1856,20 @@ export function useSetupActionExecution({
           resolvedRoleId,
         });
       },
-      runSerialFallback: () => executeAssignMandateGroup(),
+      runSerialFallback: () => openAssignMandateGroupSerial(),
       title: "Batch activate mandates",
     });
   }, [
     assignMandateActions,
     createRoleActions,
-    executeAssignMandateGroup,
+    openAssignMandateGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
     runtimeConfig.chainId,
     runtimeConfig.contracts.govCoreAddress,
   ]);
 
-  const executeSetPolicyRuleGroup = useCallback(async (): Promise<void> => {
+  const openSetPolicyRuleGroupSerial = useCallback(async (): Promise<void> => {
     openSetupGroupTransactionModal({
       actions: setPolicyRuleActions,
       description:
@@ -1378,6 +1882,61 @@ export function useSetupActionExecution({
   }, [
     openSetupGroupTransactionModal,
     runSetPolicyRuleAction,
+    setPolicyRuleActions,
+  ]);
+
+  const executeSetPolicyRuleGroup = useCallback(async (): Promise<void> => {
+    const policyDependencyError = setPolicyRuleActions
+      .map((action) =>
+        assertPolicyDependenciesResolved({
+          action,
+          mandateActions: assignMandateActions,
+          resolvedMandateIds: stateRef.current.resolvedMandateIds,
+          roleActions: createRoleActions,
+        }),
+      )
+      .find((error): error is Error => error instanceof Error);
+    const batchInput = policyDependencyError
+      ? policyDependencyError
+      : buildBatchSetPolicyRulesInput({
+          actions: setPolicyRuleActions,
+          bodyActions: createBodyActions,
+          resolvedBodyIds: stateRef.current.resolvedBodyIds,
+          resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
+        });
+    if (!(batchInput instanceof Error)) {
+      const plan = createAdminBatchActivationPlan({
+        policyRules: batchInput,
+        capabilities: activationCapabilities,
+      });
+      const call = plan.calls.find(
+        (candidate): candidate is SetPolicyRulesActivationPlanCall =>
+          candidate.group === "policyRules",
+      );
+      if (isContractBatchActivationMode(plan.executionMode) && call) {
+        openSetupGroupContractBatchTransactionModal({
+          actions: setPolicyRuleActions,
+          call,
+          description:
+            "Submit one typed GovCore batch for ready policy route setup calls, then wait for indexed read models.",
+          getItemId: (actionId) =>
+            buildSetupTransactionModalItemId("set-policy-rule", actionId),
+          runSerialFallback: () => openSetPolicyRuleGroupSerial(),
+          title: "Batch activate policy routes",
+        });
+        return;
+      }
+    }
+
+    await openSetPolicyRuleGroupSerial();
+  }, [
+    activationCapabilities,
+    assignMandateActions,
+    createBodyActions,
+    createRoleActions,
+    openSetPolicyRuleGroupSerial,
+    openSetupGroupContractBatchTransactionModal,
+    resolvedOrgId,
     setPolicyRuleActions,
   ]);
 
@@ -1408,14 +1967,14 @@ export function useSetupActionExecution({
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
         });
       },
-      runSerialFallback: () => executeSetPolicyRuleGroup(),
+      runSerialFallback: () => openSetPolicyRuleGroupSerial(),
       title: "Batch activate policy routes",
     });
   }, [
     assignMandateActions,
     createBodyActions,
     createRoleActions,
-    executeSetPolicyRuleGroup,
+    openSetPolicyRuleGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
     runtimeConfig.chainId,
@@ -1480,6 +2039,19 @@ interface SetupGroupBatchModalConfig {
   readonly description: string;
   readonly getItemId: (actionId: string) => string;
   readonly prepareCall: (action: SetupAction) => PreparedActivationCall | Error;
+  readonly runSerialFallback: () => Promise<void> | void;
+  readonly title: string;
+}
+
+interface SetupGroupContractBatchRunConfig {
+  readonly actions: readonly SetupAction[];
+  readonly call: AdminBatchActivationPlanCall;
+  readonly getItemId: (actionId: string) => string;
+}
+
+interface SetupGroupContractBatchModalConfig
+  extends SetupGroupContractBatchRunConfig {
+  readonly description: string;
   readonly runSerialFallback: () => Promise<void> | void;
   readonly title: string;
 }

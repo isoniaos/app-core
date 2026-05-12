@@ -39,6 +39,7 @@ export function BatchTransactionView({
     );
   }
 
+  const kind = batch.kind ?? "wallet_eip5792";
   const showDiagnostics =
     batch.status === "waiting_for_control_plane" ||
     batch.status === "failed" ||
@@ -48,20 +49,13 @@ export function BatchTransactionView({
     <div className="transaction-modal-stack">
       <IsoAlert
         status="info"
-        title="EIP-5792 wallet batch prototype"
-        description={
-          <span>
-            This path asks the connected wallet to process activation calls as a
-            Wallet Call API batch. Serial activation remains available, and
-            indexed <IsoHelpTerm term="controlPlane">Control Plane</IsoHelpTerm>{" "}
-            read models remain the source of setup progress.
-          </span>
-        }
+        title={getBatchIntroTitle(kind)}
+        description={<BatchIntroDescription kind={kind} />}
       />
       <div className="transaction-modal-batch-summary">
         <div>
           <strong>Batch status</strong>
-          <span>{getBatchStatusCopy(batch.status)}</span>
+          <span>{getBatchStatusCopy(batch.status, kind)}</span>
         </div>
         <IsoBadge className={`badge badge-${getBatchStatusTone(batch.status)}`}>
           {formatBatchStatus(batch.status)}
@@ -73,18 +67,24 @@ export function BatchTransactionView({
           label="Atomic capability"
           value={batch.atomicCapability ?? "Not reported"}
         />
-        <BatchMetaItem
-          label="Wallet execution"
-          value={formatWalletAtomicity(batch)}
-        />
-        <BatchMetaItem
-          label="Wallet status"
-          value={
-            batch.walletStatusCode === undefined
-              ? "Not reported yet"
-              : String(batch.walletStatusCode)
-          }
-        />
+        {kind === "wallet_eip5792" ? (
+          <>
+            <BatchMetaItem
+              label="Wallet execution"
+              value={formatWalletAtomicity(batch)}
+            />
+            <BatchMetaItem
+              label="Wallet status"
+              value={
+                batch.walletStatusCode === undefined
+                  ? "Not reported yet"
+                  : String(batch.walletStatusCode)
+              }
+            />
+          </>
+        ) : (
+          <BatchMetaItem label="Execution" value="Typed GovCore batch function" />
+        )}
       </div>
       {batch.batchId ? (
         <div className="transaction-modal-batch-id">
@@ -195,6 +195,40 @@ function BatchMetaItem({
   );
 }
 
+function BatchIntroDescription({
+  kind,
+}: {
+  readonly kind: NonNullable<TransactionBatchDetails["kind"]>;
+}): JSX.Element {
+  if (kind === "contract_batch") {
+    return (
+      <span>
+        This path submits one typed GovCore batch transaction for this activation
+        step. Serial activation remains available, and indexed{" "}
+        <IsoHelpTerm term="controlPlane">Control Plane</IsoHelpTerm> read models
+        remain the source of setup progress.
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      This path asks the connected wallet to process activation calls as a Wallet
+      Call API batch. Serial activation remains available, and indexed{" "}
+      <IsoHelpTerm term="controlPlane">Control Plane</IsoHelpTerm> read models
+      remain the source of setup progress.
+    </span>
+  );
+}
+
+function getBatchIntroTitle(
+  kind: NonNullable<TransactionBatchDetails["kind"]>,
+): string {
+  return kind === "contract_batch"
+    ? "Typed contract batch activation"
+    : "EIP-5792 wallet batch prototype";
+}
+
 function BatchTransactionItem({
   index,
   item,
@@ -244,6 +278,10 @@ function BatchTransactionItem({
 }
 
 function canShowSerialFallback(batch: TransactionBatchDetails): boolean {
+  if (batch.kind === "contract_batch") {
+    return Boolean(batch.fallbackSerial) && batch.status !== "completed";
+  }
+
   return (
     Boolean(batch.fallbackSerial) &&
     (batch.capabilityStatus !== "supported" ||
@@ -280,7 +318,29 @@ function formatBatchStatus(status: BatchTransactionStatus): string {
   }
 }
 
-function getBatchStatusCopy(status: BatchTransactionStatus): string {
+function getBatchStatusCopy(
+  status: BatchTransactionStatus,
+  kind: NonNullable<TransactionBatchDetails["kind"]>,
+): string {
+  if (kind === "contract_batch") {
+    switch (status) {
+      case "ready":
+        return "Ready to submit one typed GovCore batch transaction.";
+      case "waiting_for_wallet":
+        return "Confirm the batch transaction in your wallet.";
+      case "submitted":
+        return "Batch transaction submitted.";
+      case "waiting_for_status":
+        return "Waiting for batch transaction status.";
+      case "waiting_for_control_plane":
+        return "Batch transaction confirmed. Waiting for indexed read models.";
+      case "completed":
+        return "All expected activation read models are indexed.";
+      case "failed":
+        return "Contract batch execution did not complete.";
+    }
+  }
+
   switch (status) {
     case "ready":
       return "Ready to ask the wallet to submit the batch.";

@@ -1,6 +1,10 @@
 import type {
   Address,
   AssignMandateSetupAction,
+  BatchAssignMandatesInput,
+  BatchCreateBodiesInput,
+  BatchCreateRolesInput,
+  BatchSetPolicyRulesInput,
   CreateBodySetupAction,
   CreateRoleSetupAction,
   SetPolicyRuleSetupAction,
@@ -23,6 +27,7 @@ import {
   parseUint256,
   parseUint64,
   resolveBodyReference,
+  resolveRoleReference,
   resolvePolicyBodyReferences,
 } from "./setup-action-execution-helpers";
 import type {
@@ -42,6 +47,55 @@ export type PreparedActivationCall =
   | PreparedSetupActionCall<CreateRolePayload>
   | PreparedSetupActionCall<AssignMandatePayload>
   | PreparedSetupActionCall<SetPolicyRulePayload>;
+
+interface ContractBatchBodyCreateInput {
+  readonly kind: number;
+  readonly metadataURI: string;
+}
+
+interface ContractBatchRoleCreateInput {
+  readonly bodyId: bigint;
+  readonly roleType: number;
+  readonly metadataURI: string;
+}
+
+interface ContractBatchMandateAssignInput {
+  readonly roleId: bigint;
+  readonly holder: Address;
+  readonly startTime: bigint;
+  readonly endTime: bigint;
+  readonly proposalTypeMask: bigint;
+  readonly spendingLimit: bigint;
+}
+
+interface ContractBatchPolicyRuleSetInput {
+  readonly proposalType: number;
+  readonly requiredApprovalBodies: readonly bigint[];
+  readonly vetoBodies: readonly bigint[];
+  readonly executorBody: bigint;
+  readonly timelockSeconds: bigint;
+  readonly enabled: boolean;
+}
+
+export type BatchCreateBodiesCallArgs = readonly [
+  bigint,
+  readonly ContractBatchBodyCreateInput[],
+];
+
+export type BatchCreateRolesCallArgs = readonly [
+  bigint,
+  readonly ContractBatchRoleCreateInput[],
+];
+
+export type BatchAssignMandatesCallArgs = readonly [
+  bigint,
+  readonly ContractBatchMandateAssignInput[],
+];
+
+export type BatchSetPolicyRulesCallArgs = readonly [
+  bigint,
+  readonly ContractBatchPolicyRuleSetInput[],
+];
 
 export function prepareCreateBodyCall({
   action,
@@ -205,6 +259,154 @@ export function prepareSetPolicyRuleCall({
   };
 }
 
+export function buildBatchCreateBodiesInput({
+  actions,
+  resolvedOrgId,
+}: {
+  readonly actions: readonly CreateBodySetupAction[];
+  readonly resolvedOrgId: string;
+}): BatchCreateBodiesInput | Error {
+  const inputs: BatchCreateBodiesInput["inputs"][number][] = [];
+
+  for (const action of actions) {
+    const payload = buildCreateBodyPayload(action, resolvedOrgId);
+    if (payload instanceof Error) {
+      return payload;
+    }
+    inputs.push({
+      kind: action.bodyKind,
+      metadataURI: payload.metadataUri,
+    });
+  }
+
+  return { orgId: resolvedOrgId, inputs };
+}
+
+export function buildBatchCreateRolesInput({
+  actions,
+  bodyActions,
+  resolvedBodyIds,
+  resolvedOrgId,
+}: {
+  readonly actions: readonly CreateRoleSetupAction[];
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string;
+}): BatchCreateRolesInput | Error {
+  const inputs: BatchCreateRolesInput["inputs"][number][] = [];
+
+  for (const action of actions) {
+    const resolvedBodyId = resolveBodyReference({
+      bodyActions,
+      reference: action.bodyRef,
+      resolvedBodyIds,
+    });
+    if (!resolvedBodyId) {
+      return new Error(
+        "Create role is blocked until the referenced body is indexed and the real bodyId is resolved.",
+      );
+    }
+
+    const payload = buildCreateRolePayload(
+      action,
+      resolvedOrgId,
+      resolvedBodyId,
+    );
+    if (payload instanceof Error) {
+      return payload;
+    }
+    inputs.push({
+      bodyId: payload.bodyId,
+      metadataURI: payload.metadataUri,
+      roleType: action.roleType,
+    });
+  }
+
+  return { orgId: resolvedOrgId, inputs };
+}
+
+export function buildBatchAssignMandatesInput({
+  actions,
+  resolvedOrgId,
+  resolvedRoleIds,
+  roleActions,
+}: {
+  readonly actions: readonly AssignMandateSetupAction[];
+  readonly resolvedOrgId: string;
+  readonly resolvedRoleIds: Readonly<Record<string, string>>;
+  readonly roleActions: readonly CreateRoleSetupAction[];
+}): BatchAssignMandatesInput | Error {
+  const inputs: BatchAssignMandatesInput["inputs"][number][] = [];
+
+  for (const action of actions) {
+    const resolvedRoleId = resolveRoleReference({
+      reference: action.roleRef,
+      resolvedRoleIds,
+      roleActions,
+    });
+    if (!resolvedRoleId) {
+      return new Error(
+        "Assign mandate is blocked until the referenced role is indexed and the real roleId is resolved.",
+      );
+    }
+
+    const payload = buildAssignMandatePayload(
+      action,
+      resolvedOrgId,
+      resolvedRoleId,
+    );
+    if (payload instanceof Error) {
+      return payload;
+    }
+    inputs.push({
+      endTime: payload.endTime,
+      holder: payload.holderAddress,
+      proposalTypeMask: payload.proposalTypeMask,
+      roleId: payload.roleId,
+      spendingLimit: payload.spendingLimit,
+      startTime: payload.startTime,
+    });
+  }
+
+  return { orgId: resolvedOrgId, inputs };
+}
+
+export function buildBatchSetPolicyRulesInput({
+  actions,
+  bodyActions,
+  resolvedBodyIds,
+  resolvedOrgId,
+}: {
+  readonly actions: readonly SetPolicyRuleSetupAction[];
+  readonly bodyActions: readonly CreateBodySetupAction[];
+  readonly resolvedBodyIds: Readonly<Record<string, string>>;
+  readonly resolvedOrgId: string;
+}): BatchSetPolicyRulesInput | Error {
+  const inputs: BatchSetPolicyRulesInput["inputs"][number][] = [];
+
+  for (const action of actions) {
+    const payload = buildSetPolicyRulePayload({
+      action,
+      bodyActions,
+      resolvedBodyIds,
+      resolvedOrgId,
+    });
+    if (payload instanceof Error) {
+      return payload;
+    }
+    inputs.push({
+      enabled: payload.enabled,
+      executorBody: payload.executorBodyId,
+      proposalType: payload.proposalType,
+      requiredApprovalBodies: payload.requiredApprovalBodyIds,
+      timelockSeconds: payload.timelockSeconds,
+      vetoBodies: payload.vetoBodyIds,
+    });
+  }
+
+  return { orgId: resolvedOrgId, inputs };
+}
+
 export function buildCreateBodyCallArgs(
   payload: CreateBodyPayload,
 ): readonly [bigint, number, string] {
@@ -256,6 +458,161 @@ export function buildSetPolicyRuleCallArgs(
     payload.timelockSecondsBigInt,
     payload.enabled,
   ];
+}
+
+export function buildBatchCreateBodiesCallArgs(
+  batch: BatchCreateBodiesInput,
+): BatchCreateBodiesCallArgs | Error {
+  const orgIdBigInt = parsePositiveUint64(batch.orgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const inputs: ContractBatchBodyCreateInput[] = [];
+  for (const input of batch.inputs) {
+    const bodyKindCode = getBodyKindChainCode(input.kind);
+    if (bodyKindCode === undefined) {
+      return new Error(`Unsupported body kind: ${input.kind}.`);
+    }
+    inputs.push({
+      kind: bodyKindCode,
+      metadataURI: input.metadataURI,
+    });
+  }
+
+  return [orgIdBigInt, inputs];
+}
+
+export function buildBatchCreateRolesCallArgs(
+  batch: BatchCreateRolesInput,
+): BatchCreateRolesCallArgs | Error {
+  const orgIdBigInt = parsePositiveUint64(batch.orgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const inputs: ContractBatchRoleCreateInput[] = [];
+  for (const input of batch.inputs) {
+    const bodyIdBigInt = parsePositiveUint64(input.bodyId, "Resolved bodyId");
+    if (bodyIdBigInt instanceof Error) {
+      return bodyIdBigInt;
+    }
+    const roleTypeCode = getRoleTypeChainCode(input.roleType);
+    if (roleTypeCode === undefined) {
+      return new Error(`Unsupported role type: ${input.roleType}.`);
+    }
+    inputs.push({
+      bodyId: bodyIdBigInt,
+      metadataURI: input.metadataURI,
+      roleType: roleTypeCode,
+    });
+  }
+
+  return [orgIdBigInt, inputs];
+}
+
+export function buildBatchAssignMandatesCallArgs(
+  batch: BatchAssignMandatesInput,
+): BatchAssignMandatesCallArgs | Error {
+  const orgIdBigInt = parsePositiveUint64(batch.orgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const inputs: ContractBatchMandateAssignInput[] = [];
+  for (const input of batch.inputs) {
+    const roleIdBigInt = parsePositiveUint64(input.roleId, "Resolved roleId");
+    if (roleIdBigInt instanceof Error) {
+      return roleIdBigInt;
+    }
+    const startTimeBigInt = parseUint64(input.startTime, "Mandate start time");
+    if (startTimeBigInt instanceof Error) {
+      return startTimeBigInt;
+    }
+    const endTimeBigInt = parseUint64(input.endTime, "Mandate end time");
+    if (endTimeBigInt instanceof Error) {
+      return endTimeBigInt;
+    }
+    const proposalTypeMaskBigInt = parseUint256(
+      input.proposalTypeMask,
+      "Mandate proposal type mask",
+    );
+    if (proposalTypeMaskBigInt instanceof Error) {
+      return proposalTypeMaskBigInt;
+    }
+    const spendingLimitBigInt = parseUint128(
+      input.spendingLimit,
+      "Mandate spending limit",
+    );
+    if (spendingLimitBigInt instanceof Error) {
+      return spendingLimitBigInt;
+    }
+    inputs.push({
+      endTime: endTimeBigInt,
+      holder: input.holder,
+      proposalTypeMask: proposalTypeMaskBigInt,
+      roleId: roleIdBigInt,
+      spendingLimit: spendingLimitBigInt,
+      startTime: startTimeBigInt,
+    });
+  }
+
+  return [orgIdBigInt, inputs];
+}
+
+export function buildBatchSetPolicyRulesCallArgs(
+  batch: BatchSetPolicyRulesInput,
+): BatchSetPolicyRulesCallArgs | Error {
+  const orgIdBigInt = parsePositiveUint64(batch.orgId, "Resolved orgId");
+  if (orgIdBigInt instanceof Error) {
+    return orgIdBigInt;
+  }
+
+  const inputs: ContractBatchPolicyRuleSetInput[] = [];
+  for (const input of batch.inputs) {
+    const proposalTypeCode = getProposalTypeChainCode(input.proposalType);
+    if (proposalTypeCode === undefined) {
+      return new Error(`Unsupported proposal type: ${input.proposalType}.`);
+    }
+    const requiredApprovalBodiesBigInt = parsePolicyBodyIdArray(
+      input.requiredApprovalBodies,
+      "Required approval bodyId",
+    );
+    if (requiredApprovalBodiesBigInt instanceof Error) {
+      return requiredApprovalBodiesBigInt;
+    }
+    const vetoBodiesBigInt = parsePolicyBodyIdArray(
+      input.vetoBodies,
+      "Veto bodyId",
+    );
+    if (vetoBodiesBigInt instanceof Error) {
+      return vetoBodiesBigInt;
+    }
+    const executorBodyBigInt =
+      input.executorBody === "0"
+        ? 0n
+        : parsePositiveUint64(input.executorBody, "Executor bodyId");
+    if (executorBodyBigInt instanceof Error) {
+      return executorBodyBigInt;
+    }
+    const timelockSecondsBigInt = parseUint64(
+      input.timelockSeconds,
+      "Policy timelock seconds",
+    );
+    if (timelockSecondsBigInt instanceof Error) {
+      return timelockSecondsBigInt;
+    }
+    inputs.push({
+      enabled: input.enabled,
+      executorBody: executorBodyBigInt,
+      proposalType: proposalTypeCode,
+      requiredApprovalBodies: requiredApprovalBodiesBigInt,
+      timelockSeconds: timelockSecondsBigInt,
+      vetoBodies: vetoBodiesBigInt,
+    });
+  }
+
+  return [orgIdBigInt, inputs];
 }
 
 export function buildCreateBodyPayload(

@@ -8,6 +8,7 @@ import type {
 import { SetupActionKind } from "@isonia/types";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import type { ActivationCapabilitiesQuery } from "../../../api/useActivationCapabilities";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { StatusBadge } from "../../../ui/StatusBadge";
 import { IsoAddressDisplay } from "../../../ui-kit";
@@ -98,6 +99,7 @@ const ACTIVATION_STEPS: readonly ActivationStep[] = [
 const EMPTY_FIELD_ISSUES: SetupWizardFieldIssueMap = {};
 
 export interface OrganizationActivationWizardProps {
+  readonly activationCapabilities: ActivationCapabilitiesQuery;
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
   readonly completion: SetupCompletionVerification;
@@ -128,6 +130,7 @@ export interface OrganizationActivationWizardProps {
 }
 
 export function OrganizationActivationWizard({
+  activationCapabilities,
   actions,
   busy,
   completion,
@@ -318,6 +321,7 @@ export function OrganizationActivationWizard({
         </div>
 
         <ActivationAuthorityNotice preflight={activationPreflight} />
+        <ActivationCapabilityNotice capabilities={activationCapabilities} />
         <ActivationMetrics completion={completion} />
 
         {completionError ? (
@@ -361,6 +365,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "bodies" ? (
               <ActivationGroupPanel
                 actionResultById={actionResultById}
+                contractBatchPreferred={activationCapabilities.contractBatchSupported}
                 actions={bodyActions}
                 busy={busy}
                 eip5792BatchCapability={eip5792BatchCapability}
@@ -383,6 +388,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "roles" ? (
               <ActivationGroupPanel
                 actionResultById={actionResultById}
+                contractBatchPreferred={activationCapabilities.contractBatchSupported}
                 actions={roleActions}
                 busy={busy}
                 eip5792BatchCapability={eip5792BatchCapability}
@@ -417,6 +423,7 @@ export function OrganizationActivationWizard({
                 />
                 <ActivationGroupPanel
                   actionResultById={actionResultById}
+                  contractBatchPreferred={activationCapabilities.contractBatchSupported}
                   actions={mandateActions}
                   busy={busy}
                   eip5792BatchCapability={eip5792BatchCapability}
@@ -448,6 +455,7 @@ export function OrganizationActivationWizard({
                 />
                 <ActivationGroupPanel
                   actionResultById={actionResultById}
+                  contractBatchPreferred={activationCapabilities.contractBatchSupported}
                   actions={policyActions}
                   busy={busy}
                   eip5792BatchCapability={eip5792BatchCapability}
@@ -517,6 +525,29 @@ function ActivationAuthorityNotice({
         authoritative.
       </span>
       <SignerPreflightSummary compact preflight={preflight} />
+    </div>
+  );
+}
+
+function ActivationCapabilityNotice({
+  capabilities,
+}: {
+  readonly capabilities: ActivationCapabilitiesQuery;
+}): JSX.Element {
+  const notice = capabilities.notice;
+  return (
+    <div className={`inline-state inline-state-${notice.tone} setup-execution-inline`}>
+      <strong>{notice.title}</strong>
+      <span>{notice.message}</span>
+      {capabilities.error ? (
+        <button
+          className="button button-small"
+          type="button"
+          onClick={capabilities.reload}
+        >
+          Retry capability check
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -627,6 +658,7 @@ function ActivationGroupPanel({
   actionResultById,
   actions,
   busy,
+  contractBatchPreferred,
   eip5792BatchCapability,
   eip5792BatchChecking,
   eip5792BatchFeatureEnabled,
@@ -648,6 +680,7 @@ function ActivationGroupPanel({
   >;
   readonly actions: readonly SetupAction[];
   readonly busy: boolean;
+  readonly contractBatchPreferred: boolean;
   readonly eip5792BatchCapability: Eip5792CapabilityDetection;
   readonly eip5792BatchChecking: boolean;
   readonly eip5792BatchFeatureEnabled: boolean;
@@ -700,9 +733,11 @@ function ActivationGroupPanel({
               void executeGroup();
             }}
           >
-            {eip5792BatchFeatureEnabled
-              ? "Run step one by one"
-              : getGroupButtonLabel(progress, groupPreflight, runLabel)}
+            {contractBatchPreferred
+              ? getContractBatchButtonLabel(progress, groupPreflight)
+              : eip5792BatchFeatureEnabled
+                ? "Run step one by one"
+                : getGroupButtonLabel(progress, groupPreflight, runLabel)}
           </button>
           {eip5792BatchFeatureEnabled ? (
             <button
@@ -1379,6 +1414,21 @@ function getGroupButtonLabel(
   }
 
   return preflight.canExecute ? runLabel : preflight.buttonLabel;
+}
+
+function getContractBatchButtonLabel(
+  progress: ActivationGroupProgress,
+  preflight: SetupActionExecutionPreflight,
+): string {
+  if (progress.complete) {
+    return "Step complete";
+  }
+
+  if (!progress.canRun) {
+    return "Run optimized step";
+  }
+
+  return preflight.canExecute ? "Run optimized step" : preflight.buttonLabel;
 }
 
 function formatActivationGroupProgress(

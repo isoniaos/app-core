@@ -43,6 +43,23 @@ export const GOV_CORE_ABI = [
   },
   {
     type: "function",
+    name: "batchCreateBodies",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      {
+        name: "inputs",
+        type: "tuple[]",
+        components: [
+          { name: "kind", type: "uint8" },
+          { name: "metadataURI", type: "string" },
+        ],
+      },
+    ],
+    outputs: [{ name: "bodyIds", type: "uint64[]" }],
+  },
+  {
+    type: "function",
     name: "createRole",
     stateMutability: "nonpayable",
     inputs: [
@@ -52,6 +69,24 @@ export const GOV_CORE_ABI = [
       { name: "metadataURI", type: "string" },
     ],
     outputs: [{ name: "roleId", type: "uint64" }],
+  },
+  {
+    type: "function",
+    name: "batchCreateRoles",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      {
+        name: "inputs",
+        type: "tuple[]",
+        components: [
+          { name: "bodyId", type: "uint64" },
+          { name: "roleType", type: "uint8" },
+          { name: "metadataURI", type: "string" },
+        ],
+      },
+    ],
+    outputs: [{ name: "roleIds", type: "uint64[]" }],
   },
   {
     type: "function",
@@ -70,6 +105,27 @@ export const GOV_CORE_ABI = [
   },
   {
     type: "function",
+    name: "batchAssignMandates",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      {
+        name: "inputs",
+        type: "tuple[]",
+        components: [
+          { name: "roleId", type: "uint64" },
+          { name: "holder", type: "address" },
+          { name: "startTime", type: "uint64" },
+          { name: "endTime", type: "uint64" },
+          { name: "proposalTypeMask", type: "uint256" },
+          { name: "spendingLimit", type: "uint128" },
+        ],
+      },
+    ],
+    outputs: [{ name: "mandateIds", type: "uint64[]" }],
+  },
+  {
+    type: "function",
     name: "setPolicyRule",
     stateMutability: "nonpayable",
     inputs: [
@@ -80,6 +136,27 @@ export const GOV_CORE_ABI = [
       { name: "executorBody", type: "uint64" },
       { name: "timelockSeconds", type: "uint64" },
       { name: "enabled", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "batchSetPolicyRules",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "orgId", type: "uint64" },
+      {
+        name: "inputs",
+        type: "tuple[]",
+        components: [
+          { name: "proposalType", type: "uint8" },
+          { name: "requiredApprovalBodies", type: "uint64[]" },
+          { name: "vetoBodies", type: "uint64[]" },
+          { name: "executorBody", type: "uint64" },
+          { name: "timelockSeconds", type: "uint64" },
+          { name: "enabled", type: "bool" },
+        ],
+      },
     ],
     outputs: [],
   },

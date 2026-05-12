@@ -13,6 +13,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Proposal details with route explanation
 - Create proposal transaction flow gated by runtime config
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
+- Capability-aware setup activation with serial fallback and v0.7 typed contract batch support
 - Governance graph data view
 - Control Plane diagnostics at `/diagnostics`
 - Runtime config from `/isonia.config.local.json` with fallback to `/isonia.config.json`
@@ -130,6 +131,8 @@ Execution remains intentionally narrow in the current v0.6 preparation baseline,
 
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator.
 
+The setup activation wizard also reads Control Plane `GET /v1/capabilities`. When v0.7 typed contract batch activation is explicitly supported, app-core prepares SDK activation plans and submits typed GovCore batch transactions through the existing transaction modal. When capability metadata is unsupported, unknown, or unavailable, setup keeps the compatible serial activation path. EIP-5792 wallet batching remains feature-gated/prototype diagnostics and is not selected automatically.
+
 `billing` and `saasAdmin` are ignored by the public app core.
 
 The metadata config controls optional read-only metadata resolution:
@@ -159,13 +162,13 @@ At runtime the app surfaces wallet setup diagnostics for:
 
 ## Shared Packages
 
-Deployable app-core builds depend on pinned known-good v0.5 compatibility tags:
+Deployable app-core builds depend on pinned known-good compatibility tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.5.0-alpha.5",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.5.0-alpha.6",
-  "@isonia/theme-default": "github:isoniaos/theme-default#v0.5.0-alpha.2"
+  "@isonia/types": "github:isoniaos/types#v0.7.0-alpha.1",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.7.0-alpha.1",
+  "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3"
 }
 ```
 

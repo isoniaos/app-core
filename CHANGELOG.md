@@ -6,6 +6,16 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added Control Plane activation capability reads for v0.7 setup activation mode selection.
+- Added typed contract batch activation planning and transaction modal execution when Control Plane explicitly reports support.
+
+### Changed
+
+- Updated `@isonia/sdk` and `@isonia/types` dependency refs to v0.7-compatible tags.
+- Kept compatible serial activation as fallback and EIP-5792 as a gated, non-primary prototype path.
+
 ## [0.6.0-alpha.18]
 
 ### Added

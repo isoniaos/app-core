@@ -1,10 +1,21 @@
 import type {
+  ActivationCapabilityStatus,
+  ActivationExecutionMode,
   DiagnosticsContractCursorDto,
   DiagnosticsContractDto,
   DiagnosticsDto,
   DiagnosticsProjectionErrorDto,
   DiagnosticsStaleDataIndicatorDto,
 } from "@isonia/types";
+import {
+  isContractBatchActivationMode,
+  isSerialActivationMode,
+  isWalletBatchEip5792Mode,
+} from "@isonia/sdk";
+import {
+  useActivationCapabilities,
+  type ActivationCapabilitiesQuery,
+} from "../../api/useActivationCapabilities";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
@@ -38,6 +49,7 @@ function DiagnosticsPageContent({
 }): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const diagnostics = useDiagnostics();
+  const activationCapabilities = useActivationCapabilities();
   const walletSetup = useWalletSetup();
   const walletConnection = useWalletConnection();
   const isHome = variant === "home";
@@ -75,6 +87,8 @@ function DiagnosticsPageContent({
       {diagnostics.data ? (
         <DiagnosticsDetails diagnostics={diagnostics.data} />
       ) : null}
+
+      <DiagnosticsActivationCapabilities capabilities={activationCapabilities} />
 
       <DiagnosticsLocalRuntime
         runtimeConfig={runtimeConfig}
@@ -212,6 +226,152 @@ function DiagnosticsDetails({
       >
         <LatestProjectionError error={diagnostics.latestProjectionError} />
       </DiagnosticsPanel>
+    </>
+  );
+}
+
+function DiagnosticsActivationCapabilities({
+  capabilities,
+}: {
+  readonly capabilities: ActivationCapabilitiesQuery;
+}): JSX.Element {
+  const activation = capabilities.activation;
+
+  return (
+    <>
+      <DiagnosticsPanel
+        title="Activation Capabilities"
+        subtitle="Control Plane capability metadata for setup activation modes."
+      >
+        {capabilities.loading && !activation ? (
+          <DiagnosticsInlineState
+            title="Loading activation capabilities"
+            message="Reading /v1/capabilities from Control Plane."
+          />
+        ) : null}
+
+        {capabilities.error ? (
+          <div className="diagnostics-indicator diagnostics-indicator-warning">
+            <div className="diagnostics-indicator-header">
+              <div>
+                <strong>Capabilities unavailable</strong>
+                <span>
+                  Capability metadata unavailable; setup activation uses serial
+                  fallback.
+                </span>
+              </div>
+              <StatusBadge tone="warning">Fallback</StatusBadge>
+            </div>
+            <p>{sanitizeDiagnosticText(capabilities.error.message)}</p>
+            <button
+              className="button button-small"
+              type="button"
+              onClick={capabilities.reload}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {activation ? (
+          <DetailList
+            items={[
+              ["API version", capabilities.data?.apiVersion ?? "Not reported"],
+              [
+                "Capability chain",
+                capabilities.data?.chainId === undefined
+                  ? "Not reported"
+                  : String(capabilities.data.chainId),
+              ],
+              ["Generated", formatDateTime(capabilities.data?.generatedAt)],
+              [
+                "Available modes",
+                formatActivationModes(activation.availableModes),
+              ],
+              [
+                "Selected default",
+                capabilities.contractBatchSupported
+                  ? "Contract batch"
+                  : "Serial",
+                capabilities.contractBatchSupported ? "success" : "muted",
+              ],
+              [
+                "Serial fallback",
+                capabilities.serialFallbackAvailable ? "Available" : "Missing",
+                capabilities.serialFallbackAvailable ? "success" : "danger",
+              ],
+            ]}
+          />
+        ) : null}
+      </DiagnosticsPanel>
+
+      {activation ? (
+        <div className="two-column-grid">
+          <DiagnosticsPanel
+            title="Contract Batch"
+            subtitle="Typed GovCore batch activation support reported by Control Plane."
+          >
+            <DetailList
+              items={[
+                [
+                  "Status",
+                  formatLabel(activation.contractBatch.status),
+                  getCapabilityStatusTone(activation.contractBatch.status),
+                ],
+                [
+                  "Flag",
+                  activation.flags.contractBatch ? "Enabled" : "Disabled",
+                  activation.flags.contractBatch ? "success" : "muted",
+                ],
+                [
+                  "All admin functions",
+                  capabilities.contractBatchAvailableForAllAdminFunctions
+                    ? "Supported"
+                    : "Not fully supported",
+                  capabilities.contractBatchAvailableForAllAdminFunctions
+                    ? "success"
+                    : "warning",
+                ],
+                [
+                  "Functions",
+                  formatFunctionNames(
+                    activation.contractBatch.supportedFunctions,
+                  ),
+                ],
+              ]}
+            />
+          </DiagnosticsPanel>
+
+          <DiagnosticsPanel
+            title="Wallet Batch"
+            subtitle="EIP-5792 remains non-primary and feature-gated."
+          >
+            <DetailList
+              items={[
+                [
+                  "Status",
+                  formatLabel(
+                    activation.walletBatchEip5792?.status ?? "unknown",
+                  ),
+                  getCapabilityStatusTone(
+                    activation.walletBatchEip5792?.status ?? "unknown",
+                  ),
+                ],
+                [
+                  "Available mode",
+                  capabilities.eip5792AvailableMode ? "Yes" : "No",
+                  capabilities.eip5792AvailableMode ? "warning" : "muted",
+                ],
+                ["Default path", "No", "success"],
+                [
+                  "Standard",
+                  activation.walletBatchEip5792?.standard ?? "eip5792",
+                ],
+              ]}
+            />
+          </DiagnosticsPanel>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -722,6 +882,53 @@ function formatContractName(name: string): string {
   }
 
   return formatLabel(name);
+}
+
+function formatActivationModes(
+  modes: readonly ActivationExecutionMode[],
+): string {
+  if (modes.length === 0) {
+    return "None reported";
+  }
+
+  return modes.map(formatActivationMode).join(", ");
+}
+
+function formatActivationMode(mode: ActivationExecutionMode): string {
+  if (isSerialActivationMode(mode)) {
+    return "Serial";
+  }
+
+  if (isContractBatchActivationMode(mode)) {
+    return "Contract batch";
+  }
+
+  if (isWalletBatchEip5792Mode(mode)) {
+    return "Wallet batch EIP-5792";
+  }
+
+  return formatLabel(mode);
+}
+
+function formatFunctionNames(functionNames: readonly string[]): string {
+  return functionNames.length > 0 ? functionNames.join(", ") : "None reported";
+}
+
+function getCapabilityStatusTone(
+  status: ActivationCapabilityStatus | "unknown",
+): DetailTone {
+  switch (status) {
+    case "supported":
+      return "success";
+    case "prototype":
+      return "warning";
+    case "unsupported":
+      return "muted";
+    case "unknown":
+      return "warning";
+  }
+
+  return "warning";
 }
 
 function formatOptionalBlock(value?: string): string {

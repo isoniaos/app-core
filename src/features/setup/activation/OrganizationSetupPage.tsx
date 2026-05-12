@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useActivationCapabilities } from "../../../api/useActivationCapabilities";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { PageHeader } from "../../../ui/PageHeader";
 import { StatusBadge } from "../../../ui/StatusBadge";
@@ -23,6 +24,7 @@ export function OrganizationSetupPage(): JSX.Element {
   const orgId = requireParam(useParams().orgId, "orgId");
   const [inputs, setInputs] = useState(DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS);
   const completionReadModels = useSetupCompletionReadModels(orgId);
+  const activationCapabilities = useActivationCapabilities();
   const activationInputs = useMemo(
     () => mergeIndexedOrganizationInputs(inputs, completionReadModels.data),
     [completionReadModels.data, inputs],
@@ -43,6 +45,7 @@ export function OrganizationSetupPage(): JSX.Element {
     ],
   );
   const execution = useSetupActionExecution({
+    activationCapabilities: activationCapabilities.activation,
     draft,
     readModels: completionReadModels.data,
   });
@@ -74,6 +77,7 @@ export function OrganizationSetupPage(): JSX.Element {
       </div>
 
       <OrganizationActivationWizard
+        activationCapabilities={activationCapabilities}
         actions={draft.actions}
         busy={execution.busy}
         completion={completion}
