@@ -237,6 +237,10 @@ export function deriveSetupExecutionStateFromReadModels({
   });
   const next = {
     ...executionState,
+    assignMandates: { ...executionState.assignMandates },
+    createBodies: { ...executionState.createBodies },
+    createOrganization: { ...executionState.createOrganization },
+    createRoles: { ...executionState.createRoles },
     resolvedBodies: { ...executionState.resolvedBodies },
     resolvedBodyIds: { ...executionState.resolvedBodyIds },
     resolvedMandateIds: { ...executionState.resolvedMandateIds },
@@ -245,6 +249,7 @@ export function deriveSetupExecutionStateFromReadModels({
     resolvedPolicyVersions: { ...executionState.resolvedPolicyVersions },
     resolvedRoleIds: { ...executionState.resolvedRoleIds },
     resolvedRoles: { ...executionState.resolvedRoles },
+    setPolicyRules: { ...executionState.setPolicyRules },
   };
 
   for (const result of completion.actionResults) {
@@ -265,6 +270,14 @@ export function deriveSetupExecutionStateFromReadModels({
           readModels.organization?.orgId === result.indexedEntityId
             ? readModels.organization
             : undefined;
+        next.createOrganization = buildIndexedTransaction(
+          next.createOrganization,
+          action,
+          {
+            orgId: result.indexedEntityId,
+            slug: organization?.slug ?? next.createOrganization.slug,
+          },
+        );
         next.resolvedOrganization = organization ?? next.resolvedOrganization;
         next.resolvedOrgId = result.indexedEntityId;
         break;
@@ -272,6 +285,14 @@ export function deriveSetupExecutionStateFromReadModels({
       case SetupActionKind.CreateBody: {
         const body = readModels.bodies.find(
           (candidate) => candidate.bodyId === result.indexedEntityId,
+        );
+        next.createBodies[action.actionId] = buildIndexedTransaction(
+          next.createBodies[action.actionId],
+          action,
+          {
+            bodyId: result.indexedEntityId,
+            orgId: body?.orgId ?? next.resolvedOrgId,
+          },
         );
         next.resolvedBodyIds[action.actionId] = result.indexedEntityId;
         if (body) {
@@ -283,6 +304,15 @@ export function deriveSetupExecutionStateFromReadModels({
         const role = readModels.roles.find(
           (candidate) => candidate.roleId === result.indexedEntityId,
         );
+        next.createRoles[action.actionId] = buildIndexedTransaction(
+          next.createRoles[action.actionId],
+          action,
+          {
+            bodyId: role?.bodyId,
+            orgId: role?.orgId ?? next.resolvedOrgId,
+            roleId: result.indexedEntityId,
+          },
+        );
         next.resolvedRoleIds[action.actionId] = result.indexedEntityId;
         if (role) {
           next.resolvedRoles[action.actionId] = role;
@@ -292,6 +322,16 @@ export function deriveSetupExecutionStateFromReadModels({
       case SetupActionKind.AssignMandate: {
         const mandate = readModels.mandates.find(
           (candidate) => candidate.mandateId === result.indexedEntityId,
+        );
+        next.assignMandates[action.actionId] = buildIndexedTransaction(
+          next.assignMandates[action.actionId],
+          action,
+          {
+            holderAddress: mandate?.holderAddress,
+            mandateId: result.indexedEntityId,
+            orgId: mandate?.orgId ?? next.resolvedOrgId,
+            roleId: mandate?.roleId,
+          },
         );
         next.resolvedMandateIds[action.actionId] = result.indexedEntityId;
         if (mandate) {
@@ -307,6 +347,15 @@ export function deriveSetupExecutionStateFromReadModels({
           (candidate) =>
             candidate.proposalType === action.proposalType &&
             candidate.version === result.indexedEntityId,
+        );
+        next.setPolicyRules[action.actionId] = buildIndexedTransaction(
+          next.setPolicyRules[action.actionId],
+          action,
+          {
+            orgId: policy?.orgId ?? next.resolvedOrgId,
+            policyVersion: result.indexedEntityId,
+            proposalType: action.proposalType,
+          },
         );
         next.resolvedPolicyVersions[action.actionId] = result.indexedEntityId;
         if (policy) {
@@ -325,6 +374,23 @@ export function deriveSetupExecutionStateFromReadModels({
         resolvedOrgId: next.resolvedOrgId ?? readModels.organization.orgId,
       }
     : next;
+}
+
+function buildIndexedTransaction(
+  transaction: SetupActionTransaction | undefined,
+  action: SetupAction,
+  indexed: Omit<
+    SetupActionTransaction,
+    "actionId" | "actionKind" | "error" | "stage" | "txHash"
+  >,
+): SetupActionTransaction {
+  return {
+    actionId: action.actionId,
+    actionKind: action.kind,
+    ...indexed,
+    stage: "indexed",
+    ...(transaction?.txHash ? { txHash: transaction.txHash } : {}),
+  };
 }
 
 function verifyAction(

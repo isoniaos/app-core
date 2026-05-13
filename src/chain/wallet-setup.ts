@@ -84,6 +84,10 @@ export async function createWalletSetup(
       if (!initializedAppKitKeys.has(setupKey)) {
         createAppKit({
           adapters: [wagmiAdapter],
+          coinbasePreference: "eoaOnly",
+          defaultAccountTypes: {
+            eip155: "eoa",
+          },
           networks,
           projectId: reownProjectId,
           metadata: {
@@ -94,6 +98,10 @@ export async function createWalletSetup(
           },
           features: {
             analytics: false,
+            email: false,
+            onramp: false,
+            socials: false,
+            swaps: false,
           },
           themeMode: initialThemeMode,
           themeVariables: createReownThemeVariables(initialThemeMode),
