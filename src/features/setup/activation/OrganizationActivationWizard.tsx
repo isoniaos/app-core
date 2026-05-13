@@ -1,18 +1,25 @@
 import type {
   AssignMandateSetupAction,
+  BootstrapAdminOperation,
   CreateBodySetupAction,
   CreateRoleSetupAction,
   SetPolicyRuleSetupAction,
   SetupAction,
 } from "@isonia/types";
-import { SetupActionKind } from "@isonia/types";
+import { BOOTSTRAP_ADMIN_OPERATIONS, SetupActionKind } from "@isonia/types";
+import { isBootstrapAdminOperationBlockedAfterFinalization } from "@isonia/sdk";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ActivationCapabilitiesQuery } from "../../../api/useActivationCapabilities";
+import type { OrganizationFinalizationQuery } from "../../../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { StatusBadge } from "../../../ui/StatusBadge";
 import { IsoAddressDisplay } from "../../../ui-kit";
-import { formatLabel } from "../../../utils/format";
+import {
+  formatAddress,
+  formatChainTime,
+  formatLabel,
+} from "../../../utils/format";
 import {
   formatEip5792LikelyReason,
   type Eip5792CapabilityDetection,
@@ -37,6 +44,7 @@ import type {
   SetupCompletionVerification,
 } from "../setup-completion-verification";
 import type { SetupWizardFieldIssueMap } from "../setup-wizard-validation";
+import type { OrganizationFinalizationAction } from "../useOrganizationFinalizationAction";
 import {
   HoldersStep,
   PolicyRoutesStep,
@@ -49,7 +57,8 @@ type ActivationStepId =
   | "roles"
   | "mandates"
   | "policies"
-  | "review";
+  | "review"
+  | "finalization";
 
 interface ActivationStep {
   readonly groupId?: ActivationGroupId;
@@ -94,6 +103,11 @@ const ACTIVATION_STEPS: readonly ActivationStep[] = [
     summary: "Review activation progress and finish.",
     title: "Review / Finish",
   },
+  {
+    id: "finalization",
+    summary: "Finalize bootstrap authority after activation is complete.",
+    title: "Finalization",
+  },
 ];
 
 const EMPTY_FIELD_ISSUES: SetupWizardFieldIssueMap = {};
@@ -122,6 +136,8 @@ export interface OrganizationActivationWizardProps {
   readonly executeSetPolicyRule: (actionId: string) => Promise<void>;
   readonly executeSetPolicyRuleGroupBatch: () => Promise<void>;
   readonly executeSetPolicyRuleGroup: () => Promise<void>;
+  readonly finalization: OrganizationFinalizationQuery;
+  readonly finalizationAction: OrganizationFinalizationAction;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
   readonly orgId: string;
@@ -153,6 +169,8 @@ export function OrganizationActivationWizard({
   executeSetPolicyRule,
   executeSetPolicyRuleGroupBatch,
   executeSetPolicyRuleGroup,
+  finalization,
+  finalizationAction,
   inputs,
   onChange,
   orgId,
@@ -263,8 +281,12 @@ export function OrganizationActivationWizard({
     [bodyProgress, mandateProgress, policyProgress, roleProgress],
   );
   const stepStateById = useMemo(
-    () => buildActivationStepStateById(progressByGroup),
-    [progressByGroup],
+    () =>
+      buildActivationStepStateById({
+        finalized: finalization.finalized,
+        progress: progressByGroup,
+      }),
+    [finalization.finalized, progressByGroup],
   );
   const activationPreflight = useMemo(
     () =>
@@ -274,6 +296,7 @@ export function OrganizationActivationWizard({
   const updateInput: SimpleDaoPlusInputUpdate = (key, value) => {
     onChange({ ...inputs, [key]: value });
   };
+  const bootstrapAdminActionsBlocked = finalization.finalized;
 
   useEffect(() => {
     if (!stepStateById[currentStepId]?.locked) {
@@ -315,13 +338,19 @@ export function OrganizationActivationWizard({
               roles, mandates, and policy routes in order.
             </p>
           </div>
-          <StatusBadge tone={getCompletionTone(completion.readiness)}>
-            {formatLabel(completion.readiness)}
-          </StatusBadge>
+          <div className="chip-row">
+            <StatusBadge tone={getCompletionTone(completion.readiness)}>
+              {formatLabel(completion.readiness)}
+            </StatusBadge>
+            <StatusBadge tone={finalization.statusTone}>
+              {finalization.statusLabel}
+            </StatusBadge>
+          </div>
         </div>
 
         <ActivationAuthorityNotice preflight={activationPreflight} />
         <ActivationCapabilityNotice capabilities={activationCapabilities} />
+        <ActivationFinalizationNotice finalization={finalization} />
         <ActivationMetrics completion={completion} />
 
         {completionError ? (
@@ -365,6 +394,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "bodies" ? (
               <ActivationGroupPanel
                 actionResultById={actionResultById}
+                bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
                 contractBatchPreferred={activationCapabilities.contractBatchSupported}
                 actions={bodyActions}
                 busy={busy}
@@ -388,6 +418,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "roles" ? (
               <ActivationGroupPanel
                 actionResultById={actionResultById}
+                bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
                 contractBatchPreferred={activationCapabilities.contractBatchSupported}
                 actions={roleActions}
                 busy={busy}
@@ -411,7 +442,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "mandates" ? (
               <div className="setup-wizard-step-body">
                 <HoldersStep
-                  disabled={busy}
+                  disabled={busy || bootstrapAdminActionsBlocked}
                   fieldIssues={EMPTY_FIELD_ISSUES}
                   inputs={inputs}
                   onFieldBlur={() => undefined}
@@ -423,6 +454,7 @@ export function OrganizationActivationWizard({
                 />
                 <ActivationGroupPanel
                   actionResultById={actionResultById}
+                  bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
                   contractBatchPreferred={activationCapabilities.contractBatchSupported}
                   actions={mandateActions}
                   busy={busy}
@@ -447,7 +479,7 @@ export function OrganizationActivationWizard({
             {currentStepId === "policies" ? (
               <div className="setup-wizard-step-body">
                 <PolicyRoutesStep
-                  disabled={busy}
+                  disabled={busy || bootstrapAdminActionsBlocked}
                   fieldIssues={EMPTY_FIELD_ISSUES}
                   inputs={inputs}
                   onFieldBlur={() => undefined}
@@ -455,6 +487,7 @@ export function OrganizationActivationWizard({
                 />
                 <ActivationGroupPanel
                   actionResultById={actionResultById}
+                  bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
                   contractBatchPreferred={activationCapabilities.contractBatchSupported}
                   actions={policyActions}
                   busy={busy}
@@ -489,6 +522,15 @@ export function OrganizationActivationWizard({
               />
             ) : null}
 
+            {currentStepId === "finalization" ? (
+              <ActivationFinalizationPanel
+                action={finalizationAction}
+                finalization={finalization}
+                orgId={orgId}
+                readModels={readModels}
+              />
+            ) : null}
+
             <ActivationNavigation
               currentStep={currentStep}
               currentStepIndex={currentStepIndex}
@@ -520,7 +562,7 @@ function ActivationAuthorityNotice({
       <strong>{getAuthorityNoticeTitle(preflight)}</strong>
       <span>
         {getAuthorityNoticeMessage(preflight)} Bootstrap activation is
-        performed by the organization admin in the current v0.6 EVM protocol.
+        performed by the organization admin in the current v0.7 EVM protocol.
         Proposal actions later use role and mandate authority. Contracts remain
         authoritative.
       </span>
@@ -546,6 +588,29 @@ function ActivationCapabilityNotice({
           onClick={capabilities.reload}
         >
           Retry capability check
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ActivationFinalizationNotice({
+  finalization,
+}: {
+  readonly finalization: OrganizationFinalizationQuery;
+}): JSX.Element {
+  const tone = finalization.endpointUnavailable ? "warning" : finalization.statusTone;
+  return (
+    <div className={`inline-state inline-state-${tone} setup-execution-inline`}>
+      <strong>{finalization.statusLabel}</strong>
+      <span>{finalization.statusCopy}</span>
+      {finalization.error ? (
+        <button
+          className="button button-small"
+          type="button"
+          onClick={finalization.reload}
+        >
+          Retry finalization check
         </button>
       ) : null}
     </div>
@@ -657,6 +722,7 @@ function ActivationStepList({
 function ActivationGroupPanel({
   actionResultById,
   actions,
+  bootstrapAdminActionsBlocked,
   busy,
   contractBatchPreferred,
   eip5792BatchCapability,
@@ -679,6 +745,7 @@ function ActivationGroupPanel({
     SetupCompletionActionVerification
   >;
   readonly actions: readonly SetupAction[];
+  readonly bootstrapAdminActionsBlocked: boolean;
   readonly busy: boolean;
   readonly contractBatchPreferred: boolean;
   readonly eip5792BatchCapability: Eip5792CapabilityDetection;
@@ -705,17 +772,33 @@ function ActivationGroupPanel({
     runnableActions.length > 0 ? runnableActions : actions,
     preflightEnvironment,
   );
-  const disabled = busy || !progress.canRun || !groupPreflight.canExecute;
+  const finalizationBlockedReason = bootstrapAdminActionsBlocked
+    ? "This organization is finalized. Bootstrap admin changes are no longer available."
+    : undefined;
+  const disabled =
+    busy ||
+    !progress.canRun ||
+    !groupPreflight.canExecute ||
+    Boolean(finalizationBlockedReason);
   const batchDisabled =
     disabled ||
     eip5792BatchChecking ||
     !eip5792BatchCapability.canSendCalls ||
     eip5792BatchCapability.status !== "supported";
-  const runDisabledReason = getGroupRunDisabledReason({
-    busy,
-    preflight: groupPreflight,
-    progress,
-  });
+  const runDisabledReason =
+    finalizationBlockedReason ??
+    getGroupRunDisabledReason({
+      busy,
+      preflight: groupPreflight,
+      progress,
+    });
+  const primaryButtonLabel = finalizationBlockedReason
+    ? "Unavailable"
+    : contractBatchPreferred
+      ? getContractBatchButtonLabel(progress, groupPreflight)
+      : eip5792BatchFeatureEnabled
+        ? "Run step one by one"
+        : getGroupButtonLabel(progress, groupPreflight, runLabel);
 
   return (
     <section className="activation-group-panel">
@@ -733,11 +816,7 @@ function ActivationGroupPanel({
               void executeGroup();
             }}
           >
-            {contractBatchPreferred
-              ? getContractBatchButtonLabel(progress, groupPreflight)
-              : eip5792BatchFeatureEnabled
-                ? "Run step one by one"
-                : getGroupButtonLabel(progress, groupPreflight, runLabel)}
+            {primaryButtonLabel}
           </button>
           {eip5792BatchFeatureEnabled ? (
             <button
@@ -778,11 +857,20 @@ function ActivationGroupPanel({
         </div>
       </div>
 
-      {progress.canRun && !groupPreflight.canExecute ? (
+      {progress.canRun &&
+      !groupPreflight.canExecute &&
+      !finalizationBlockedReason ? (
         <SignerPreflightSummary preflight={groupPreflight} />
       ) : null}
 
-      {disabled && runDisabledReason ? (
+      {finalizationBlockedReason ? (
+        <div className="activation-group-disabled-reason">
+          <strong>Bootstrap admin changes closed</strong>
+          <span>{finalizationBlockedReason}</span>
+        </div>
+      ) : null}
+
+      {disabled && runDisabledReason && !finalizationBlockedReason ? (
         <div className="activation-group-disabled-reason">
           <strong>{getGroupDisabledTitle(progress, groupPreflight)}</strong>
           <span>{runDisabledReason}</span>
@@ -802,6 +890,7 @@ function ActivationGroupPanel({
       <ActivationActionList
         actionResultById={actionResultById}
         actions={actions}
+        bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
         busy={busy}
         emptyMessage={emptyMessage}
         executeAction={executeAction}
@@ -1055,6 +1144,7 @@ function formatDiagnosticJson(value: unknown): string {
 function ActivationActionList({
   actionResultById,
   actions,
+  bootstrapAdminActionsBlocked,
   busy,
   emptyMessage,
   executeAction,
@@ -1066,6 +1156,7 @@ function ActivationActionList({
     SetupCompletionActionVerification
   >;
   readonly actions: readonly SetupAction[];
+  readonly bootstrapAdminActionsBlocked: boolean;
   readonly busy: boolean;
   readonly emptyMessage: string;
   readonly executeAction: (actionId: string) => Promise<void>;
@@ -1081,6 +1172,7 @@ function ActivationActionList({
       {actions.map((action, index) => (
         <ActivationActionRow
           action={action}
+          bootstrapAdminActionsBlocked={bootstrapAdminActionsBlocked}
           busy={busy}
           executeAction={executeAction}
           index={index + 1}
@@ -1099,6 +1191,7 @@ function ActivationActionList({
 
 function ActivationActionRow({
   action,
+  bootstrapAdminActionsBlocked,
   busy,
   executeAction,
   index,
@@ -1107,6 +1200,7 @@ function ActivationActionRow({
   transactionStage,
 }: {
   readonly action: SetupAction;
+  readonly bootstrapAdminActionsBlocked: boolean;
   readonly busy: boolean;
   readonly executeAction: (actionId: string) => Promise<void>;
   readonly index: number;
@@ -1116,8 +1210,13 @@ function ActivationActionRow({
 }): JSX.Element {
   const actionState = result?.state ?? "not_started";
   const executableState = canExecuteActivationActionState(actionState);
-  const disabled = busy || !executableState || !preflight.canExecute;
-  const note = getActionControlNote(actionState, result, preflight);
+  const finalizationBlocked =
+    bootstrapAdminActionsBlocked && isSetupActionBlockedAfterFinalization(action);
+  const disabled =
+    busy || !executableState || !preflight.canExecute || finalizationBlocked;
+  const note = finalizationBlocked
+    ? "This organization is finalized. Bootstrap admin changes are no longer available."
+    : getActionControlNote(actionState, result, preflight);
 
   return (
     <article className="setup-action-row">
@@ -1146,12 +1245,14 @@ function ActivationActionRow({
               void executeAction(action.actionId);
             }}
           >
-            {getActionButtonLabel(action, actionState, preflight)}
+            {finalizationBlocked
+              ? "Unavailable"
+              : getActionButtonLabel(action, actionState, preflight)}
           </button>
         ) : null}
         {note ? <span className="setup-action-control-note">{note}</span> : null}
       </div>
-      {!preflight.canExecute && actionState !== "indexed" ? (
+      {!preflight.canExecute && actionState !== "indexed" && !finalizationBlocked ? (
         <SignerPreflightSummary compact preflight={preflight} />
       ) : null}
     </article>
@@ -1306,6 +1407,213 @@ function ActivationReview({
   );
 }
 
+function ActivationFinalizationPanel({
+  action,
+  finalization,
+  orgId,
+  readModels,
+}: {
+  readonly action: OrganizationFinalizationAction;
+  readonly finalization: OrganizationFinalizationQuery;
+  readonly orgId: string;
+  readonly readModels?: SetupCompletionReadModels;
+}): JSX.Element {
+  const wallet = useWalletConnection();
+  const adminAddress = readModels?.organization?.adminAddress;
+  const disabled = Boolean(action.readiness) || action.busy || finalization.finalized;
+
+  return (
+    <div className="setup-wizard-review">
+      <div className="inline-state inline-state-muted setup-wizard-note">
+        <strong>Bootstrap handoff</strong>
+        <span>
+          Finalization is irreversible in this alpha. It keeps the organization
+          active and readable, but closes bootstrap-admin changes such as body,
+          role, mandate, policy, organization-status, and admin-cancel mutation
+          paths.
+        </span>
+      </div>
+
+      <section className="activation-group-panel">
+        <header className="activation-group-header">
+          <div>
+            <h4>Organization finalization</h4>
+            <p>
+              Submit the typed GovCore finalization call after activation read
+              models are complete.
+            </p>
+          </div>
+          <StatusBadge tone={finalization.statusTone}>
+            {finalization.statusLabel}
+          </StatusBadge>
+        </header>
+
+        <div className="activation-group-status">
+          <div>
+            <strong>Status</strong>
+            <span>{finalization.statusCopy}</span>
+          </div>
+          <div>
+            <strong>Function</strong>
+            <span>{finalization.readPlan.functionName}</span>
+          </div>
+          <div>
+            <strong>Organization</strong>
+            <span>Org #{orgId}</span>
+          </div>
+        </div>
+
+        <FinalizationAuthoritySummary
+          adminAddress={adminAddress}
+          connectedAddress={wallet.address}
+        />
+
+        {finalization.finalized ? (
+          <div className="inline-state inline-state-success setup-wizard-note">
+            <strong>Finalization indexed</strong>
+            <span>
+              Bootstrap admin mutations are closed for this organization.
+            </span>
+            <Link className="button button-small" to={`/orgs/${orgId}/governance`}>
+              Open Governance Structure
+            </Link>
+          </div>
+        ) : null}
+
+        {finalization.error ? (
+          <div className="inline-state inline-state-warning setup-wizard-note">
+            <strong>Finalization status unavailable</strong>
+            <span>{finalization.error.message}</span>
+            <button
+              className="button button-small"
+              type="button"
+              onClick={finalization.reload}
+            >
+              Retry finalization check
+            </button>
+          </div>
+        ) : null}
+
+        {!finalization.finalized ? (
+          <footer className="setup-wizard-navigation activation-navigation">
+            <button
+              className="button button-primary"
+              disabled={disabled}
+              type="button"
+              onClick={() => {
+                void action.run();
+              }}
+            >
+              {action.readiness?.buttonLabel ?? "Finalize organization"}
+            </button>
+            <span className="setup-action-control-note">
+              {action.readiness?.message ??
+                "Ready to open the transaction modal for finalizeOrganization."}
+            </span>
+          </footer>
+        ) : null}
+
+        {finalization.data ? (
+          <FinalizationMetadata finalization={finalization.data} />
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function FinalizationAuthoritySummary({
+  adminAddress,
+  connectedAddress,
+}: {
+  readonly adminAddress?: string;
+  readonly connectedAddress?: string;
+}): JSX.Element {
+  return (
+    <div className="activation-signer-preflight">
+      <div>
+        <strong>Bootstrap admin authority</strong>
+        <span>
+          App Core enables finalization only when the connected wallet matches
+          the indexed bootstrap admin.
+        </span>
+      </div>
+      <div className="activation-signer-grid">
+        <div>
+          <span>Indexed admin</span>
+          {adminAddress ? (
+            <IsoAddressDisplay copyable size="compact" value={adminAddress} />
+          ) : (
+            <small>Admin address unavailable</small>
+          )}
+        </div>
+        <div>
+          <span>Connected</span>
+          {connectedAddress ? (
+            <IsoAddressDisplay copyable size="compact" value={connectedAddress} />
+          ) : (
+            <small>Not connected</small>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinalizationMetadata({
+  finalization,
+}: {
+  readonly finalization: NonNullable<OrganizationFinalizationQuery["data"]>;
+}): JSX.Element {
+  return (
+    <dl className="detail-list detail-list-wide diagnostics-detail-list">
+      <div>
+        <dt>Lifecycle</dt>
+        <dd>{formatLabel(finalization.lifecycleStatus)}</dd>
+      </div>
+      <div>
+        <dt>Bootstrap admin mutations</dt>
+        <dd>
+          {finalization.bootstrapAdminMutationsAllowed === null
+            ? "Unknown"
+            : finalization.bootstrapAdminMutationsAllowed
+              ? "Available"
+              : "Closed"}
+        </dd>
+      </div>
+      <div>
+        <dt>Blocked operations</dt>
+        <dd>
+          {finalization.blockedBootstrapAdminOperations.length.toLocaleString()}
+        </dd>
+      </div>
+      <div>
+        <dt>Finalized by</dt>
+        <dd>
+          {finalization.finalizedBy
+            ? formatAddress(finalization.finalizedBy)
+            : "Not finalized"}
+        </dd>
+      </div>
+      <div>
+        <dt>Finalized block</dt>
+        <dd>{finalization.finalizedBlock ?? "Not finalized"}</dd>
+      </div>
+      <div>
+        <dt>Finalized at</dt>
+        <dd>{formatChainTime(finalization.finalizedAt)}</dd>
+      </div>
+      <div>
+        <dt>Finalized tx</dt>
+        <dd>
+          {finalization.finalizedTxHash
+            ? formatAddress(finalization.finalizedTxHash)
+            : "Not finalized"}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
 function ActivationNavigation({
   currentStep,
   currentStepIndex,
@@ -1356,9 +1664,18 @@ function ActivationNavigation({
   );
 }
 
-function buildActivationStepStateById(
-  progress: Readonly<Record<ActivationGroupId, ActivationGroupProgress>>,
-): Readonly<Record<ActivationStepId, ActivationStepState>> {
+function buildActivationStepStateById({
+  finalized,
+  progress,
+}: {
+  readonly finalized: boolean;
+  readonly progress: Readonly<Record<ActivationGroupId, ActivationGroupProgress>>;
+}): Readonly<Record<ActivationStepId, ActivationStepState>> {
+  const activationComplete =
+    progress.bodies.complete &&
+    progress.roles.complete &&
+    progress.mandates.complete &&
+    progress.policies.complete;
   return {
     bodies: {
       complete: progress.bodies.complete,
@@ -1387,15 +1704,20 @@ function buildActivationStepStateById(
         : "Complete mandate setup to unlock policy routes.",
     },
     review: {
-      complete:
-        progress.bodies.complete &&
-        progress.roles.complete &&
-        progress.mandates.complete &&
-        progress.policies.complete,
+      complete: activationComplete,
       locked: !progress.policies.complete,
       reason: progress.policies.complete
         ? "Review activation progress."
         : "Complete policy routes to unlock review.",
+    },
+    finalization: {
+      complete: finalized,
+      locked: !activationComplete && !finalized,
+      reason: finalized
+        ? "Organization finalization is indexed."
+        : activationComplete
+          ? "Review finalization status and close bootstrap admin mutations when ready."
+          : "Complete activation before finalization.",
     },
   };
 }
@@ -1525,6 +1847,30 @@ function getBatchDisabledReason(
   }
 
   return capability.reason;
+}
+
+function isSetupActionBlockedAfterFinalization(action: SetupAction): boolean {
+  const operation = getBootstrapAdminOperation(action);
+  return operation
+    ? isBootstrapAdminOperationBlockedAfterFinalization(operation)
+    : false;
+}
+
+function getBootstrapAdminOperation(
+  action: SetupAction,
+): BootstrapAdminOperation | undefined {
+  switch (action.kind) {
+    case SetupActionKind.CreateBody:
+      return BOOTSTRAP_ADMIN_OPERATIONS.CreateBody;
+    case SetupActionKind.CreateRole:
+      return BOOTSTRAP_ADMIN_OPERATIONS.CreateRole;
+    case SetupActionKind.AssignMandate:
+      return BOOTSTRAP_ADMIN_OPERATIONS.AssignMandate;
+    case SetupActionKind.SetPolicyRule:
+      return BOOTSTRAP_ADMIN_OPERATIONS.SetPolicyRule;
+    case SetupActionKind.CreateOrganization:
+      return undefined;
+  }
 }
 
 function getActionControlNote(

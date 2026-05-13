@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useActivationCapabilities } from "../../../api/useActivationCapabilities";
+import { useOrganizationFinalization } from "../../../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { PageHeader } from "../../../ui/PageHeader";
 import { StatusBadge } from "../../../ui/StatusBadge";
@@ -17,6 +18,7 @@ import {
   type SetupCompletionReadModels,
 } from "../setup-completion-verification";
 import { useSetupCompletionReadModels } from "../useSetupCompletionReadModels";
+import { useOrganizationFinalizationAction } from "../useOrganizationFinalizationAction";
 import { useSetupActionExecution } from "../useSetupActionExecution";
 
 export function OrganizationSetupPage(): JSX.Element {
@@ -25,6 +27,7 @@ export function OrganizationSetupPage(): JSX.Element {
   const [inputs, setInputs] = useState(DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS);
   const completionReadModels = useSetupCompletionReadModels(orgId);
   const activationCapabilities = useActivationCapabilities();
+  const finalization = useOrganizationFinalization(orgId);
   const activationInputs = useMemo(
     () => mergeIndexedOrganizationInputs(inputs, completionReadModels.data),
     [completionReadModels.data, inputs],
@@ -48,6 +51,17 @@ export function OrganizationSetupPage(): JSX.Element {
     activationCapabilities: activationCapabilities.activation,
     draft,
     readModels: completionReadModels.data,
+  });
+  const finalizationAction = useOrganizationFinalizationAction({
+    adminAddress: completionReadModels.data?.organization?.adminAddress,
+    finalization: finalization.data,
+    finalizationError: finalization.error,
+    finalizationLoading: finalization.loading,
+    onIndexed: () => {
+      finalization.reload();
+      completionReadModels.reload();
+    },
+    orgId,
   });
   const completion = useMemo(
     () =>
@@ -99,6 +113,8 @@ export function OrganizationSetupPage(): JSX.Element {
         executeSetPolicyRule={execution.executeSetPolicyRule}
         executeSetPolicyRuleGroupBatch={execution.executeSetPolicyRuleGroupBatch}
         executeSetPolicyRuleGroup={execution.executeSetPolicyRuleGroup}
+        finalization={finalization}
+        finalizationAction={finalizationAction}
         inputs={activationInputs}
         orgId={orgId}
         readModels={completionReadModels.data}

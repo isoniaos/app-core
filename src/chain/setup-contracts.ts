@@ -141,6 +141,20 @@ export const GOV_CORE_ABI = [
   },
   {
     type: "function",
+    name: "finalizeOrganization",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "orgId", type: "uint64" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isOrganizationFinalized",
+    stateMutability: "view",
+    inputs: [{ name: "orgId", type: "uint64" }],
+    outputs: [{ name: "isFinalized", type: "bool" }],
+  },
+  {
+    type: "function",
     name: "batchSetPolicyRules",
     stateMutability: "nonpayable",
     inputs: [
@@ -219,6 +233,19 @@ export const GOV_CORE_ABI = [
       { name: "timelockSeconds", type: "uint64", indexed: false },
       { name: "enabled", type: "bool", indexed: false },
     ],
+  },
+  {
+    type: "event",
+    name: "OrganizationFinalized",
+    inputs: [
+      { name: "orgId", type: "uint64", indexed: true },
+      { name: "admin", type: "address", indexed: true },
+    ],
+  },
+  {
+    type: "error",
+    name: "OrganizationAlreadyFinalized",
+    inputs: [{ name: "orgId", type: "uint64" }],
   },
 ] as const satisfies Abi;
 

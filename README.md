@@ -14,13 +14,14 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Create proposal transaction flow gated by runtime config
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Capability-aware setup activation with serial fallback and v0.7 typed contract batch support
+- Organization finalization status reads and setup finalization through the transaction modal
 - Governance graph data view
 - Control Plane diagnostics at `/diagnostics`
 - Runtime config from `/isonia.config.local.json` with fallback to `/isonia.config.json`
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
-Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, arbitrary calldata builders, Safe integration, or real IPFS publishing.
+Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, arbitrary calldata builders, Safe integration, emergency recovery UI, governance-controlled post-finalization mutation UI, or real IPFS publishing.
 
 ## Install
 
@@ -129,9 +130,11 @@ The proposal details screen shows approve, veto, queue, execute, and cancel cont
 
 Execution remains intentionally narrow in the current v0.6 preparation baseline, inherited from the closed v0.5 Developer Preview. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
-The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator.
+The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, finalization capability/diagnostic metadata when reported, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator. Use `/diagnostics?orgId=<id>` to inspect the per-organization finalization read model.
 
 The setup activation wizard also reads Control Plane `GET /v1/capabilities`. When v0.7 typed contract batch activation is explicitly supported, app-core prepares SDK activation plans and submits typed GovCore batch transactions through the existing transaction modal. When capability metadata is unsupported, unknown, or unavailable, setup keeps the compatible serial activation path. EIP-5792 wallet batching remains feature-gated/prototype diagnostics and is not selected automatically.
+
+For the v0.7 bootstrap finalization baseline, App Core reads organization finalization status from Control Plane `GET /v1/orgs/:orgId/finalization`. Finalized organizations remain active and readable in overview, governance structure, proposal, and diagnostics screens. The setup flow can call `finalizeOrganization(orgId)` through the transaction modal after activation is indexed and the connected wallet matches the indexed bootstrap admin. Finalization is irreversible in this alpha and closes bootstrap-admin mutations such as body, role, mandate, policy, organization-status, and admin-cancel paths. App Core disables or explains those controls after finalization. Emergency/recovery flows and governance-controlled post-finalization changes are not implemented, and this alpha is not production audited.
 
 `billing` and `saasAdmin` are ignored by the public app core.
 
@@ -166,8 +169,8 @@ Deployable app-core builds depend on pinned known-good compatibility tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.7.0-alpha.1",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.7.0-alpha.1",
+  "@isonia/types": "github:isoniaos/types#v0.7.0-alpha.2",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.7.0-alpha.2",
   "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3"
 }
 ```

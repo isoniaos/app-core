@@ -10,6 +10,7 @@ import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider";
@@ -132,6 +133,7 @@ function ProposalDetailsContent({
   readonly routeError?: Error;
 }): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
+  const finalization = useOrganizationFinalization(orgId);
   const proposalText = proposalDisplay(proposal, metadata.record);
   const proposalAction = useProposalAction({
     proposal,
@@ -229,6 +231,7 @@ function ProposalDetailsContent({
                     demoNumber={demoNumber}
                     onDemoNumberChange={setDemoNumber}
                     orgAdminAddress={orgAdminAddress}
+                    organizationFinalized={finalization.finalized}
                     proposal={proposal}
                     readiness={proposalAction.readiness}
                     roles={roles}

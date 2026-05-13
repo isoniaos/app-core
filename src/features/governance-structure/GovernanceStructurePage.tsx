@@ -9,6 +9,7 @@ import type {
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
@@ -49,6 +50,7 @@ export function GovernanceStructurePage(): JSX.Element {
   const [fitSignal, setFitSignal] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
+  const finalization = useOrganizationFinalization(orgId);
   const governance = useIsoniaQuery(
     async (): Promise<GovernanceStructureData> => {
       const [overview, bodies, roles, mandates, policiesResult, graphResult] =
@@ -84,6 +86,9 @@ export function GovernanceStructurePage(): JSX.Element {
           <p>Explore how authority flows through this organization.</p>
         </div>
         <div className="governance-structure-header-actions">
+          <StatusBadge tone={finalization.statusTone}>
+            {finalization.statusLabel}
+          </StatusBadge>
           <IsoToggleTip
             content={GOVERNANCE_ABOUT_TEXT}
             title={GOVERNANCE_ABOUT_TITLE}

@@ -6,6 +6,17 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added organization finalization read support and setup finalization UX.
+- Added transaction-modal execution for `finalizeOrganization`.
+
+### Changed
+
+- Updated `@isonia/sdk` dependency ref to `v0.7.0-alpha.2`.
+- Updated `@isonia/types` dependency ref to `v0.7.0-alpha.2`.
+- Disabled or explained bootstrap-admin actions blocked after organization finalization.
+
 ## [0.7.0-alpha.1]
 
 ### Added

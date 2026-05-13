@@ -10,13 +10,25 @@ import {
   type ActivationCapabilities,
   type AdminBatchActivationFunctionName,
   type ChainId,
+  type OrganizationFinalizationCapability,
 } from "@isonia/types";
 
 export interface ControlPlaneCapabilitiesDto {
   readonly apiVersion: string;
   readonly chainId: ChainId;
   readonly activation: ActivationCapabilities;
+  readonly finalization?: ControlPlaneFinalizationCapabilitiesDto;
   readonly generatedAt: string;
+}
+
+export interface ControlPlaneFinalizationCapabilitiesDto {
+  readonly organization: OrganizationFinalizationCapability;
+  readonly emergencyRecovery: {
+    readonly status: string;
+  };
+  readonly governanceControlledPostFinalizationMutation: {
+    readonly status: string;
+  };
 }
 
 export interface ActivationCapabilitiesNotice {

@@ -10,7 +10,13 @@ import type {
   RouteBodyVetoDto,
   RoleDto,
 } from "@isonia/types";
-import { PROPOSAL_TYPE_CHAIN_MAP, ProposalStatus, RoleType } from "@isonia/types";
+import {
+  BOOTSTRAP_ADMIN_OPERATIONS,
+  PROPOSAL_TYPE_CHAIN_MAP,
+  ProposalStatus,
+  RoleType,
+} from "@isonia/types";
+import { isBootstrapAdminOperationBlockedAfterFinalization } from "@isonia/sdk";
 import { isAddress } from "viem";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useRuntimeConfig } from "../../config/runtime-config";
@@ -40,6 +46,7 @@ interface ProposalActionsPanelProps {
   readonly demoNumber: string;
   readonly onDemoNumberChange: (value: string) => void;
   readonly orgAdminAddress?: string;
+  readonly organizationFinalized: boolean;
   readonly proposal: ProposalDto;
   readonly readiness?: ProposalActionReadiness;
   readonly roles: readonly RoleDto[];
@@ -72,6 +79,7 @@ export function ProposalActionsPanel({
   demoNumber,
   onDemoNumberChange,
   orgAdminAddress,
+  organizationFinalized,
   proposal,
   readiness,
   roles,
@@ -121,6 +129,7 @@ export function ProposalActionsPanel({
     availableVetoBodies,
     bodies,
     demoExecutionReady: demoExecution.ready,
+    organizationFinalized,
     pendingApprovalBodies,
     proposal,
     route,
@@ -176,6 +185,7 @@ export function ProposalActionsPanel({
     authority: holderMandates,
     globalReadiness: readiness,
     orgAdminAddress,
+    organizationFinalized,
     proposal,
     route,
     routeError,
@@ -771,6 +781,7 @@ function getCancelDisabledState({
   authority,
   globalReadiness,
   orgAdminAddress,
+  organizationFinalized,
   proposal,
   route,
   routeError,
@@ -779,6 +790,7 @@ function getCancelDisabledState({
   readonly authority: HolderMandatesState;
   readonly globalReadiness?: ProposalActionReadiness;
   readonly orgAdminAddress?: string;
+  readonly organizationFinalized: boolean;
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
@@ -797,8 +809,23 @@ function getCancelDisabledState({
     return disabled("Connected wallet address is unavailable.", "warning");
   }
 
-  if (orgAdminAddress && sameAddress(authority.accountAddress, orgAdminAddress)) {
+  const connectedIsOrgAdmin =
+    orgAdminAddress && sameAddress(authority.accountAddress, orgAdminAddress);
+  const adminCancelBlocked =
+    organizationFinalized &&
+    isBootstrapAdminOperationBlockedAfterFinalization(
+      BOOTSTRAP_ADMIN_OPERATIONS.AdminCancelProposal,
+    );
+
+  if (connectedIsOrgAdmin && !adminCancelBlocked) {
     return enabled("Connected wallet is the indexed organization admin.");
+  }
+
+  if (connectedIsOrgAdmin && adminCancelBlocked && !route) {
+    return disabled(
+      "This organization is finalized. Bootstrap admin proposal cancellation is no longer available, and creator cancellation cannot be confirmed without route state.",
+      "warning",
+    );
   }
 
   if (!route) {
@@ -813,7 +840,18 @@ function getCancelDisabledState({
     sameAddress(authority.accountAddress, proposal.creatorAddress) &&
     !route.requiredApprovalBodies.some((body) => body.approved)
   ) {
-    return enabled("Connected wallet is the creator and no approval is indexed yet.");
+    return enabled(
+      connectedIsOrgAdmin && adminCancelBlocked
+        ? "Organization finalization blocks the bootstrap-admin cancel path, but the connected wallet is also the creator and no approval is indexed yet."
+        : "Connected wallet is the creator and no approval is indexed yet.",
+    );
+  }
+
+  if (connectedIsOrgAdmin && adminCancelBlocked) {
+    return disabled(
+      "This organization is finalized. Bootstrap admin proposal cancellation is no longer available.",
+      "warning",
+    );
   }
 
   return disabled(
@@ -1081,6 +1119,7 @@ function getActionReadiness({
   availableVetoBodies,
   bodies,
   demoExecutionReady,
+  organizationFinalized,
   pendingApprovalBodies,
   proposal,
   route,
@@ -1089,6 +1128,7 @@ function getActionReadiness({
   readonly availableVetoBodies: readonly RouteBodyVetoDto[];
   readonly bodies: readonly BodyDto[];
   readonly demoExecutionReady: boolean;
+  readonly organizationFinalized: boolean;
   readonly pendingApprovalBodies: readonly RouteBodyRequirementDto[];
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
@@ -1099,7 +1139,7 @@ function getActionReadiness({
     getVetoReadiness(proposal, route, routeError, availableVetoBodies, bodies),
     getQueueReadiness(proposal, route, routeError, bodies),
     getExecuteReadiness(proposal, route, routeError, demoExecutionReady, bodies),
-    getCancelReadiness(proposal),
+    getCancelReadiness(proposal, organizationFinalized),
   ];
 }
 
@@ -1344,8 +1384,21 @@ function getExecuteReadiness(
   };
 }
 
-function getCancelReadiness(proposal: ProposalDto): ActionReadinessItem {
+function getCancelReadiness(
+  proposal: ProposalDto,
+  organizationFinalized: boolean,
+): ActionReadinessItem {
   if (isCancellableStatus(proposal.status)) {
+    if (organizationFinalized) {
+      return {
+        label: "Cancel",
+        value: "Limited",
+        tone: "warning",
+        detail:
+          "Organization finalization closes the bootstrap-admin cancel path; creator-before-approval cancellation may still apply.",
+      };
+    }
+
     return {
       label: "Cancel",
       value: "Available",

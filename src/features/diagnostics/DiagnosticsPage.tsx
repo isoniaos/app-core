@@ -12,15 +12,18 @@ import {
   isSerialActivationMode,
   isWalletBatchEip5792Mode,
 } from "@isonia/sdk";
+import { useSearchParams } from "react-router-dom";
 import {
   useActivationCapabilities,
   type ActivationCapabilitiesQuery,
 } from "../../api/useActivationCapabilities";
+import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
 import {
   formatAddress,
+  formatChainTime,
   formatLabel,
   formatNumericString,
 } from "../../utils/format";
@@ -33,6 +36,24 @@ import {
 } from "./diagnostics-status";
 
 type DiagnosticsPageVariant = "home" | "diagnostics";
+
+interface DiagnosticsProtocolFinalization {
+  readonly emergencyRecoverySupported?: boolean;
+  readonly eventDecodingSupported?: boolean;
+  readonly eventName?: string;
+  readonly governanceControlledPostFinalizationMutationSupported?: boolean;
+  readonly latestProjectionError?: DiagnosticsProjectionErrorDto;
+  readonly projectedEventCount?: number;
+  readonly rawEventCount?: number;
+  readonly status?: string;
+}
+
+interface DiagnosticsWithProtocol extends DiagnosticsDto {
+  readonly protocol?: {
+    readonly evmContractsVersion?: string;
+    readonly finalization?: DiagnosticsProtocolFinalization;
+  };
+}
 
 export function DiagnosticsHomePage(): JSX.Element {
   return <DiagnosticsPageContent variant="home" />;
@@ -47,12 +68,14 @@ function DiagnosticsPageContent({
 }: {
   readonly variant: DiagnosticsPageVariant;
 }): JSX.Element {
+  const [searchParams] = useSearchParams();
   const runtimeConfig = useRuntimeConfig();
   const diagnostics = useDiagnostics();
   const activationCapabilities = useActivationCapabilities();
   const walletSetup = useWalletSetup();
   const walletConnection = useWalletConnection();
   const isHome = variant === "home";
+  const orgId = normalizeOptionalOrgId(searchParams.get("orgId"));
 
   return (
     <section className="page-stack">
@@ -90,6 +113,8 @@ function DiagnosticsPageContent({
 
       <DiagnosticsActivationCapabilities capabilities={activationCapabilities} />
 
+      <DiagnosticsOrganizationFinalization orgId={orgId} />
+
       <DiagnosticsLocalRuntime
         runtimeConfig={runtimeConfig}
         walletConnection={walletConnection}
@@ -109,6 +134,8 @@ function DiagnosticsDetails({
     error: undefined,
     loading: false,
   });
+  const protocolFinalization =
+    (diagnostics as DiagnosticsWithProtocol).protocol?.finalization;
 
   return (
     <>
@@ -214,6 +241,61 @@ function DiagnosticsDetails({
       </div>
 
       <DiagnosticsPanel
+        title="Protocol Finalization"
+        subtitle="Control Plane diagnostics for OrganizationFinalized decoding and projection support."
+      >
+        {protocolFinalization ? (
+          <DetailList
+            items={[
+              ["Status", protocolFinalization.status ?? "Not reported"],
+              [
+                "Event decoding",
+                protocolFinalization.eventDecodingSupported ? "Supported" : "No",
+                protocolFinalization.eventDecodingSupported
+                  ? "success"
+                  : "warning",
+              ],
+              [
+                "Event",
+                protocolFinalization.eventName ?? "OrganizationFinalized",
+              ],
+              [
+                "Raw finalization events",
+                formatOptionalCount(protocolFinalization.rawEventCount),
+              ],
+              [
+                "Projected finalization events",
+                formatOptionalCount(protocolFinalization.projectedEventCount),
+              ],
+              [
+                "Emergency recovery",
+                protocolFinalization.emergencyRecoverySupported
+                  ? "Supported"
+                  : "Not implemented",
+                protocolFinalization.emergencyRecoverySupported
+                  ? "warning"
+                  : "muted",
+              ],
+              [
+                "Governance-controlled post-finalization changes",
+                protocolFinalization.governanceControlledPostFinalizationMutationSupported
+                  ? "Supported"
+                  : "Not implemented",
+                protocolFinalization.governanceControlledPostFinalizationMutationSupported
+                  ? "warning"
+                  : "muted",
+              ],
+            ]}
+          />
+        ) : (
+          <DiagnosticsInlineState
+            title="Finalization diagnostics not reported"
+            message="This Control Plane diagnostics response did not include protocol finalization metadata."
+          />
+        )}
+      </DiagnosticsPanel>
+
+      <DiagnosticsPanel
         title="Stale Data Indicators"
         subtitle="Human-readable warnings for indexing, configuration, and freshness issues."
       >
@@ -236,6 +318,7 @@ function DiagnosticsActivationCapabilities({
   readonly capabilities: ActivationCapabilitiesQuery;
 }): JSX.Element {
   const activation = capabilities.activation;
+  const finalization = capabilities.data?.finalization;
 
   return (
     <>
@@ -372,7 +455,170 @@ function DiagnosticsActivationCapabilities({
           </DiagnosticsPanel>
         </div>
       ) : null}
+
+      <DiagnosticsPanel
+        title="Finalization Capabilities"
+        subtitle="Control Plane capability metadata for bootstrap finalization."
+      >
+        {capabilities.loading && !finalization ? (
+          <DiagnosticsInlineState
+            title="Loading finalization capabilities"
+            message="Reading finalization capability metadata from /v1/capabilities."
+          />
+        ) : null}
+
+        {capabilities.error ? (
+          <DiagnosticsInlineState
+            title="Finalization capabilities unavailable"
+            message="Capability metadata is unavailable; App Core keeps finalization disabled until status is confirmed."
+          />
+        ) : null}
+
+        {finalization ? (
+          <DetailList
+            items={[
+              [
+                "Organization finalization",
+                formatLabel(finalization.organization.status),
+                getFinalizationCapabilityTone(
+                  finalization.organization.status,
+                ),
+              ],
+              [
+                "Functions",
+                formatFunctionNames(
+                  finalization.organization.supportedFunctions,
+                ),
+              ],
+              [
+                "Emergency recovery",
+                formatLabel(finalization.emergencyRecovery.status),
+                "muted",
+              ],
+              [
+                "Governance-controlled changes",
+                formatLabel(
+                  finalization.governanceControlledPostFinalizationMutation
+                    .status,
+                ),
+                "muted",
+              ],
+            ]}
+          />
+        ) : null}
+      </DiagnosticsPanel>
     </>
+  );
+}
+
+function DiagnosticsOrganizationFinalization({
+  orgId,
+}: {
+  readonly orgId: string | undefined;
+}): JSX.Element {
+  if (!orgId) {
+    return (
+      <DiagnosticsPanel
+        title="Organization Finalization"
+        subtitle="Per-organization finalization status from Control Plane."
+      >
+        <DiagnosticsInlineState
+          title="No organization context"
+          message="Open diagnostics with ?orgId=<id> to inspect a specific organization's finalization read model."
+        />
+      </DiagnosticsPanel>
+    );
+  }
+
+  return <DiagnosticsOrganizationFinalizationRead orgId={orgId} />;
+}
+
+function DiagnosticsOrganizationFinalizationRead({
+  orgId,
+}: {
+  readonly orgId: string;
+}): JSX.Element {
+  const finalization = useOrganizationFinalization(orgId);
+
+  return (
+    <DiagnosticsPanel
+      title="Organization Finalization"
+      subtitle={`Finalization read model for org #${orgId}.`}
+    >
+      {finalization.loading && !finalization.data ? (
+        <DiagnosticsInlineState
+          title="Loading finalization status"
+          message="Reading organization finalization metadata from Control Plane."
+        />
+      ) : null}
+
+      {finalization.error ? (
+        <div className="diagnostics-indicator diagnostics-indicator-warning">
+          <div className="diagnostics-indicator-header">
+            <div>
+              <strong>Finalization endpoint unavailable</strong>
+              <span>{finalization.statusCopy}</span>
+            </div>
+            <StatusBadge tone="warning">Unavailable</StatusBadge>
+          </div>
+          <p>{sanitizeDiagnosticText(finalization.error.message)}</p>
+          <button
+            className="button button-small"
+            type="button"
+            onClick={finalization.reload}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {finalization.data ? (
+        <DetailList
+          items={[
+            ["Endpoint", finalization.endpointReachable ? "Reachable" : "Unknown"],
+            [
+              "Status",
+              finalization.statusLabel,
+              finalization.finalized
+                ? "success"
+                : finalization.notFinalized
+                  ? "warning"
+                  : "muted",
+            ],
+            ["Lifecycle", formatLabel(finalization.data.lifecycleStatus)],
+            [
+              "Bootstrap admin mutations",
+              finalization.data.bootstrapAdminMutationsAllowed === null
+                ? "Unknown"
+                : finalization.data.bootstrapAdminMutationsAllowed
+                  ? "Available"
+                  : "Closed",
+              finalization.data.bootstrapAdminMutationsAllowed === false
+                ? "success"
+                : "muted",
+            ],
+            [
+              "Blocked operations",
+              finalization.data.blockedBootstrapAdminOperations.length.toLocaleString(),
+            ],
+            [
+              "Finalized by",
+              finalization.data.finalizedBy
+                ? formatAddress(finalization.data.finalizedBy)
+                : "Not finalized",
+            ],
+            [
+              "Finalized tx",
+              finalization.data.finalizedTxHash
+                ? formatAddress(finalization.data.finalizedTxHash)
+                : "Not finalized",
+            ],
+            ["Finalized block", finalization.data.finalizedBlock ?? "Not finalized"],
+            ["Finalized at", formatChainTime(finalization.data.finalizedAt)],
+          ]}
+        />
+      ) : null}
+    </DiagnosticsPanel>
   );
 }
 
@@ -931,8 +1177,25 @@ function getCapabilityStatusTone(
   return "warning";
 }
 
+function getFinalizationCapabilityTone(status: string): DetailTone {
+  switch (status) {
+    case "supported":
+      return "success";
+    case "unsupported":
+      return "muted";
+    case "unknown":
+      return "warning";
+    default:
+      return "warning";
+  }
+}
+
 function formatOptionalBlock(value?: string): string {
   return value ? formatNumericString(value) : "Not reported";
+}
+
+function formatOptionalCount(value: number | undefined): string {
+  return value === undefined ? "Not reported" : value.toLocaleString();
 }
 
 function formatDateTime(value?: string): string {
@@ -962,6 +1225,11 @@ function sanitizeDiagnosticText(value: string): string {
       "$1=[redacted]",
     )
     .slice(0, 700);
+}
+
+function normalizeOptionalOrgId(value: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function getIndicatorKey(indicator: DiagnosticsStaleDataIndicatorDto): string {

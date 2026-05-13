@@ -1,6 +1,7 @@
 import type { OrganizationOverviewDto } from "@isonia/types";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
@@ -51,6 +52,7 @@ function OrganizationOverviewContent({
   readonly orgId: string;
 }): JSX.Element {
   const metadata = useMetadata(data.organization.metadataUri);
+  const finalization = useOrganizationFinalization(orgId);
   const display = organizationDisplay(data.organization, metadata.record);
 
   return (
@@ -83,7 +85,12 @@ function OrganizationOverviewContent({
       <section className="panel">
         <div className="panel-header">
           <h2>Organization</h2>
-          <StatusBadge>{formatLabel(data.organization.status)}</StatusBadge>
+          <div className="chip-row">
+            <StatusBadge>{formatLabel(data.organization.status)}</StatusBadge>
+            <StatusBadge tone={finalization.statusTone}>
+              {finalization.statusLabel}
+            </StatusBadge>
+          </div>
         </div>
         <dl className="detail-list detail-list-wide">
           <div>
@@ -110,7 +117,29 @@ function OrganizationOverviewContent({
               <DataStatusBadge status={data.organization.dataStatus} />
             </dd>
           </div>
+          <div>
+            <dt>Finalization</dt>
+            <dd>{finalization.statusLabel}</dd>
+          </div>
+          <div>
+            <dt>Finalized by</dt>
+            <dd>
+              {finalization.data?.finalizedBy
+                ? formatAddress(finalization.data.finalizedBy)
+                : "Not finalized"}
+            </dd>
+          </div>
+          <div>
+            <dt>Finalized block</dt>
+            <dd>{finalization.data?.finalizedBlock ?? "Not finalized"}</dd>
+          </div>
         </dl>
+        {finalization.error ? (
+          <div className="inline-state inline-state-muted">
+            <strong>Finalization status unavailable</strong>
+            <span>{finalization.statusCopy}</span>
+          </div>
+        ) : null}
       </section>
 
       <div className="action-row">

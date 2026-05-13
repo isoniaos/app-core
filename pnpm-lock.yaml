@@ -27,14 +27,14 @@ importers:
         specifier: 1.1.6
         version: 1.1.6(react@19.2.5)
       '@isonia/sdk':
-        specifier: github:isoniaos/sdk#v0.7.0-alpha.1
-        version: https://codeload.github.com/isoniaos/sdk/tar.gz/3fb769044637121dba2b5509fe414c057ca9b3a2
+        specifier: github:isoniaos/sdk#v0.7.0-alpha.2
+        version: https://codeload.github.com/isoniaos/sdk/tar.gz/6adecd8a74abf4f996bb381a83201cd3ff68d0c9
       '@isonia/theme-default':
         specifier: github:isoniaos/theme-default#v0.6.0-alpha.3
         version: https://codeload.github.com/isoniaos/theme-default/tar.gz/54ccbda6fc6dc430a68d0e4ad80f0f5c56d16119
       '@isonia/types':
-        specifier: github:isoniaos/types#v0.7.0-alpha.1
-        version: https://codeload.github.com/isoniaos/types/tar.gz/e8783431771d20fb1b0769ba0a4ed9ae95fd4159
+        specifier: github:isoniaos/types#v0.7.0-alpha.2
+        version: https://codeload.github.com/isoniaos/types/tar.gz/d4a5aef6acdee47278861d78634349ae699ee332
       '@reown/appkit':
         specifier: 1.8.19
         version: 1.8.19(@types/react@19.2.14)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(zod@3.25.76)
@@ -493,9 +493,9 @@ packages:
   '@internationalized/number@3.6.5':
     resolution: {integrity: sha512-6hY4Kl4HPBvtfS62asS/R22JzNNy8vi/Ssev7x6EobfCp+9QIB2hKvI2EtbdJ0VSQacxVNtqhE/NmF/NZ0gm6g==}
 
-  '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/3fb769044637121dba2b5509fe414c057ca9b3a2':
-    resolution: {tarball: https://codeload.github.com/isoniaos/sdk/tar.gz/3fb769044637121dba2b5509fe414c057ca9b3a2}
-    version: 0.7.0-alpha.1
+  '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/6adecd8a74abf4f996bb381a83201cd3ff68d0c9':
+    resolution: {tarball: https://codeload.github.com/isoniaos/sdk/tar.gz/6adecd8a74abf4f996bb381a83201cd3ff68d0c9}
+    version: 0.7.0-alpha.2
     engines: {node: '>=22'}
 
   '@isonia/theme-default@https://codeload.github.com/isoniaos/theme-default/tar.gz/54ccbda6fc6dc430a68d0e4ad80f0f5c56d16119':
@@ -503,9 +503,9 @@ packages:
     version: 0.6.0-alpha.3
     engines: {node: '>=22'}
 
-  '@isonia/types@https://codeload.github.com/isoniaos/types/tar.gz/e8783431771d20fb1b0769ba0a4ed9ae95fd4159':
-    resolution: {tarball: https://codeload.github.com/isoniaos/types/tar.gz/e8783431771d20fb1b0769ba0a4ed9ae95fd4159}
-    version: 0.7.0-alpha.1
+  '@isonia/types@https://codeload.github.com/isoniaos/types/tar.gz/d4a5aef6acdee47278861d78634349ae699ee332':
+    resolution: {tarball: https://codeload.github.com/isoniaos/types/tar.gz/d4a5aef6acdee47278861d78634349ae699ee332}
+    version: 0.7.0-alpha.2
     engines: {node: '>=22'}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -3465,13 +3465,13 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.21
 
-  '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/3fb769044637121dba2b5509fe414c057ca9b3a2':
+  '@isonia/sdk@https://codeload.github.com/isoniaos/sdk/tar.gz/6adecd8a74abf4f996bb381a83201cd3ff68d0c9':
     dependencies:
-      '@isonia/types': https://codeload.github.com/isoniaos/types/tar.gz/e8783431771d20fb1b0769ba0a4ed9ae95fd4159
+      '@isonia/types': https://codeload.github.com/isoniaos/types/tar.gz/d4a5aef6acdee47278861d78634349ae699ee332
 
   '@isonia/theme-default@https://codeload.github.com/isoniaos/theme-default/tar.gz/54ccbda6fc6dc430a68d0e4ad80f0f5c56d16119': {}
 
-  '@isonia/types@https://codeload.github.com/isoniaos/types/tar.gz/e8783431771d20fb1b0769ba0a4ed9ae95fd4159': {}
+  '@isonia/types@https://codeload.github.com/isoniaos/types/tar.gz/d4a5aef6acdee47278861d78634349ae699ee332': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
