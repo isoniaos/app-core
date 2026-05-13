@@ -6,6 +6,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.7.0-alpha.2]
+
 ### Added
 
 - Added organization finalization read support and setup finalization UX.
@@ -270,7 +272,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.1...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.2...HEAD
+[0.7.0-alpha.2]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.1...v0.7.0-alpha.2
 [0.7.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.1
 [0.6.0-alpha.18]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.18
 [0.6.0-alpha.17]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.17
