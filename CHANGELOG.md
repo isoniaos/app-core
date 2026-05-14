@@ -6,6 +6,18 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.7.0-alpha.3]
+
+### Fixed
+
+- Fixed activation indexing wait recovery after batch activation and read-model catch-up.
+- Forced local demo Reown/AppKit setup toward EOA-only behavior.
+- Made setup, finalization, proposal creation, proposal action, and contract batch write paths pass the connected signer account explicitly.
+
+### Changed
+
+- Kept EIP-5792 wallet batching gated and disabled by default.
+
 ## [0.7.0-alpha.2]
 
 ### Added
@@ -272,7 +284,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.2...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.3...HEAD
+[0.7.0-alpha.3]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.2...v0.7.0-alpha.3
 [0.7.0-alpha.2]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.1...v0.7.0-alpha.2
 [0.7.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.1
 [0.6.0-alpha.18]: https://github.com/isoniaos/app-core/releases/tag/v0.6.0-alpha.18

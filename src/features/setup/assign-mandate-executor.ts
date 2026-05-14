@@ -114,7 +114,8 @@ export async function executeAssignMandateAction({
     return;
   }
 
-  if (!account.isConnected || !account.address) {
+  const signerAddress = account.address;
+  if (!account.isConnected || !signerAddress) {
     setMandateActionFailed(action, "Wallet is not connected.");
     return;
   }
@@ -181,6 +182,7 @@ export async function executeAssignMandateAction({
       functionName: "assignMandate",
       args: buildAssignMandateCallArgs(payload),
       chainId: runtimeConfig.chainId,
+      account: signerAddress,
     });
 
     setMandateActionTransaction(action, {

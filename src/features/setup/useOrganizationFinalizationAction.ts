@@ -176,6 +176,12 @@ export function useOrganizationFinalizationAction({
       return;
     }
 
+    const signerAddress = wallet.address;
+    if (!signerAddress) {
+      fail("Wallet is not connected.");
+      return;
+    }
+
     if (!publicClient) {
       fail("Wallet client is unavailable for the configured chain.");
       return;
@@ -196,6 +202,7 @@ export function useOrganizationFinalizationAction({
         functionName: plan.functionName,
         args: [parsedOrgId],
         chainId: runtimeConfig.chainId,
+        account: signerAddress,
       });
 
       setFinalizationTransaction({ stage: "submitted", txHash });
@@ -230,6 +237,7 @@ export function useOrganizationFinalizationAction({
     runtimeConfig.chainId,
     runtimeConfig.contracts.govCoreAddress,
     updateTransactionModalItem,
+    wallet.address,
     writeContractAsync,
   ]);
 

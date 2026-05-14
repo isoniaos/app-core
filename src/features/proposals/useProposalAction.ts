@@ -187,7 +187,8 @@ export function useProposalAction({
         return;
       }
 
-      if (!account.isConnected || !account.address) {
+      const signerAddress = account.address;
+      if (!account.isConnected || !signerAddress) {
         fail("Wallet is not connected.");
         return;
       }
@@ -225,6 +226,7 @@ export function useProposalAction({
           stage: "wallet_pending",
         });
         txHash = await writeProposalAction({
+          account: signerAddress,
           address: runtimeConfig.contracts.govProposalsAddress,
           chainId: runtimeConfig.chainId,
           ids: parsedIds,
@@ -403,12 +405,14 @@ function parseActionIds(
 }
 
 async function writeProposalAction({
+  account,
   address,
   chainId,
   ids,
   request,
   writeContractAsync,
 }: {
+  readonly account: Address;
   readonly address: Address;
   readonly chainId: number;
   readonly ids: ParsedActionIds;
@@ -425,6 +429,7 @@ async function writeProposalAction({
       functionName: "approveProposal",
       args: [ids.orgId, ids.proposalId, ids.bodyId],
       chainId,
+      account,
     });
   }
 
@@ -438,6 +443,7 @@ async function writeProposalAction({
       functionName: "vetoProposal",
       args: [ids.orgId, ids.proposalId, ids.bodyId],
       chainId,
+      account,
     });
   }
 
@@ -448,6 +454,7 @@ async function writeProposalAction({
       functionName: "queueProposal",
       args: [ids.orgId, ids.proposalId],
       chainId,
+      account,
     });
   }
 
@@ -458,6 +465,7 @@ async function writeProposalAction({
       functionName: "executeProposal",
       args: [ids.orgId, ids.proposalId, request.actionData],
       chainId,
+      account,
       value: request.value,
     });
   }
@@ -468,6 +476,7 @@ async function writeProposalAction({
     functionName: "cancelProposal",
     args: [ids.orgId, ids.proposalId],
     chainId,
+    account,
   });
 }
 

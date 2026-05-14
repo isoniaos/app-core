@@ -1090,6 +1090,11 @@ export function useSetupActionExecution({
 
   const submitContractBatchPlanCall = useCallback(
     async (call: AdminBatchActivationPlanCall): Promise<`0x${string}`> => {
+      const signerAddress = account.address;
+      if (!signerAddress) {
+        throw new Error("Wallet is not connected.");
+      }
+
       switch (call.group) {
         case "bodies": {
           const args = buildBatchCreateBodiesCallArgs({
@@ -1105,6 +1110,7 @@ export function useSetupActionExecution({
             functionName: getAdminBatchActivationFunctionName("bodies"),
             args,
             chainId: runtimeConfig.chainId,
+            account: signerAddress,
           });
         }
         case "roles": {
@@ -1121,6 +1127,7 @@ export function useSetupActionExecution({
             functionName: getAdminBatchActivationFunctionName("roles"),
             args,
             chainId: runtimeConfig.chainId,
+            account: signerAddress,
           });
         }
         case "mandates": {
@@ -1137,6 +1144,7 @@ export function useSetupActionExecution({
             functionName: getAdminBatchActivationFunctionName("mandates"),
             args,
             chainId: runtimeConfig.chainId,
+            account: signerAddress,
           });
         }
         case "policyRules": {
@@ -1153,12 +1161,14 @@ export function useSetupActionExecution({
             functionName: getAdminBatchActivationFunctionName("policyRules"),
             args,
             chainId: runtimeConfig.chainId,
+            account: signerAddress,
           });
         }
       }
       throw new Error("Unsupported contract batch group.");
     },
     [
+      account.address,
       runtimeConfig.chainId,
       runtimeConfig.contracts.govCoreAddress,
       writeContractAsync,

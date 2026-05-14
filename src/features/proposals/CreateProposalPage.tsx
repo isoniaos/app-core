@@ -184,7 +184,8 @@ export function CreateProposalPage(): JSX.Element {
         return;
       }
 
-      if (!account.isConnected || !account.address) {
+      const signerAddress = account.address;
+      if (!account.isConnected || !signerAddress) {
         fail("Wallet is not connected.");
         return;
       }
@@ -220,6 +221,7 @@ export function CreateProposalPage(): JSX.Element {
             payload.metadataUri,
           ],
           chainId: runtimeConfig.chainId,
+          account: signerAddress,
         });
 
         setCreateTransaction({ stage: "submitted", txHash });

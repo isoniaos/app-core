@@ -116,7 +116,8 @@ export async function executeSetPolicyRuleAction({
     return;
   }
 
-  if (!account.isConnected || !account.address) {
+  const signerAddress = account.address;
+  if (!account.isConnected || !signerAddress) {
     setPolicyActionFailed(action, "Wallet is not connected.");
     return;
   }
@@ -183,6 +184,7 @@ export async function executeSetPolicyRuleAction({
       functionName: "setPolicyRule",
       args: buildSetPolicyRuleCallArgs(payload),
       chainId: runtimeConfig.chainId,
+      account: signerAddress,
     });
 
     setPolicyActionTransaction(action, {

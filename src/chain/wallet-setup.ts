@@ -8,6 +8,7 @@ import { createReownThemeVariables } from "../wallet/reown-theme";
 
 export interface WalletSetup {
   readonly appKitEnabled: boolean;
+  readonly accountMode: "eoa_only_appkit" | "injected_fallback";
   readonly diagnostics: readonly WalletSetupDiagnostic[];
   readonly wagmiConfig: Config;
 }
@@ -110,6 +111,7 @@ export async function createWalletSetup(
       }
 
       return {
+        accountMode: "eoa_only_appkit",
         appKitEnabled: true,
         diagnostics: [],
         wagmiConfig: wagmiAdapter.wagmiConfig,
@@ -150,6 +152,7 @@ function createInjectedWalletSetup(
   diagnostics: readonly WalletSetupDiagnostic[],
 ): WalletSetup {
   return {
+    accountMode: "injected_fallback",
     appKitEnabled: false,
     diagnostics,
     wagmiConfig: createConfig({

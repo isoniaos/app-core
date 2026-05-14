@@ -104,7 +104,8 @@ export async function executeCreateRoleAction({
     return;
   }
 
-  if (!account.isConnected || !account.address) {
+  const signerAddress = account.address;
+  if (!account.isConnected || !signerAddress) {
     setRoleActionFailed(action, "Wallet is not connected.");
     return;
   }
@@ -166,6 +167,7 @@ export async function executeCreateRoleAction({
       functionName: "createRole",
       args: buildCreateRoleCallArgs(payload),
       chainId: runtimeConfig.chainId,
+      account: signerAddress,
     });
 
     setRoleActionTransaction(action, {

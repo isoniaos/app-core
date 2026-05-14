@@ -14,7 +14,7 @@
   },
   "features": {
     "createProposal": true,
-    "eip5792Batch": true,
+    "eip5792Batch": false,
     "writeActions": true,
     "manageOrg": true,
     "advancedAnalytics": false,

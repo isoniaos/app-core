@@ -76,7 +76,8 @@ export async function executeCreateBodyAction({
     return;
   }
 
-  if (!account.isConnected || !account.address) {
+  const signerAddress = account.address;
+  if (!account.isConnected || !signerAddress) {
     setBodyActionFailed(action, "Wallet is not connected.");
     return;
   }
@@ -137,6 +138,7 @@ export async function executeCreateBodyAction({
       functionName: "createBody",
       args: buildCreateBodyCallArgs(payload),
       chainId: runtimeConfig.chainId,
+      account: signerAddress,
     });
 
     setBodyActionTransaction(action, {

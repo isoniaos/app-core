@@ -690,14 +690,32 @@ function DiagnosticsLocalRuntime({
               walletSetup.appKitEnabled ? "success" : "warning",
             ],
             [
+              "Wallet account mode",
+              walletSetup.accountMode === "eoa_only_appkit"
+                ? "EOA-only AppKit"
+                : "Injected fallback",
+              walletSetup.accountMode === "eoa_only_appkit" ? "success" : "muted",
+            ],
+            [
               "Create proposal",
               runtimeConfig.features.createProposal ? "Enabled" : "Disabled",
               runtimeConfig.features.createProposal ? "success" : "muted",
             ],
             [
+              "EIP-5792 batch",
+              runtimeConfig.features.eip5792Batch ? "Enabled" : "Disabled",
+              runtimeConfig.features.eip5792Batch ? "warning" : "success",
+            ],
+            [
               "Write actions",
               runtimeConfig.features.writeActions ? "Enabled" : "Disabled",
               runtimeConfig.features.writeActions ? "success" : "muted",
+            ],
+            ["GovCore", runtimeConfig.contracts.govCoreAddress],
+            ["GovProposals", runtimeConfig.contracts.govProposalsAddress],
+            [
+              "DemoTarget",
+              runtimeConfig.contracts.demoTargetAddress ?? "Not configured",
             ],
           ]}
         />
@@ -727,6 +745,10 @@ function DiagnosticsLocalRuntime({
               "Expected chain",
               String(runtimeConfig.chainId),
               chainTone,
+            ],
+            [
+              "Connected account",
+              walletConnection.address ?? "Not reported",
             ],
             [
               "Connector",

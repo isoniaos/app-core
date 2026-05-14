@@ -52,7 +52,8 @@ export async function executeCreateOrganizationAction({
     return;
   }
 
-  if (!account.isConnected || !account.address) {
+  const signerAddress = account.address;
+  if (!account.isConnected || !signerAddress) {
     setActionFailed(action, "Wallet is not connected.");
     return;
   }
@@ -112,6 +113,7 @@ export async function executeCreateOrganizationAction({
       functionName: "createOrganization",
       args: [payload.slug, payload.metadataUri, payload.adminAddress],
       chainId: runtimeConfig.chainId,
+      account: signerAddress,
     });
 
     setActionTransaction(action, {

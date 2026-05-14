@@ -77,6 +77,8 @@ Safe built-in defaults are used only when neither runtime config file can be loa
 
 For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values.
 
+When testing the Docker demo stack, remember that `/isonia.config.local.json` is loaded before `/isonia.config.json`. A stale local override served by a local dev server can shadow the generated demo-stack runtime config and point App Core at old contract addresses. The Docker demo image serves the generated `/isonia.config.json`; local Vite debugging should remove or refresh `public/isonia.config.local.json` when contract addresses change.
+
 Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` in committed defaults and examples so app-core falls back to injected wallet mode when no local or deployment-specific project ID is provided.
 
 For deployment, use `public/isonia.config.example.json` as the complete operator-facing template and place the final file next to the built assets as `isonia.config.json`.
@@ -154,6 +156,8 @@ The wallet config controls the connection UX:
 - `icons`: public icon URLs used in Reown wallet metadata.
 
 wagmi and viem remain the core EVM interaction layer in both modes. Reown AppKit is only the optional multi-wallet UX layer.
+
+When Reown AppKit is configured, App Core requests EOA account mode and disables email, social, onramp, and swap paths for the local demo. EIP-5792 wallet batching remains an opt-in prototype flag and is not part of the default write path.
 
 App-core feature code must read wallet connection state through `src/wallet/useWalletConnection.ts`. Do not import Wagmi account or connection-state hooks directly in feature components or feature hooks; keep Wagmi connection API changes contained in that project adapter.
 
