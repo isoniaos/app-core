@@ -6,6 +6,16 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+## [0.7.0-alpha.4]
+
+### Added
+
+- Added an explicit runtime wallet connection mode for injected-only local demo operation.
+
+### Changed
+
+- Local Hardhat self-hosted runtime config now defaults to injected-only wallet mode unless AppKit is explicitly requested.
+
 ## [0.7.0-alpha.3]
 
 ### Fixed
@@ -284,7 +294,8 @@ All notable changes to `@isonia/app-core` are documented here.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.3...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.4...HEAD
+[0.7.0-alpha.4]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.3...v0.7.0-alpha.4
 [0.7.0-alpha.3]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.2...v0.7.0-alpha.3
 [0.7.0-alpha.2]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.1...v0.7.0-alpha.2
 [0.7.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.1

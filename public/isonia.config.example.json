@@ -31,6 +31,7 @@
     "timeoutMs": 1500
   },
   "wallet": {
+    "connectionMode": "injected-only",
     "reownProjectId": "",
     "appUrl": "https://app.example.org",
     "icons": ["https://app.example.org/icon.png"]

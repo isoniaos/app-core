@@ -18,6 +18,7 @@ export type WalletSetupDiagnosticLevel = "info" | "warning" | "error";
 export type WalletSetupDiagnosticCode =
   | "invalid_chain_config"
   | "invalid_rpc_config"
+  | "injected_wallet_mode"
   | "reown_init_failed"
   | "reown_project_id_missing";
 
@@ -56,6 +57,16 @@ export async function createWalletSetup(
 
   const wagmiChain = createConfiguredViemChain(runtimeConfig);
   const reownProjectId = runtimeConfig.wallet.reownProjectId.trim();
+
+  if (runtimeConfig.wallet.connectionMode === "injected-only") {
+    return createInjectedWalletSetup(wagmiChain, runtimeConfig.rpcUrl, [
+      {
+        code: "injected_wallet_mode",
+        level: "info",
+        message: "Runtime wallet mode forces injected wallet fallback.",
+      },
+    ]);
+  }
 
   if (reownProjectId.length > 0) {
     try {
@@ -133,7 +144,8 @@ export async function createWalletSetup(
 
   const diagnostic: WalletSetupDiagnostic = {
     code: "reown_project_id_missing",
-    level: "info",
+    level:
+      runtimeConfig.wallet.connectionMode === "appkit" ? "warning" : "info",
     message: "Reown project ID missing; using injected wallet fallback.",
   };
   console.info(diagnostic.message);

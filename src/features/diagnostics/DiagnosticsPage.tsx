@@ -685,6 +685,15 @@ function DiagnosticsLocalRuntime({
               `${runtimeConfig.chainName} (${runtimeConfig.chainId})`,
             ],
             [
+              "Wallet connection mode",
+              formatLabel(runtimeConfig.wallet.connectionMode),
+              runtimeConfig.wallet.connectionMode === "injected-only"
+                ? "success"
+                : runtimeConfig.wallet.connectionMode === "appkit"
+                  ? "warning"
+                  : "muted",
+            ],
+            [
               "Reown AppKit",
               walletSetup.appKitEnabled ? "Enabled" : "Injected fallback",
               walletSetup.appKitEnabled ? "success" : "warning",

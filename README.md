@@ -75,11 +75,11 @@ If that request returns 404, the app falls back to the committed/default runtime
 
 Safe built-in defaults are used only when neither runtime config file can be loaded.
 
-For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values.
+For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values. Set `wallet.connectionMode` to `appkit` only when explicitly testing Reown/AppKit on the local Hardhat chain.
 
 When testing the Docker demo stack, remember that `/isonia.config.local.json` is loaded before `/isonia.config.json`. A stale local override served by a local dev server can shadow the generated demo-stack runtime config and point App Core at old contract addresses. The Docker demo image serves the generated `/isonia.config.json`; local Vite debugging should remove or refresh `public/isonia.config.local.json` when contract addresses change.
 
-Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` in committed defaults and examples so app-core falls back to injected wallet mode when no local or deployment-specific project ID is provided.
+Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` and `wallet.connectionMode: "injected-only"` in committed local defaults and examples so app-core stays on injected wallet mode until a deployment explicitly enables AppKit.
 
 For deployment, use `public/isonia.config.example.json` as the complete operator-facing template and place the final file next to the built assets as `isonia.config.json`.
 
@@ -119,6 +119,7 @@ Example:
     "timeoutMs": 1500
   },
   "wallet": {
+    "connectionMode": "injected-only",
     "reownProjectId": "",
     "appUrl": "https://app.example.org",
     "icons": ["https://app.example.org/icon.png"]
@@ -150,7 +151,10 @@ The local demo includes lightweight built-in metadata for known seed URIs such a
 
 The wallet config controls the connection UX:
 
-- `reownProjectId`: when set, app-core initializes Reown AppKit for multi-wallet UX.
+- `connectionMode`: `injected-only`, `appkit`, or `auto`. Local Hardhat
+  self-hosted configs default to `injected-only` unless this field explicitly
+  requests `appkit`.
+- `reownProjectId`: when set and `connectionMode` allows AppKit, app-core initializes Reown AppKit for multi-wallet UX.
 - Empty `reownProjectId`: app-core stays usable in self-hosted mode and falls back to wagmi's injected connector, suitable for browser wallets such as MetaMask or Rabby.
 - `appUrl`: public URL shown in Reown wallet metadata.
 - `icons`: public icon URLs used in Reown wallet metadata.

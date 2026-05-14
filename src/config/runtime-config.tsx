@@ -36,10 +36,13 @@ export interface RuntimeMetadataConfig {
 }
 
 export interface RuntimeWalletConfig {
+  readonly connectionMode: RuntimeWalletConnectionMode;
   readonly reownProjectId: string;
   readonly appUrl: string;
   readonly icons: readonly string[];
 }
+
+export type RuntimeWalletConnectionMode = "auto" | "appkit" | "injected-only";
 
 export interface RuntimeConfig {
   readonly appName: string;
@@ -91,6 +94,7 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
     timeoutMs: 1_500,
   },
   wallet: {
+    connectionMode: "injected-only",
     reownProjectId: "",
     appUrl: "http://localhost:5173",
     icons: [],
@@ -208,6 +212,11 @@ export function useRuntimeConfig(): RuntimeConfig {
 
 function parseRuntimeConfig(value: unknown): RuntimeConfig {
   const object = asRecord(value);
+  const appMode = readRuntimeMode(object.mode, DEFAULT_RUNTIME_CONFIG.mode);
+  const chainId = readRequiredNumber(
+    object.chainId,
+    DEFAULT_RUNTIME_CONFIG.chainId,
+  );
   const contracts = asRecord(object.contracts);
   const features = asRecord(object.features);
   const theme = asRecord(object.theme);
@@ -216,15 +225,12 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
 
   return {
     appName: readString(object.appName, DEFAULT_RUNTIME_CONFIG.appName),
-    mode: readRuntimeMode(object.mode, DEFAULT_RUNTIME_CONFIG.mode),
+    mode: appMode,
     apiBaseUrl: readString(
       object.apiBaseUrl,
       DEFAULT_RUNTIME_CONFIG.apiBaseUrl,
     ),
-    chainId: readRequiredNumber(
-      object.chainId,
-      DEFAULT_RUNTIME_CONFIG.chainId,
-    ),
+    chainId,
     chainName: readRequiredString(
       object.chainName,
       DEFAULT_RUNTIME_CONFIG.chainName,
@@ -312,6 +318,10 @@ function parseRuntimeConfig(value: unknown): RuntimeConfig {
       ),
     },
     wallet: {
+      connectionMode: readWalletConnectionMode(
+        wallet.connectionMode,
+        getDefaultWalletConnectionMode(appMode, chainId),
+      ),
       reownProjectId: readString(
         wallet.reownProjectId,
         DEFAULT_RUNTIME_CONFIG.wallet.reownProjectId,
@@ -395,6 +405,25 @@ function readThemeSource(
   return value === "default" || value === "package" || value === "runtime"
     ? value
     : fallback;
+}
+
+function readWalletConnectionMode(
+  value: unknown,
+  fallback: RuntimeWalletConnectionMode,
+): RuntimeWalletConnectionMode {
+  if (value === "auto" || value === "appkit" || value === "injected-only") {
+    return value;
+  }
+  return fallback;
+}
+
+function getDefaultWalletConnectionMode(
+  appMode: RuntimeMode,
+  chainId: number,
+): RuntimeWalletConnectionMode {
+  return appMode === "self-hosted" && chainId === 31337
+    ? "injected-only"
+    : "auto";
 }
 
 function readAddress(value: unknown, fallback: Address): Address {
