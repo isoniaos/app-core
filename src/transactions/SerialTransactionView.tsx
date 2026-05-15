@@ -4,7 +4,10 @@ import {
   IsoBadge,
   IsoButton,
   IsoHelpTerm,
+  IsoSteps,
   IsoTransactionHash,
+  type IsoStepItem,
+  type IsoStepStatus,
 } from "../ui-kit";
 import {
   getTransactionStageCopy,
@@ -65,87 +68,104 @@ export function SerialTransactionView({
           </IsoBadge>
         </div>
       ) : null}
-      <div className="transaction-modal-item-list">
-        {state.items.map((item, index) => (
-          <SerialTransactionItem
-            active={item.id === activeItemId}
-            index={index + 1}
-            item={item}
-            key={item.id}
-          />
-        ))}
-      </div>
+      <IsoSteps
+        ariaLabel="Serial transaction steps"
+        className="transaction-modal-steps"
+        currentStepId={activeItemId}
+        items={state.items.map((item) =>
+          toSerialTransactionStep(item, item.id === activeItemId),
+        )}
+      />
     </div>
   );
 }
 
-function SerialTransactionItem({
-  active,
-  index,
-  item,
-}: {
-  readonly active: boolean;
-  readonly index: number;
-  readonly item: TransactionFlowItem;
-}): JSX.Element {
+function toSerialTransactionStep(
+  item: TransactionFlowItem,
+  active: boolean,
+): IsoStepItem {
   const displayStage = getAllowedSerialStage(item);
   const copy = getTransactionStageCopy(displayStage);
+
+  return {
+    description: (
+      <>
+        {item.description ? <span>{item.description}</span> : null}
+        <span>{copy.detail}</span>
+      </>
+    ),
+    id: item.id,
+    meta: <SerialTransactionStepMeta item={item} stage={displayStage} />,
+    status: getSerialStepStatus(displayStage, active),
+    title: (
+      <span className="transaction-modal-step-title">
+        <span>{item.title}</span>
+        <IsoBadge className={`badge badge-${getTransactionStageTone(displayStage)}`}>
+          {copy.label}
+        </IsoBadge>
+      </span>
+    ),
+  };
+}
+
+function SerialTransactionStepMeta({
+  item,
+  stage,
+}: {
+  readonly item: TransactionFlowItem;
+  readonly stage: TransactionFlowItemStage;
+}): JSX.Element {
   const showDiagnostics =
-    isControlPlaneWaitingStage(displayStage) ||
-    isFailedTransactionStage(displayStage);
+    isControlPlaneWaitingStage(stage) ||
+    isFailedTransactionStage(stage);
 
   return (
-    <article
-      className={[
-        "transaction-modal-item",
-        active ? "transaction-modal-item-active" : "",
-        isCompletedTransactionStage(displayStage)
-          ? "transaction-modal-item-complete"
-          : "",
-        isFailedTransactionStage(displayStage)
-          ? "transaction-modal-item-danger"
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <div className="transaction-modal-item-index">{index}</div>
-      <div className="transaction-modal-item-main">
-        <div className="transaction-modal-item-header">
-          <div>
-            <strong>{item.title}</strong>
-            {item.description ? <span>{item.description}</span> : null}
-          </div>
-          <IsoBadge className={`badge badge-${getTransactionStageTone(displayStage)}`}>
-            {copy.label}
-          </IsoBadge>
-        </div>
-        <p>{copy.detail}</p>
-        <IsoTransactionHash
-          blockExplorerUrl={item.blockExplorerUrl}
-          txHash={item.txHash}
-        />
-        <div className="transaction-modal-item-actions">
-          {showDiagnostics ? (
-            <Link className="diagnostics-text-link" to="/diagnostics">
-              View diagnostics
-            </Link>
-          ) : null}
-          {isFailedTransactionStage(displayStage) && item.retry ? (
-            <IsoButton size="sm" onClick={() => void item.retry?.()}>
-              Retry
-            </IsoButton>
-          ) : null}
-        </div>
-        {item.error ? (
-          <details className="transaction-modal-error">
-            <summary>Raw error</summary>
-            <code>{item.error}</code>
-          </details>
-        ) : null}
-      </div>
-    </article>
+    <div className="transaction-modal-stage-meta">
+      <IsoTransactionHash
+        blockExplorerUrl={item.blockExplorerUrl}
+        txHash={item.txHash}
+      />
+      {showDiagnostics ? (
+        <Link className="diagnostics-text-link" to="/diagnostics">
+          View diagnostics
+        </Link>
+      ) : null}
+      {isFailedTransactionStage(stage) && item.retry ? (
+        <IsoButton
+          className="iso-button-primary"
+          size="sm"
+          onClick={() => void item.retry?.()}
+        >
+          Retry
+        </IsoButton>
+      ) : null}
+      {item.error ? (
+        <details className="transaction-modal-error">
+          <summary>Raw error</summary>
+          <code>{item.error}</code>
+        </details>
+      ) : null}
+    </div>
   );
+}
+
+function getSerialStepStatus(
+  stage: TransactionFlowItemStage,
+  active: boolean,
+): IsoStepStatus {
+  if (isCompletedTransactionStage(stage)) {
+    return stage === "skipped" ? "skipped" : "complete";
+  }
+
+  if (isFailedTransactionStage(stage)) {
+    return "error";
+  }
+
+  if (stage === "pending") {
+    return active ? "current" : "pending";
+  }
+
+  return active ? "loading" : "pending";
 }
 
 function countCompletedItems(items: readonly TransactionFlowItem[]): number {

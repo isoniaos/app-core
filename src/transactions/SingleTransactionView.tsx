@@ -1,5 +1,12 @@
 import { Link } from "react-router-dom";
-import { IsoAlert, IsoHelpTerm, IsoTransactionHash } from "../ui-kit";
+import {
+  IsoAlert,
+  IsoHelpTerm,
+  IsoSteps,
+  IsoTransactionHash,
+  type IsoStepItem,
+  type IsoStepStatus,
+} from "../ui-kit";
 import {
   getTransactionStageCopy,
   normalizeSingleTransactionStage,
@@ -44,64 +51,43 @@ function TransactionStageList({
   readonly item: TransactionFlowItem;
 }): JSX.Element {
   const normalizedStage = normalizeSingleTransactionStage(item.stage);
+  const items: IsoStepItem[] = SINGLE_TRANSACTION_STAGE_ORDER.map((stage) => {
+    const copy = getTransactionStageCopy(stage);
+    const status = getSingleStageStatus(normalizedStage, stage);
 
-  return (
-    <ol className="transaction-modal-stage-list">
-      {SINGLE_TRANSACTION_STAGE_ORDER.map((stage) => (
-        <TransactionStageListItem
-          active={normalizedStage === stage}
-          complete={
-            isSingleStageComplete(normalizedStage, stage) ||
-            (normalizedStage === "completed" && stage === "completed")
-          }
-          item={item}
-          key={stage}
-          stage={stage}
-        />
-      ))}
-      {normalizedStage === "failed" ? (
-        <TransactionStageListItem active danger item={item} stage="failed" />
-      ) : null}
-    </ol>
-  );
-}
-
-function TransactionStageListItem({
-  active,
-  complete,
-  danger,
-  item,
-  stage,
-}: {
-  readonly active?: boolean;
-  readonly complete?: boolean;
-  readonly danger?: boolean;
-  readonly item: TransactionFlowItem;
-  readonly stage: TransactionFlowStage;
-}): JSX.Element {
-  const copy = getTransactionStageCopy(stage);
-  const className = [
-    "transaction-modal-stage",
-    active ? "transaction-modal-stage-active" : "",
-    complete ? "transaction-modal-stage-complete" : "",
-    danger ? "transaction-modal-stage-danger" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <li className={className}>
-      <span className="transaction-modal-stage-marker" />
-      <div>
-        <strong>{copy.label}</strong>
-        <span>{copy.detail}</span>
+    return {
+      description: copy.detail,
+      id: stage,
+      meta: (
         <TransactionStageMeta
           item={item}
           stage={stage}
-          visible={Boolean(active || complete || danger)}
+          visible={status === "complete" || status === "current" || status === "loading"}
         />
-      </div>
-    </li>
+      ),
+      status,
+      title: copy.label,
+    };
+  });
+
+  if (normalizedStage === "failed") {
+    const copy = getTransactionStageCopy("failed");
+    items.push({
+      description: copy.detail,
+      id: "failed",
+      meta: <TransactionStageMeta item={item} stage="failed" visible />,
+      status: "error",
+      title: copy.label,
+    });
+  }
+
+  return (
+    <IsoSteps
+      ariaLabel="Transaction progress"
+      className="transaction-modal-steps"
+      currentStepId={normalizedStage}
+      items={items}
+    />
   );
 }
 
@@ -182,4 +168,27 @@ function isSingleStageComplete(
   const stageIndex = SINGLE_TRANSACTION_STAGE_ORDER.indexOf(stage);
 
   return currentIndex > stageIndex;
+}
+
+function getSingleStageStatus(
+  current: TransactionFlowStage,
+  stage: TransactionFlowStage,
+): IsoStepStatus {
+  if (current === "failed") {
+    return "pending";
+  }
+
+  if (current === "completed" && stage === "completed") {
+    return "complete";
+  }
+
+  if (isSingleStageComplete(current, stage)) {
+    return "complete";
+  }
+
+  if (current === stage) {
+    return current === "idle" ? "current" : "loading";
+  }
+
+  return "pending";
 }

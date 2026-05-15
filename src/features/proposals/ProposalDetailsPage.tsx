@@ -17,6 +17,7 @@ import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider
 import { AsyncContent } from "../../ui/AsyncContent";
 import {
   IsoStatusPill,
+  IsoBreadcrumbs,
   IsoTabs,
   IsoTransactionHash,
   type IsoStatusPillTone,
@@ -161,11 +162,26 @@ function ProposalDetailsContent({
   return (
     <>
       <header className="proposal-detail-header">
-        <nav className="proposal-breadcrumb" aria-label="Proposal breadcrumb">
-          <Link to={`/orgs/${orgId}/proposals`}>Proposals</Link>
-          <span aria-hidden="true">/</span>
-          <span>Proposal #{proposal.proposalId}</span>
-        </nav>
+        <IsoBreadcrumbs
+          ariaLabel="Proposal breadcrumb"
+          items={[
+            {
+              icon: "home",
+              label: "Home",
+              to: "/",
+            },
+            {
+              icon: "proposals",
+              label: "Proposals",
+              to: `/orgs/${orgId}/proposals`,
+            },
+            {
+              current: true,
+              icon: "job",
+              label: `Proposal #${proposal.proposalId}`,
+            },
+          ]}
+        />
         <div className="proposal-detail-header-main">
           <div className="proposal-detail-title-block">
             <h1>{proposalText.title}</h1>

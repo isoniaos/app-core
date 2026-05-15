@@ -33,15 +33,20 @@ export function TransactionModal({
       description={state.description}
       footer={
         <div className="transaction-modal-footer">
+          <IsoButton
+            className="iso-button-outline"
+            disabled={closeDisabled}
+            variant="outline"
+            onClick={close}
+          >
+            Close
+          </IsoButton>
           {closeDisabled ? (
             <span className="transaction-modal-close-note">
               Close is available after the active transaction reaches completed
               or failed.
             </span>
           ) : null}
-          <IsoButton disabled={closeDisabled} variant="outline" onClick={close}>
-            Close
-          </IsoButton>
           <TransactionModalPrimaryAction state={state} onClose={close} />
         </div>
       }
@@ -77,7 +82,11 @@ function TransactionModalPrimaryAction({
   }
 
   if (hasActiveTransaction(state)) {
-    return <IsoButton disabled>In progress</IsoButton>;
+    return (
+      <TransactionModalLoadingAction
+        widthLabel={getTransactionLoadingActionLabel(state)}
+      />
+    );
   }
 
   const executableItem = state.items.find(
@@ -90,7 +99,10 @@ function TransactionModalPrimaryAction({
 
   if (failedItem?.retry) {
     return (
-      <IsoButton onClick={() => void failedItem.retry?.()}>
+      <IsoButton
+        className="iso-button-primary"
+        onClick={() => void failedItem.retry?.()}
+      >
         {failedItem.retryLabel ?? "Retry"}
       </IsoButton>
     );
@@ -98,7 +110,10 @@ function TransactionModalPrimaryAction({
 
   if (executableItem?.execute) {
     return (
-      <IsoButton onClick={() => void executableItem.execute?.()}>
+      <IsoButton
+        className="iso-button-primary"
+        onClick={() => void executableItem.execute?.()}
+      >
         {executableItem.executeLabel ??
           (state.mode === "serial" ? "Start" : "Execute")}
       </IsoButton>
@@ -106,7 +121,11 @@ function TransactionModalPrimaryAction({
   }
 
   if (isCompletedModalState(state)) {
-    return <IsoButton onClick={onClose}>Done</IsoButton>;
+    return (
+      <IsoButton className="iso-button-primary" onClick={onClose}>
+        Done
+      </IsoButton>
+    );
   }
 
   if (state.items.some((item) => item.stage === "failed")) {
@@ -130,23 +149,37 @@ function TransactionModalBatchPrimaryAction({
   }
 
   if (isActiveBatchStatus(batch.status)) {
-    return <IsoButton disabled>In progress</IsoButton>;
+    return <TransactionModalLoadingAction widthLabel="Execute batch" />;
   }
 
   if (batch.status === "ready" && batch.execute) {
     return (
-      <IsoButton onClick={() => void batch.execute?.()}>
+      <IsoButton
+        className="iso-button-primary"
+        onClick={() => void batch.execute?.()}
+      >
         Execute batch
       </IsoButton>
     );
   }
 
   if (batch.status === "failed" && batch.retry && !batch.batchId) {
-    return <IsoButton onClick={() => void batch.retry?.()}>Retry batch</IsoButton>;
+    return (
+      <IsoButton
+        className="iso-button-primary"
+        onClick={() => void batch.retry?.()}
+      >
+        Retry batch
+      </IsoButton>
+    );
   }
 
   if (batch.status === "completed") {
-    return <IsoButton onClick={onClose}>Done</IsoButton>;
+    return (
+      <IsoButton className="iso-button-primary" onClick={onClose}>
+        Done
+      </IsoButton>
+    );
   }
 
   if (batch.status === "failed") {
@@ -154,6 +187,39 @@ function TransactionModalBatchPrimaryAction({
   }
 
   return <IsoButton disabled>In progress</IsoButton>;
+}
+
+function TransactionModalLoadingAction({
+  widthLabel,
+}: {
+  readonly widthLabel: string;
+}): JSX.Element {
+  return (
+    <IsoButton
+      className="iso-button-primary transaction-modal-loading-action"
+      disabled
+      aria-label="Transaction in progress"
+    >
+      <span className="transaction-modal-loading-ghost">{widthLabel}</span>
+      <span aria-hidden="true" className="transaction-modal-button-spinner" />
+    </IsoButton>
+  );
+}
+
+function getTransactionLoadingActionLabel(
+  state: TransactionModalState,
+): string {
+  const activeItem =
+    state.items.find((item) => item.id === state.activeItemId) ??
+    state.items.find((item) => isActiveTransactionStage(item.stage));
+
+  return (
+    activeItem?.executeLabel ??
+    activeItem?.retryLabel ??
+    state.items.find((item) => item.execute)?.executeLabel ??
+    state.items.find((item) => item.retry)?.retryLabel ??
+    (state.mode === "serial" ? "Start" : "Execute")
+  );
 }
 
 function isCompletedModalState(state: TransactionModalState): boolean {

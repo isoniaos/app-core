@@ -14,7 +14,11 @@ import type { ActivationCapabilitiesQuery } from "../../../api/useActivationCapa
 import type { OrganizationFinalizationQuery } from "../../../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { StatusBadge } from "../../../ui/StatusBadge";
-import { IsoAddressDisplay } from "../../../ui-kit";
+import {
+  IsoAddressDisplay,
+  IsoSteps,
+  type IsoStepItem,
+} from "../../../ui-kit";
 import {
   formatAddress,
   formatChainTime,
@@ -330,14 +334,7 @@ export function OrganizationActivationWizard({
   return (
     <section className="setup-wizard activation-wizard">
       <section className="panel setup-wizard-panel">
-        <div className="panel-header">
-          <div>
-            <h2>Organization Activation Wizard</h2>
-            <p className="panel-subtitle">
-              The organization root already exists. Activation creates bodies,
-              roles, mandates, and policy routes in order.
-            </p>
-          </div>
+        <div className="activation-wizard-status-row">
           <div className="chip-row">
             <StatusBadge tone={getCompletionTone(completion.readiness)}>
               {formatLabel(completion.readiness)}
@@ -530,17 +527,17 @@ export function OrganizationActivationWizard({
                 readModels={readModels}
               />
             ) : null}
-
-            <ActivationNavigation
-              currentStep={currentStep}
-              currentStepIndex={currentStepIndex}
-              progressByGroup={progressByGroup}
-              stepState={stepStateById[currentStepId]}
-              onBack={goBack}
-              onNext={goNext}
-            />
           </div>
         </div>
+
+        <ActivationNavigation
+          currentStep={currentStep}
+          currentStepIndex={currentStepIndex}
+          progressByGroup={progressByGroup}
+          stepState={stepStateById[currentStepId]}
+          onBack={goBack}
+          onNext={goNext}
+        />
       </section>
     </section>
   );
@@ -684,38 +681,33 @@ function ActivationStepList({
   readonly stepStateById: Readonly<Record<ActivationStepId, ActivationStepState>>;
   readonly steps: readonly ActivationStep[];
 }): JSX.Element {
-  return (
-    <nav aria-label="Activation wizard steps" className="setup-wizard-steps">
-      <ol>
-        {steps.map((step, index) => {
-          const current = step.id === currentStepId;
-          const stepState = stepStateById[step.id];
-          const locked = stepState.locked;
+  const items: IsoStepItem[] = steps.map((step) => {
+    const stepState = stepStateById[step.id];
+    const locked = stepState.locked;
+    return {
+      description: locked ? stepState.reason : step.summary,
+      disabled: locked,
+      id: step.id,
+      status:
+        step.id === currentStepId
+          ? "current"
+          : locked
+            ? "locked"
+            : stepState.complete
+              ? "complete"
+              : "pending",
+      title: step.title,
+    };
+  });
 
-          return (
-            <li key={step.id}>
-              <button
-                aria-current={current ? "step" : undefined}
-                className={`setup-wizard-step-button${
-                  current ? " setup-wizard-step-button-current" : ""
-                }${locked ? " setup-wizard-step-button-locked" : ""}${
-                  stepState.complete ? " setup-wizard-step-button-complete" : ""
-                }`}
-                disabled={locked}
-                type="button"
-                onClick={() => onStepSelect(step.id)}
-              >
-                <span className="setup-wizard-step-number">{index + 1}</span>
-                <span>
-                  <strong>{step.title}</strong>
-                  <small>{locked ? stepState.reason : step.summary}</small>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+  return (
+    <IsoSteps
+      ariaLabel="Activation wizard steps"
+      className="setup-wizard-steps"
+      currentStepId={currentStepId}
+      items={items}
+      onStepSelect={(stepId) => onStepSelect(stepId as ActivationStepId)}
+    />
   );
 }
 

@@ -9,7 +9,11 @@ import {
   buildOrganizationSlug,
   normalizeOrganizationSlug,
 } from "../../../chain/setup-contracts";
-import { IsoAddressDisplay } from "../../../ui-kit";
+import {
+  IsoAddressDisplay,
+  IsoSteps,
+  type IsoStepItem,
+} from "../../../ui-kit";
 import { formatLabel } from "../../../utils/format";
 import type { SimpleDaoPlusDraftInputs } from "../setup-templates";
 import {
@@ -196,16 +200,6 @@ export function SimpleDaoPlusSetupWizard({
   return (
     <section className="setup-wizard">
       <section className="panel setup-wizard-panel">
-        <div className="panel-header">
-          <div>
-            <h2>Organization Creation Wizard</h2>
-            <p className="panel-subtitle">
-              Create the organization root first. Activation continues from the
-              organization setup page after indexing.
-            </p>
-          </div>
-        </div>
-
         <div className="setup-wizard-layout">
           <WizardStepList
             currentStepId={currentStepId}
@@ -215,12 +209,6 @@ export function SimpleDaoPlusSetupWizard({
           />
 
           <div className="setup-wizard-main">
-            <div className="setup-wizard-step-heading">
-              <span className="eyebrow">Step {currentStepIndex + 1}</span>
-              <h3>{currentStep.title}</h3>
-              <p>{currentStep.summary}</p>
-            </div>
-
             {currentStepId === "template" ? (
               <TemplateStep
                 selectedTemplateId={SIMPLE_DAO_PLUS_TEMPLATE_ID}
@@ -253,16 +241,16 @@ export function SimpleDaoPlusSetupWizard({
                 onFixStep={goToStep}
               />
             ) : null}
-
-            <WizardNavigation
-              currentStepIndex={currentStepIndex}
-              reviewPrimaryAction={reviewPrimaryAction}
-              steps={WIZARD_STEPS}
-              onBack={goBack}
-              onNext={goNext}
-            />
           </div>
         </div>
+
+        <WizardNavigation
+          currentStepIndex={currentStepIndex}
+          reviewPrimaryAction={reviewPrimaryAction}
+          steps={WIZARD_STEPS}
+          onBack={goBack}
+          onNext={goNext}
+        />
       </section>
     </section>
   );
@@ -279,35 +267,32 @@ function WizardStepList({
   readonly onStepSelect: (stepId: SetupWizardStepId) => void;
   readonly steps: readonly SetupWizardStep[];
 }): JSX.Element {
+  const items: IsoStepItem[] = steps.map((step, index) => {
+    const locked = index > highestUnlockedStepIndex;
+    return {
+      description: step.summary,
+      disabled: locked,
+      id: step.id,
+      status:
+        step.id === currentStepId
+          ? "current"
+          : locked
+            ? "locked"
+            : index < highestUnlockedStepIndex
+              ? "complete"
+              : "pending",
+      title: step.title,
+    };
+  });
+
   return (
-    <nav aria-label="Setup wizard steps" className="setup-wizard-steps">
-      <ol>
-        {steps.map((step, index) => {
-          const current = step.id === currentStepId;
-          const locked = index > highestUnlockedStepIndex;
-          return (
-            <li key={step.id}>
-              <button
-                aria-current={current ? "step" : undefined}
-                aria-disabled={locked}
-                className={`setup-wizard-step-button${
-                  current ? " setup-wizard-step-button-current" : ""
-                }${locked ? " setup-wizard-step-button-locked" : ""}`}
-                disabled={locked}
-                type="button"
-                onClick={() => onStepSelect(step.id)}
-              >
-                <span className="setup-wizard-step-number">{index + 1}</span>
-                <span>
-                  <strong>{step.title}</strong>
-                  <small>{step.summary}</small>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+    <IsoSteps
+      ariaLabel="Setup wizard steps"
+      className="setup-wizard-steps"
+      currentStepId={currentStepId}
+      items={items}
+      onStepSelect={(stepId) => onStepSelect(stepId as SetupWizardStepId)}
+    />
   );
 }
 

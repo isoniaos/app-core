@@ -76,6 +76,28 @@ export function OrganizationSetupPage(): JSX.Element {
   return (
     <section className="page-stack">
       <PageHeader
+        breadcrumbs={[
+          {
+            icon: "home",
+            label: "Home",
+            to: "/",
+          },
+          {
+            icon: "building",
+            label: "Organizations",
+            to: "/orgs",
+          },
+          {
+            icon: "building",
+            label: `Org #${orgId}`,
+            to: `/orgs/${orgId}`,
+          },
+          {
+            current: true,
+            icon: "setup",
+            label: "Setup",
+          },
+        ]}
         eyebrow={`Org #${orgId}`}
         title="Setup Activation"
         description="Activate the indexed organization root by creating bodies, roles, mandates, and policy routes."

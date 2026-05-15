@@ -4,7 +4,10 @@ import {
   IsoBadge,
   IsoButton,
   IsoHelpTerm,
+  IsoSteps,
   IsoTransactionHash,
+  type IsoStepItem,
+  type IsoStepStatus,
 } from "../ui-kit";
 import { formatEip5792LikelyReason } from "../wallet/eip5792";
 import {
@@ -110,15 +113,11 @@ export function BatchTransactionView({
           ))}
         </div>
       ) : null}
-      <div className="transaction-modal-item-list">
-        {state.items.map((item, index) => (
-          <BatchTransactionItem
-            index={index + 1}
-            item={item}
-            key={item.id}
-          />
-        ))}
-      </div>
+      <IsoSteps
+        ariaLabel="Batch transaction items"
+        className="transaction-modal-steps"
+        items={state.items.map(toBatchTransactionStep)}
+      />
       <div className="transaction-modal-item-actions">
         {showDiagnostics ? (
           <Link className="diagnostics-text-link" to="/diagnostics">
@@ -229,39 +228,19 @@ function getBatchIntroTitle(
     : "EIP-5792 wallet batch prototype";
 }
 
-function BatchTransactionItem({
-  index,
-  item,
-}: {
-  readonly index: number;
-  readonly item: TransactionFlowItem;
-}): JSX.Element {
+function toBatchTransactionStep(item: TransactionFlowItem): IsoStepItem {
   const copy = getTransactionStageCopy(item.stage);
 
-  return (
-    <article
-      className={[
-        "transaction-modal-item",
-        item.stage === "completed" ? "transaction-modal-item-complete" : "",
-        isFailedTransactionStage(item.stage)
-          ? "transaction-modal-item-danger"
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <div className="transaction-modal-item-index">{index}</div>
-      <div className="transaction-modal-item-main">
-        <div className="transaction-modal-item-header">
-          <div>
-            <strong>{item.title}</strong>
-            {item.description ? <span>{item.description}</span> : null}
-          </div>
-          <IsoBadge className={`badge badge-${getTransactionStageTone(item.stage)}`}>
-            {copy.label}
-          </IsoBadge>
-        </div>
-        <p>{copy.detail}</p>
+  return {
+    description: (
+      <>
+        {item.description ? <span>{item.description}</span> : null}
+        <span>{copy.detail}</span>
+      </>
+    ),
+    id: item.id,
+    meta: (
+      <div className="transaction-modal-stage-meta">
         <IsoTransactionHash
           blockExplorerUrl={item.blockExplorerUrl}
           txHash={item.txHash}
@@ -273,8 +252,47 @@ function BatchTransactionItem({
           </details>
         ) : null}
       </div>
-    </article>
-  );
+    ),
+    status: getBatchItemStepStatus(item.stage),
+    title: (
+      <span className="transaction-modal-step-title">
+        <span>{item.title}</span>
+        <IsoBadge className={`badge badge-${getTransactionStageTone(item.stage)}`}>
+          {copy.label}
+        </IsoBadge>
+      </span>
+    ),
+  };
+}
+
+function getBatchItemStepStatus(
+  stage: TransactionFlowItem["stage"],
+): IsoStepStatus {
+  if (stage === "completed") {
+    return "complete";
+  }
+
+  if (stage === "skipped") {
+    return "skipped";
+  }
+
+  if (isFailedTransactionStage(stage)) {
+    return "error";
+  }
+
+  if (
+    stage === "waiting_for_wallet" ||
+    stage === "wallet_pending" ||
+    stage === "submitted" ||
+    stage === "waiting_for_receipt" ||
+    stage === "confirming" ||
+    stage === "waiting_for_control_plane" ||
+    stage === "confirmed_waiting_indexer"
+  ) {
+    return "loading";
+  }
+
+  return stage === "idle" ? "current" : "pending";
 }
 
 function canShowSerialFallback(batch: TransactionBatchDetails): boolean {

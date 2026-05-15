@@ -6,6 +6,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Polish transaction modals, setup wizards, and page hierarchy navigation with shared `IsoSteps` and `IsoBreadcrumbs` UI primitives.
+
 ## [0.7.0-alpha.4]
 
 ### Added

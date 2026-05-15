@@ -41,7 +41,23 @@ export function NewOrganizationSetupPage(): JSX.Element {
   return (
     <section className="page-stack">
       <PageHeader
-        eyebrow="Organization creation"
+        breadcrumbs={[
+          {
+            icon: "home",
+            label: "Home",
+            to: "/",
+          },
+          {
+            icon: "building",
+            label: "Organizations",
+            to: "/orgs",
+          },
+          {
+            current: true,
+            icon: "add",
+            label: "New organization",
+          },
+        ]}
         title="New Organization"
         description="Create the organization root first. Bodies, roles, mandates, and policy routes continue from the activation page after indexing."
       />

@@ -1,5 +1,6 @@
 import {
   AlertCircleIcon,
+  ArrowRight01Icon,
   Building02Icon,
   Blockchain06Icon,
   BulbIcon,
@@ -32,6 +33,7 @@ export type IsoIconName =
   | "add"
   | "building"
   | "cancel"
+  | "chevron-right"
   | "check"
   | "graph"
   | "home"
@@ -65,6 +67,7 @@ const ICONS = {
   add: PlusSignCircleIcon,
   building: Building02Icon,
   cancel: Cancel01Icon,
+  "chevron-right": ArrowRight01Icon,
   check: CheckmarkCircle02Icon,
   graph: Blockchain06Icon,
   home: Home01Icon,
