@@ -1,6 +1,5 @@
 import type { TemplateDescriptor } from "@isonia/types";
 import { AddressInput, MultiAddressInput } from "../../../ui/address";
-import { StatusBadge } from "../../../ui/StatusBadge";
 import { IsoIcon, IsoToggleTip } from "../../../ui-kit";
 import { formatNumericString } from "../../../utils/format";
 import { RoutePreviewCard } from "../RoutePreviewCard";
@@ -59,22 +58,11 @@ export function TemplateStep({
                   <h3>{template.name}</h3>
                   <p>{template.summary}</p>
                 </div>
-                <StatusBadge tone={available ? "success" : "muted"}>
-                  {selected ? "Active" : available ? "Available" : "Planned"}
-                </StatusBadge>
               </div>
               {template.description ? <p>{template.description}</p> : null}
             </article>
           );
         })}
-      </div>
-
-      <div className="inline-state inline-state-muted setup-wizard-note">
-        <strong>v0.6 alpha template availability</strong>
-        <span>
-          Simple DAO+ is the only usable setup template in this milestone.
-          Planned templates are shown for orientation and are not implemented.
-        </span>
       </div>
     </div>
   );

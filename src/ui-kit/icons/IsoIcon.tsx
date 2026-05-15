@@ -1,5 +1,6 @@
 import {
   AlertCircleIcon,
+  ArrowLeft01Icon,
   ArrowRight01Icon,
   Building02Icon,
   Blockchain06Icon,
@@ -19,6 +20,7 @@ import {
   PlusSignCircleIcon,
   QuestionIcon,
   Settings02Icon,
+  StartUp02Icon,
   Sun01Icon,
   Tick02Icon,
   TimeQuarter02Icon,
@@ -31,6 +33,8 @@ type HugeiconsIconProps = ComponentProps<typeof HugeiconsIcon>;
 
 export type IsoIconName =
   | "add"
+  | "arrow-left"
+  | "arrow-right"
   | "building"
   | "cancel"
   | "chevron-right"
@@ -45,6 +49,7 @@ export type IsoIconName =
   | "proposals"
   | "question"
   | "setup"
+  | "startup"
   | "structure"
   | "sun"
   | "system"
@@ -65,6 +70,8 @@ export interface IsoIconProps
 
 const ICONS = {
   add: PlusSignCircleIcon,
+  "arrow-left": ArrowLeft01Icon,
+  "arrow-right": ArrowRight01Icon,
   building: Building02Icon,
   cancel: Cancel01Icon,
   "chevron-right": ArrowRight01Icon,
@@ -79,6 +86,7 @@ const ICONS = {
   proposals: FileChartColumnIcon,
   question: QuestionIcon,
   setup: Settings02Icon,
+  startup: StartUp02Icon,
   structure: HierarchySquare03Icon,
   sun: Sun01Icon,
   system: ComputerSettingsIcon,

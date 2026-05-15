@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useActivationCapabilities } from "../../../api/useActivationCapabilities";
 import { useOrganizationFinalization } from "../../../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../../../config/runtime-config";
 import { PageHeader } from "../../../ui/PageHeader";
-import { StatusBadge } from "../../../ui/StatusBadge";
-import { formatLabel } from "../../../utils/format";
 import { requireParam } from "../../../utils/route-params";
 import { OrganizationActivationWizard } from "./OrganizationActivationWizard";
 import {
@@ -88,29 +86,14 @@ export function OrganizationSetupPage(): JSX.Element {
             to: "/orgs",
           },
           {
-            icon: "building",
-            label: `Org #${orgId}`,
-            to: `/orgs/${orgId}`,
-          },
-          {
             current: true,
             icon: "setup",
-            label: "Setup",
+            label: "Setup Activation",
           },
         ]}
-        eyebrow={`Org #${orgId}`}
         title="Setup Activation"
         description="Activate the indexed organization root by creating bodies, roles, mandates, and policy routes."
       />
-
-      <div className="action-row">
-        <Link className="button" to={`/orgs/${orgId}`}>
-          Overview
-        </Link>
-        <StatusBadge tone={getCompletionTone(completion.readiness)}>
-          {formatLabel(completion.readiness)}
-        </StatusBadge>
-      </div>
 
       <OrganizationActivationWizard
         activationCapabilities={activationCapabilities}
@@ -166,20 +149,4 @@ function mergeIndexedOrganizationInputs(
     organizationName: inputs.organizationName || organization.name,
     organizationSlug: inputs.organizationSlug || organization.slug,
   };
-}
-
-function getCompletionTone(
-  readiness: ReturnType<typeof verifySetupCompletion>["readiness"],
-): "default" | "success" | "warning" | "danger" | "muted" {
-  switch (readiness) {
-    case "completed":
-      return "success";
-    case "blocked":
-      return "danger";
-    case "in_progress":
-    case "partially_indexed":
-      return "warning";
-    case "not_started":
-      return "muted";
-  }
 }

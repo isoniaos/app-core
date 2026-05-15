@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRuntimeConfig } from "../../../config/runtime-config";
+import { useTransactionModal } from "../../../transactions";
 import { PageHeader } from "../../../ui/PageHeader";
 import { SimpleDaoPlusSetupWizard } from "./SimpleDaoPlusSetupWizard";
 import {
@@ -15,6 +16,8 @@ import {
 export function NewOrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const navigate = useNavigate();
+  const transactionModal = useTransactionModal();
+  const sawRootCreationModalRef = useRef(false);
   const [inputs, setInputs] = useState(DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS);
   const draft = useMemo(
     () =>
@@ -37,6 +40,28 @@ export function NewOrganizationSetupPage(): JSX.Element {
   const draftInputsLocked =
     execution.busy ||
     rootCreated;
+
+  useEffect(() => {
+    if (
+      transactionModal.state.open &&
+      transactionModal.state.items.some(
+        (item) => item.id === "setup:create-organization",
+      )
+    ) {
+      sawRootCreationModalRef.current = true;
+    }
+  }, [transactionModal.state.items, transactionModal.state.open]);
+
+  useEffect(() => {
+    if (transactionModal.state.open || !sawRootCreationModalRef.current) {
+      return;
+    }
+
+    sawRootCreationModalRef.current = false;
+    if (rootCreated && activationOrgId) {
+      navigate(`/orgs/${activationOrgId}/setup`);
+    }
+  }, [activationOrgId, navigate, rootCreated, transactionModal.state.open]);
 
   return (
     <section className="page-stack">
@@ -70,6 +95,8 @@ export function NewOrganizationSetupPage(): JSX.Element {
           rootCreated
             ? {
                 disabled: !activationOrgId,
+                icon: "arrow-right",
+                iconPosition: "end",
                 label: "Continue Activation",
                 onClick: () => {
                   if (activationOrgId) {
@@ -79,6 +106,8 @@ export function NewOrganizationSetupPage(): JSX.Element {
               }
             : {
                 disabled: execution.busy || rootCreationBlocked,
+                icon: "startup",
+                iconPosition: "start",
                 label: getRootCreationButtonLabel(
                   execution.state.createOrganization.stage,
                   execution.busy,
@@ -101,7 +130,7 @@ function getRootCreationButtonLabel(
   blocked: boolean,
 ): string {
   if (stage === "failed") {
-    return "Retry root creation";
+    return "Retry Organization Creation";
   }
 
   if (stage === "wallet_pending") {
@@ -125,8 +154,8 @@ function getRootCreationButtonLabel(
   }
 
   if (blocked) {
-    return "Root creation blocked";
+    return "Organization Creation Blocked";
   }
 
-  return "Create root";
+  return "Create Organization";
 }

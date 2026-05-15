@@ -334,20 +334,7 @@ export function OrganizationActivationWizard({
   return (
     <section className="setup-wizard activation-wizard">
       <section className="panel setup-wizard-panel">
-        <div className="activation-wizard-status-row">
-          <div className="chip-row">
-            <StatusBadge tone={getCompletionTone(completion.readiness)}>
-              {formatLabel(completion.readiness)}
-            </StatusBadge>
-            <StatusBadge tone={finalization.statusTone}>
-              {finalization.statusLabel}
-            </StatusBadge>
-          </div>
-        </div>
-
         <ActivationAuthorityNotice preflight={activationPreflight} />
-        <ActivationCapabilityNotice capabilities={activationCapabilities} />
-        <ActivationFinalizationNotice finalization={finalization} />
         <ActivationMetrics completion={completion} />
 
         {completionError ? (
@@ -382,12 +369,6 @@ export function OrganizationActivationWizard({
           />
 
           <div className="setup-wizard-main">
-            <div className="setup-wizard-step-heading">
-              <span className="eyebrow">Step {currentStepIndex + 1}</span>
-              <h3>{currentStep.title}</h3>
-              <p>{currentStep.summary}</p>
-            </div>
-
             {currentStepId === "bodies" ? (
               <ActivationGroupPanel
                 actionResultById={actionResultById}
@@ -564,52 +545,6 @@ function ActivationAuthorityNotice({
         authoritative.
       </span>
       <SignerPreflightSummary compact preflight={preflight} />
-    </div>
-  );
-}
-
-function ActivationCapabilityNotice({
-  capabilities,
-}: {
-  readonly capabilities: ActivationCapabilitiesQuery;
-}): JSX.Element {
-  const notice = capabilities.notice;
-  return (
-    <div className={`inline-state inline-state-${notice.tone} setup-execution-inline`}>
-      <strong>{notice.title}</strong>
-      <span>{notice.message}</span>
-      {capabilities.error ? (
-        <button
-          className="button button-small"
-          type="button"
-          onClick={capabilities.reload}
-        >
-          Retry capability check
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function ActivationFinalizationNotice({
-  finalization,
-}: {
-  readonly finalization: OrganizationFinalizationQuery;
-}): JSX.Element {
-  const tone = finalization.endpointUnavailable ? "warning" : finalization.statusTone;
-  return (
-    <div className={`inline-state inline-state-${tone} setup-execution-inline`}>
-      <strong>{finalization.statusLabel}</strong>
-      <span>{finalization.statusCopy}</span>
-      {finalization.error ? (
-        <button
-          className="button button-small"
-          type="button"
-          onClick={finalization.reload}
-        >
-          Retry finalization check
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -1975,22 +1910,6 @@ function getActionStateTone(
     case "not_started":
     case "unresolved_policy_rule":
       return "default";
-  }
-}
-
-function getCompletionTone(
-  readiness: SetupCompletionVerification["readiness"],
-): "default" | "success" | "warning" | "danger" | "muted" {
-  switch (readiness) {
-    case "completed":
-      return "success";
-    case "blocked":
-      return "danger";
-    case "in_progress":
-    case "partially_indexed":
-      return "warning";
-    case "not_started":
-      return "muted";
   }
 }
 

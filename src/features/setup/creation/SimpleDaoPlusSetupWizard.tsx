@@ -11,7 +11,9 @@ import {
 } from "../../../chain/setup-contracts";
 import {
   IsoAddressDisplay,
+  IsoIcon,
   IsoSteps,
+  type IsoIconName,
   type IsoStepItem,
 } from "../../../ui-kit";
 import { formatLabel } from "../../../utils/format";
@@ -70,6 +72,8 @@ interface SimpleDaoPlusSetupWizardProps {
   readonly onChange: (inputs: SimpleDaoPlusDraftInputs) => void;
   readonly reviewPrimaryAction?: {
     readonly disabled?: boolean;
+    readonly icon?: IsoIconName;
+    readonly iconPosition?: "start" | "end";
     readonly label: string;
     readonly onClick: () => void;
   };
@@ -308,30 +312,48 @@ function WizardNavigation({
   readonly onNext: () => void;
   readonly reviewPrimaryAction?: {
     readonly disabled?: boolean;
+    readonly icon?: IsoIconName;
+    readonly iconPosition?: "start" | "end";
     readonly label: string;
     readonly onClick: () => void;
   };
   readonly steps: readonly SetupWizardStep[];
 }): JSX.Element {
   const lastStep = currentStepIndex >= steps.length - 1;
+  const primaryLabel = lastStep ? reviewPrimaryAction?.label ?? "Next" : "Next";
+  const primaryIcon = lastStep ? reviewPrimaryAction?.icon : "arrow-right";
+  const primaryIconPosition = lastStep
+    ? reviewPrimaryAction?.iconPosition ?? "start"
+    : "end";
 
   return (
-    <footer className="setup-wizard-navigation">
-      <button
-        className="button"
-        disabled={currentStepIndex === 0}
-        type="button"
-        onClick={onBack}
-      >
-        Back
-      </button>
+    <footer
+      className={[
+        "setup-wizard-navigation",
+        currentStepIndex === 0 ? "setup-wizard-navigation-first" : undefined,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {currentStepIndex > 0 ? (
+        <button className="button" type="button" onClick={onBack}>
+          <IsoIcon name="arrow-left" size={16} />
+          <span>Back</span>
+        </button>
+      ) : null}
       <button
         className="button button-primary"
         disabled={lastStep ? reviewPrimaryAction?.disabled ?? true : false}
         type="button"
         onClick={lastStep ? reviewPrimaryAction?.onClick : onNext}
       >
-        {lastStep ? reviewPrimaryAction?.label ?? "Next" : "Next"}
+        {primaryIcon && primaryIconPosition === "start" ? (
+          <IsoIcon name={primaryIcon} size={16} />
+        ) : null}
+        <span>{primaryLabel}</span>
+        {primaryIcon && primaryIconPosition === "end" ? (
+          <IsoIcon name={primaryIcon} size={16} />
+        ) : null}
       </button>
     </footer>
   );

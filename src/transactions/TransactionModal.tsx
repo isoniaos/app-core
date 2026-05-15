@@ -41,12 +41,6 @@ export function TransactionModal({
           >
             Close
           </IsoButton>
-          {closeDisabled ? (
-            <span className="transaction-modal-close-note">
-              Close is available after the active transaction reaches completed
-              or failed.
-            </span>
-          ) : null}
           <TransactionModalPrimaryAction state={state} onClose={close} />
         </div>
       }
