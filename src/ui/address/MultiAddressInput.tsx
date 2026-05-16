@@ -108,7 +108,11 @@ export function MultiAddressInput({
       required,
     ],
   );
-  const inputTone = error ? "danger" : summary.isValid ? "neutral" : "warning";
+  const inputTone = error
+    ? "danger"
+    : showFeedback && !summary.isValid
+      ? "warning"
+      : "neutral";
 
   useEffect(() => {
     onValidationChange?.(summary);

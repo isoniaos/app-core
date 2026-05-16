@@ -9,6 +9,11 @@ All notable changes to `@isonia/app-core` are documented here.
 ### Changed
 
 - Polish transaction modals, setup wizards, and page hierarchy navigation with shared `IsoSteps` and `IsoBreadcrumbs` UI primitives.
+- Simplify the setup activation wizard around contract batch steps, authority preflight alerts, finalization handoff, and post-finalization navigation cleanup.
+
+### Fixed
+
+- Hide setup activation navigation immediately after organization finalization completes.
 
 ## [0.7.0-alpha.4]
 

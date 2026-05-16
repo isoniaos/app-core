@@ -20,6 +20,7 @@ import {
   PlusSignCircleIcon,
   QuestionIcon,
   Settings02Icon,
+  SettingsError02Icon,
   StartUp02Icon,
   Sun01Icon,
   Tick02Icon,
@@ -49,6 +50,7 @@ export type IsoIconName =
   | "proposals"
   | "question"
   | "setup"
+  | "settings-error"
   | "startup"
   | "structure"
   | "sun"
@@ -86,6 +88,7 @@ const ICONS = {
   proposals: FileChartColumnIcon,
   question: QuestionIcon,
   setup: Settings02Icon,
+  "settings-error": SettingsError02Icon,
   startup: StartUp02Icon,
   structure: HierarchySquare03Icon,
   sun: Sun01Icon,

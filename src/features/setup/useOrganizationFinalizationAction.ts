@@ -13,6 +13,7 @@ import {
 } from "@isonia/types";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { loadOrganizationFinalization } from "../../api/organization-finalization";
+import { markOrganizationFinalized } from "../../api/useOrganizationFinalization";
 import { GOV_CORE_ABI } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
@@ -222,6 +223,7 @@ export function useOrganizationFinalizationAction({
       });
 
       setFinalizationTransaction({ stage: "indexed", txHash });
+      markOrganizationFinalized(orgId);
       onIndexed?.(indexed);
     } catch (error: unknown) {
       fail(normalizeTransactionError(error), txHash);
@@ -249,19 +251,25 @@ export function useOrganizationFinalizationAction({
     setTransaction({ stage: "idle" });
     openTransactionModal({
       description:
-        "Finalize the organization through GovCore, then wait for Control Plane to index finalization metadata.",
+        "Activate the organization through GovCore, then wait for Control Plane to index finalization metadata.",
       item: {
+        actionBlock: readiness
+          ? {
+              message: readiness.message,
+              title: readiness.title,
+            }
+          : undefined,
         blockExplorerUrl: runtimeConfig.blockExplorerUrl,
-        description: `${plan.functionName}(${plan.orgId}) is irreversible in this alpha and blocks bootstrap-admin mutations.`,
-        execute: () => executeRef.current?.(),
-        executeLabel: "Finalize organization",
+        description: `${plan.functionName}(${plan.orgId}) closes bootstrap setup authority after activation is indexed.`,
+        execute: readiness ? undefined : () => executeRef.current?.(),
+        executeLabel: "Activate Organization",
         id: itemId,
         stage: "idle",
         title: plan.label,
       },
-      title: "Finalize organization",
+      title: "Activate organization",
     });
-  }, [openTransactionModal, orgId, plan, runtimeConfig.blockExplorerUrl]);
+  }, [openTransactionModal, orgId, plan, readiness, runtimeConfig.blockExplorerUrl]);
 
   return {
     busy,

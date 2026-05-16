@@ -39,7 +39,13 @@ export interface TransactionFlowHash {
   readonly txHash?: `0x${string}`;
 }
 
+export interface TransactionActionBlock {
+  readonly message: string;
+  readonly title: string;
+}
+
 export interface TransactionFlowItem extends TransactionFlowHash {
+  readonly actionBlock?: TransactionActionBlock;
   readonly allowSkip?: boolean;
   readonly description?: string;
   readonly error?: string;

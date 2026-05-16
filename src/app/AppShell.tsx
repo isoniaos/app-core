@@ -1,6 +1,7 @@
 import { defaultThemeBrand } from "@isonia/theme-default";
 import type { PropsWithChildren } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useOrganizationFinalization } from "../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../config/runtime-config";
 import { DiagnosticsStatusIndicator } from "../features/diagnostics/DiagnosticsStatusIndicator";
 import {
@@ -73,39 +74,50 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
             </div>
 
             {orgId ? (
-              <div className="nav-section">
-                <div className="nav-section-label">Governance</div>
-                <ShellNavLink
-                  end
-                  icon="home"
-                  label="Overview"
-                  to={`/orgs/${orgId}`}
-                />
-                <ShellNavLink
-                  icon="proposals"
-                  label="Proposals"
-                  to={`/orgs/${orgId}/proposals`}
-                />
-                <ShellNavLink
-                  icon="structure"
-                  isActiveOverride={isGovernanceStructureAlias(
-                    location.pathname,
-                    orgId,
-                  )}
-                  label="Governance Structure"
-                  to={`/orgs/${orgId}/governance`}
-                />
-                <ShellNavLink
-                  icon="setup"
-                  label="Setup / Activation"
-                  to={`/orgs/${orgId}/setup`}
-                />
-              </div>
+              <OrganizationNavSection
+                orgId={orgId}
+                pathname={location.pathname}
+              />
             ) : null}
           </nav>
         </aside>
         <main className="content-shell">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function OrganizationNavSection({
+  orgId,
+  pathname,
+}: {
+  readonly orgId: string;
+  readonly pathname: string;
+}): JSX.Element {
+  const finalization = useOrganizationFinalization(orgId);
+
+  return (
+    <div className="nav-section">
+      <div className="nav-section-label">Governance</div>
+      <ShellNavLink end icon="home" label="Overview" to={`/orgs/${orgId}`} />
+      <ShellNavLink
+        icon="proposals"
+        label="Proposals"
+        to={`/orgs/${orgId}/proposals`}
+      />
+      <ShellNavLink
+        icon="structure"
+        isActiveOverride={isGovernanceStructureAlias(pathname, orgId)}
+        label="Governance Structure"
+        to={`/orgs/${orgId}/governance`}
+      />
+      {!finalization.finalized ? (
+        <ShellNavLink
+          icon="setup"
+          label="Setup / Activation"
+          to={`/orgs/${orgId}/setup`}
+        />
+      ) : null}
     </div>
   );
 }

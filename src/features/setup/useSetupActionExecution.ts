@@ -71,6 +71,7 @@ import {
 } from "./setup-completion-verification";
 import {
   getSetupActionExecutionPreflight,
+  getSetupActionGroupExecutionPreflight,
   type SetupActionExecutionPreflight,
   type SetupActionExecutionPreflightEnvironment,
 } from "./setup-action-preflight";
@@ -429,17 +430,22 @@ export function useSetupActionExecution({
         : undefined;
       const preflightReady = preflight?.canExecute ?? true;
       const start = () => startSetupTransaction(itemId, run);
+      const actionBlock =
+        !preflightReady && preflight
+          ? {
+              message: formatSetupPreflightError(preflight),
+              title: preflight.title,
+            }
+          : undefined;
       openTransactionModal({
         description,
         item: {
+          actionBlock,
           blockExplorerUrl: runtimeConfig.blockExplorerUrl,
           description,
-          error: preflightReady
-            ? transaction.error
-            : preflight
-              ? formatSetupPreflightError(preflight)
-              : undefined,
+          error: preflightReady ? transaction.error : undefined,
           execute: preflightReady ? start : undefined,
+          executeLabel: title,
           id: itemId,
           retry: preflightReady ? start : undefined,
           stage: preflightReady
@@ -447,7 +453,7 @@ export function useSetupActionExecution({
                 transaction.stage,
                 "idle",
               )
-            : "failed",
+            : "idle",
           title,
           txHash: transaction.txHash,
         },
@@ -1180,6 +1186,7 @@ export function useSetupActionExecution({
       actions,
       call,
       getItemId,
+      modalItemId,
     }: SetupGroupContractBatchRunConfig): Promise<void> => {
       const failBatch = (message: string, txHash?: `0x${string}`): void => {
         applyBatchActionTransactionPatch({
@@ -1189,22 +1196,10 @@ export function useSetupActionExecution({
           stage: "failed",
           txHashes: txHash ? [txHash] : [],
         });
-        updateBatchModalItems({
-          actions,
-          getItemId,
-          patch: {
-            error: message,
-            stage: "failed",
-            txHash,
-          },
-          updateTransactionModalItem,
-        });
-        updateTransactionBatch({
+        updateTransactionModalItem(modalItemId, {
           error: message,
-          status: "failed",
-          statusDetail:
-            "The typed contract batch did not complete. Use the serial fallback for incomplete actions after checking indexed progress.",
-          txHashes: txHash ? [txHash] : [],
+          stage: "failed",
+          txHash,
         });
       };
 
@@ -1235,48 +1230,27 @@ export function useSetupActionExecution({
       let txHash: `0x${string}` | undefined;
 
       try {
-        updateTransactionBatch({
+        updateTransactionModalItem(modalItemId, {
           error: undefined,
-          status: "waiting_for_wallet",
-          statusDetail: "Confirm the typed GovCore batch transaction.",
+          stage: "wallet_pending",
         });
         applyBatchActionTransactionPatch({
           actions,
           setState: setExecutionState,
           stage: "wallet_pending",
         });
-        updateBatchModalItems({
-          actions,
-          getItemId,
-          patch: {
-            error: undefined,
-            stage: "waiting_for_wallet",
-          },
-          updateTransactionModalItem,
-        });
 
         txHash = await submitContractBatchPlanCall(call);
 
-        updateTransactionBatch({
-          status: "submitted",
-          statusDetail:
-            "Batch transaction submitted. Waiting for receipt confirmation.",
-          txHashes: [txHash],
+        updateTransactionModalItem(modalItemId, {
+          stage: "submitted",
+          txHash,
         });
         applyBatchActionTransactionPatch({
           actions,
           setState: setExecutionState,
           stage: "submitted",
           txHashes: [txHash],
-        });
-        updateBatchModalItems({
-          actions,
-          getItemId,
-          patch: {
-            stage: "submitted",
-            txHash,
-          },
-          updateTransactionModalItem,
         });
 
         applyBatchActionTransactionPatch({
@@ -1285,14 +1259,9 @@ export function useSetupActionExecution({
           stage: "confirming",
           txHashes: [txHash],
         });
-        updateBatchModalItems({
-          actions,
-          getItemId,
-          patch: {
-            stage: "confirming",
-            txHash,
-          },
-          updateTransactionModalItem,
+        updateTransactionModalItem(modalItemId, {
+          stage: "confirming",
+          txHash,
         });
 
         const receipt = await publicClient.waitForTransactionReceipt({
@@ -1306,20 +1275,9 @@ export function useSetupActionExecution({
           stage: "confirmed_waiting_indexer",
           txHashes: [txHash],
         });
-        updateBatchModalItems({
-          actions,
-          getItemId,
-          patch: {
-            stage: "waiting_for_control_plane",
-            txHash,
-          },
-          updateTransactionModalItem,
-        });
-        updateTransactionBatch({
-          status: "waiting_for_control_plane",
-          statusDetail:
-            "Contract batch confirmed. Waiting for indexed activation read models.",
-          txHashes: [txHash],
+        updateTransactionModalItem(modalItemId, {
+          stage: "confirmed_waiting_indexer",
+          txHash,
         });
 
         await waitForBatchReadModelCompletion({
@@ -1334,12 +1292,10 @@ export function useSetupActionExecution({
           updateTransactionModalItem,
         });
 
-        updateTransactionBatch({
+        updateTransactionModalItem(modalItemId, {
           error: undefined,
-          status: "completed",
-          statusDetail:
-            "All expected activation read models are indexed for this contract batch.",
-          txHashes: [txHash],
+          stage: "completed",
+          txHash,
         });
       } catch (error: unknown) {
         failBatch(normalizeTransactionError(error), txHash);
@@ -1355,7 +1311,6 @@ export function useSetupActionExecution({
       runtimeConfig.contracts.govCoreAddress,
       setExecutionState,
       submitContractBatchPlanCall,
-      updateTransactionBatch,
       updateTransactionModalItem,
     ],
   );
@@ -1533,7 +1488,6 @@ export function useSetupActionExecution({
       call,
       description,
       getItemId,
-      runSerialFallback,
       title,
     }: SetupGroupContractBatchModalConfig): void => {
       const runnableActions = actions.filter((action) => {
@@ -1549,12 +1503,25 @@ export function useSetupActionExecution({
         );
       });
       let preparationError: Error | undefined;
+      const groupPreflight =
+        runnableActions.length > 0
+          ? getSetupActionGroupExecutionPreflight(
+              runnableActions,
+              getSetupPreflightEnvironment(executorContextRef.current),
+            )
+          : undefined;
+      const actionBlock = !groupPreflight || groupPreflight.canExecute
+        ? undefined
+        : {
+            message: formatSetupPreflightError(groupPreflight),
+            title: groupPreflight.title,
+          };
 
       if (runnableActions.length === 0) {
         preparationError = new Error("No executable setup actions are pending.");
       }
 
-      for (const action of runnableActions) {
+      for (const action of actionBlock ? [] : runnableActions) {
         const preflight = getSetupActionExecutionPreflight(action, {
           ...getSetupPreflightEnvironment(executorContextRef.current),
         });
@@ -1564,59 +1531,52 @@ export function useSetupActionExecution({
         }
       }
 
-      const items = runnableActions.map((action) => ({
+      const modalItemId =
+        runnableActions[0]?.actionId
+          ? getItemId(runnableActions[0].actionId)
+          : `setup:contract-batch:${call.group}`;
+      const modalItem: TransactionFlowItem = {
+        actionBlock,
         blockExplorerUrl: runtimeConfig.blockExplorerUrl,
-        description: action.description,
-        error: preparationError?.message,
-        id: getItemId(action.actionId),
-        stage: preparationError ? "failed" : "pending",
-        title: action.label,
-      })) satisfies readonly TransactionFlowItem[];
-
-      const batchDetails: TransactionBatchDetails = {
-        atomicCapability: "Single GovCore transaction",
-        capabilityStatus: "supported",
-        capabilitySummary: `${call.label}: ${call.itemCount.toLocaleString()} item${call.itemCount === 1 ? "" : "s"}.`,
+        description,
         error: preparationError?.message,
         execute:
-          !preparationError && runnableActions.length > 0
+          !actionBlock && !preparationError && runnableActions.length > 0
             ? () =>
                 runSetupGroupContractBatchTransaction({
                   actions: runnableActions,
                   call,
                   getItemId,
+                  modalItemId,
                 })
             : undefined,
-        fallbackSerial: runSerialFallback,
-        fallbackSerialLabel: "Run step one by one",
-        kind: "contract_batch",
+        executeLabel: getContractBatchExecuteLabel(call.group),
+        id: modalItemId,
         retry:
-          !preparationError && runnableActions.length > 0
+          !actionBlock && !preparationError && runnableActions.length > 0
             ? () =>
                 runSetupGroupContractBatchTransaction({
                   actions: runnableActions,
                   call,
                   getItemId,
+                  modalItemId,
                 })
             : undefined,
-        status: preparationError ? "failed" : "ready",
-        statusDetail: preparationError
-          ? "The contract batch was not submitted. Use the serial fallback for this activation group."
-          : "Review the typed contract batch, then submit one GovCore transaction.",
-        txHashes: [],
+        retryLabel: getContractBatchExecuteLabel(call.group),
+        stage: preparationError ? "failed" : "idle",
+        title: call.label,
       };
 
-      activeTransactionModalItemId.current = items[0]?.id;
-      openBatchTransactionModal({
-        batch: batchDetails,
+      activeTransactionModalItemId.current = modalItem.id;
+      openTransactionModal({
         description,
-        items,
+        item: modalItem,
         title,
       });
     },
     [
       draft,
-      openBatchTransactionModal,
+      openTransactionModal,
       readModels,
       returnedState,
       runSetupGroupContractBatchTransaction,
@@ -1658,18 +1618,13 @@ export function useSetupActionExecution({
             "Submit one typed GovCore batch for ready body setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("create-body", actionId),
-          runSerialFallback: () => openCreateBodyGroupSerial(),
-          title: "Batch activate bodies",
+          title: "Activate bodies",
         });
-        return;
       }
     }
-
-    await openCreateBodyGroupSerial();
   }, [
     activationCapabilities,
     createBodyActions,
-    openCreateBodyGroupSerial,
     openSetupGroupContractBatchTransactionModal,
     resolvedOrgId,
   ]);
@@ -1736,19 +1691,14 @@ export function useSetupActionExecution({
             "Submit one typed GovCore batch for ready role setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("create-role", actionId),
-          runSerialFallback: () => openCreateRoleGroupSerial(),
-          title: "Batch activate roles",
+          title: "Activate roles",
         });
-        return;
       }
     }
-
-    await openCreateRoleGroupSerial();
   }, [
     activationCapabilities,
     createBodyActions,
     createRoleActions,
-    openCreateRoleGroupSerial,
     openSetupGroupContractBatchTransactionModal,
     resolvedOrgId,
   ]);
@@ -1822,19 +1772,14 @@ export function useSetupActionExecution({
             "Submit one typed GovCore batch for ready mandate setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("assign-mandate", actionId),
-          runSerialFallback: () => openAssignMandateGroupSerial(),
-          title: "Batch activate mandates",
+          title: "Activate mandates",
         });
-        return;
       }
     }
-
-    await openAssignMandateGroupSerial();
   }, [
     activationCapabilities,
     assignMandateActions,
     createRoleActions,
-    openAssignMandateGroupSerial,
     openSetupGroupContractBatchTransactionModal,
     resolvedOrgId,
   ]);
@@ -1931,20 +1876,15 @@ export function useSetupActionExecution({
             "Submit one typed GovCore batch for ready policy route setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("set-policy-rule", actionId),
-          runSerialFallback: () => openSetPolicyRuleGroupSerial(),
-          title: "Batch activate policy routes",
+          title: "Activate policy routes",
         });
-        return;
       }
     }
-
-    await openSetPolicyRuleGroupSerial();
   }, [
     activationCapabilities,
     assignMandateActions,
     createBodyActions,
     createRoleActions,
-    openSetPolicyRuleGroupSerial,
     openSetupGroupContractBatchTransactionModal,
     resolvedOrgId,
     setPolicyRuleActions,
@@ -2057,12 +1997,14 @@ interface SetupGroupContractBatchRunConfig {
   readonly actions: readonly SetupAction[];
   readonly call: AdminBatchActivationPlanCall;
   readonly getItemId: (actionId: string) => string;
+  readonly modalItemId: string;
 }
 
-interface SetupGroupContractBatchModalConfig
-  extends SetupGroupContractBatchRunConfig {
+interface SetupGroupContractBatchModalConfig {
+  readonly actions: readonly SetupAction[];
+  readonly call: AdminBatchActivationPlanCall;
   readonly description: string;
-  readonly runSerialFallback: () => Promise<void> | void;
+  readonly getItemId: (actionId: string) => string;
   readonly title: string;
 }
 
@@ -2415,6 +2357,21 @@ function applyBatchActionTransactionPatch({
       setPolicyRules,
     };
   });
+}
+
+function getContractBatchExecuteLabel(
+  group: AdminBatchActivationPlanCall["group"],
+): string {
+  switch (group) {
+    case "bodies":
+      return "Create Bodies";
+    case "roles":
+      return "Create Roles";
+    case "mandates":
+      return "Assign Mandates";
+    case "policyRules":
+      return "Create Policy Routes";
+  }
 }
 
 function updateBatchModalItems({

@@ -1,10 +1,11 @@
-import { IsoButton, IsoDialog } from "../ui-kit";
+import { IsoButton, IsoDialog, IsoIcon } from "../ui-kit";
 import { BatchTransactionView } from "./BatchTransactionView";
 import { SerialTransactionView } from "./SerialTransactionView";
 import { SingleTransactionView } from "./SingleTransactionView";
 import { isActiveTransactionStage } from "./transactionCopy";
 import type {
   BatchTransactionStatus,
+  TransactionFlowItem,
   TransactionModalState,
 } from "./transactionFlowTypes";
 
@@ -41,7 +42,10 @@ export function TransactionModal({
           >
             Close
           </IsoButton>
-          <TransactionModalPrimaryAction state={state} onClose={close} />
+          <div className="transaction-modal-footer-primary">
+            <TransactionActionBlockAlert state={state} />
+            <TransactionModalPrimaryAction state={state} onClose={close} />
+          </div>
         </div>
       }
       open={state.open}
@@ -87,9 +91,20 @@ function TransactionModalPrimaryAction({
     (item) =>
       (item.stage === "idle" || item.stage === "pending") && item.execute,
   );
+  const blockedItem = getTransactionActionBlockedItem(state);
   const failedItem = state.items.find(
     (item) => item.stage === "failed" && item.retry,
   );
+
+  if (blockedItem?.actionBlock) {
+    return (
+      <IsoButton className="iso-button-primary" disabled>
+        {blockedItem.executeLabel ??
+          blockedItem.retryLabel ??
+          (state.mode === "serial" ? "Start" : "Execute")}
+      </IsoButton>
+    );
+  }
 
   if (failedItem?.retry) {
     return (
@@ -127,6 +142,38 @@ function TransactionModalPrimaryAction({
   }
 
   return <IsoButton disabled>In progress</IsoButton>;
+}
+
+function TransactionActionBlockAlert({
+  state,
+}: {
+  readonly state: TransactionModalState;
+}): JSX.Element | null {
+  const blockedItem = getTransactionActionBlockedItem(state);
+  const block = blockedItem?.actionBlock;
+
+  if (!block) {
+    return null;
+  }
+
+  return (
+    <div className="transaction-modal-action-block" role="alert">
+      <IsoIcon name="settings-error" size={18} />
+      <div>
+        <strong>{block.title}</strong>
+        <span>{block.message}</span>
+      </div>
+    </div>
+  );
+}
+
+function getTransactionActionBlockedItem(
+  state: TransactionModalState,
+): TransactionFlowItem | undefined {
+  return (
+    state.items.find((item) => item.id === state.activeItemId && item.actionBlock) ??
+    state.items.find((item) => item.actionBlock)
+  );
 }
 
 function TransactionModalBatchPrimaryAction({

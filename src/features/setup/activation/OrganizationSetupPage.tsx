@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useActivationCapabilities } from "../../../api/useActivationCapabilities";
 import { useOrganizationFinalization } from "../../../api/useOrganizationFinalization";
+import { NotFoundPage } from "../../../app/NotFoundPage";
 import { useRuntimeConfig } from "../../../config/runtime-config";
+import { useTransactionModal } from "../../../transactions";
 import { PageHeader } from "../../../ui/PageHeader";
 import { requireParam } from "../../../utils/route-params";
 import { OrganizationActivationWizard } from "./OrganizationActivationWizard";
@@ -21,7 +23,10 @@ import { useSetupActionExecution } from "../useSetupActionExecution";
 
 export function OrganizationSetupPage(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
+  const navigate = useNavigate();
   const orgId = requireParam(useParams().orgId, "orgId");
+  const transactionModal = useTransactionModal();
+  const modalWasOpen = useRef(transactionModal.state.open);
   const [inputs, setInputs] = useState(DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS);
   const completionReadModels = useSetupCompletionReadModels(orgId);
   const activationCapabilities = useActivationCapabilities();
@@ -70,6 +75,22 @@ export function OrganizationSetupPage(): JSX.Element {
       }),
     [completionReadModels.data, draft, execution.state],
   );
+  const activationCompleted =
+    finalization.finalized || finalizationAction.transaction.stage === "indexed";
+
+  useEffect(() => {
+    const wasOpen = modalWasOpen.current;
+    const isOpen = transactionModal.state.open;
+    modalWasOpen.current = isOpen;
+
+    if (wasOpen && !isOpen && activationCompleted) {
+      navigate(`/orgs/${orgId}/governance`, { replace: true });
+    }
+  }, [activationCompleted, navigate, orgId, transactionModal.state.open]);
+
+  if (finalization.finalized && !transactionModal.state.open) {
+    return <NotFoundPage />;
+  }
 
   return (
     <section className="page-stack">
@@ -103,28 +124,14 @@ export function OrganizationSetupPage(): JSX.Element {
         completionError={completionReadModels.error}
         completionLoading={completionReadModels.loading}
         completionReload={completionReadModels.reload}
-        eip5792BatchCapability={execution.eip5792BatchCapability}
-        eip5792BatchChecking={execution.eip5792BatchChecking}
-        eip5792BatchFeatureEnabled={execution.eip5792BatchFeatureEnabled}
-        executeAssignMandate={execution.executeAssignMandate}
-        executeAssignMandateGroupBatch={execution.executeAssignMandateGroupBatch}
         executeAssignMandateGroup={execution.executeAssignMandateGroup}
-        executeCreateBody={execution.executeCreateBody}
-        executeCreateBodyGroupBatch={execution.executeCreateBodyGroupBatch}
         executeCreateBodyGroup={execution.executeCreateBodyGroup}
-        executeCreateRole={execution.executeCreateRole}
-        executeCreateRoleGroupBatch={execution.executeCreateRoleGroupBatch}
         executeCreateRoleGroup={execution.executeCreateRoleGroup}
-        executeSetPolicyRule={execution.executeSetPolicyRule}
-        executeSetPolicyRuleGroupBatch={execution.executeSetPolicyRuleGroupBatch}
         executeSetPolicyRuleGroup={execution.executeSetPolicyRuleGroup}
         finalization={finalization}
         finalizationAction={finalizationAction}
         inputs={activationInputs}
-        orgId={orgId}
         readModels={completionReadModels.data}
-        refreshEip5792BatchCapability={execution.refreshEip5792BatchCapability}
-        state={execution.state}
         onChange={setInputs}
       />
     </section>

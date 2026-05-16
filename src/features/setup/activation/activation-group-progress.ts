@@ -36,7 +36,6 @@ export interface ActivationGroupProgress {
 export function buildActivationGroupProgress({
   actions,
   groupId,
-  readModels,
   resultByActionId,
 }: {
   readonly actions: readonly SetupAction[];
@@ -83,7 +82,6 @@ export function buildActivationGroupProgress({
     executableActions > 0;
   const canContinue = complete;
   const reason = getGroupProgressReason({
-    activeAction,
     blockedActions,
     canRun,
     complete,
@@ -93,7 +91,6 @@ export function buildActivationGroupProgress({
     indexedActions,
     needsInput,
     pendingActions,
-    readModels,
     totalActions,
   });
 
@@ -149,7 +146,6 @@ function needsGroupInput({
 }
 
 function getGroupProgressReason({
-  activeAction,
   blockedActions,
   canRun,
   complete,
@@ -159,10 +155,8 @@ function getGroupProgressReason({
   indexedActions,
   needsInput,
   pendingActions,
-  readModels,
   totalActions,
 }: {
-  readonly activeAction?: SetupAction;
   readonly blockedActions: number;
   readonly canRun: boolean;
   readonly complete: boolean;
@@ -172,14 +166,10 @@ function getGroupProgressReason({
   readonly indexedActions: number;
   readonly needsInput: boolean;
   readonly pendingActions: number;
-  readonly readModels?: SetupCompletionReadModels;
   readonly totalActions: number;
 }): string {
   if (needsInput) {
-    const indexedMandates = readModels?.mandates.length ?? 0;
-    return indexedMandates > 0
-      ? "Activation progress exists, but exact mandate intent requires holder inputs to confirm."
-      : "Add mandate holder addresses before mandate activation can continue.";
+    return "Mandate holder inputs are required.";
   }
 
   if (complete) {
@@ -200,8 +190,8 @@ function getGroupProgressReason({
     } waiting for dependencies or validation.`;
   }
 
-  if (canRun && activeAction) {
-    return `Next required action: ${activeAction.label}.`;
+  if (canRun) {
+    return `Ready to run ${getGroupLabel(groupId)} activation.`;
   }
 
   if (executableActions === 0) {

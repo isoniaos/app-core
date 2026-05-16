@@ -65,7 +65,7 @@ export function AddressInput({
   const isInvalid = Boolean(error) || (
     validation.status !== "empty" && validation.status !== "valid"
   );
-  const tone = error ? "danger" : validation.tone;
+  const tone = error ? "danger" : showFeedback ? validation.tone : "neutral";
   const feedback = error ?? validation.message;
 
   useEffect(() => {

@@ -964,6 +964,7 @@ button.iso-steps-row:disabled .iso-steps-copy,
 }
 
 .iso-breadcrumbs-current {
+  height: 1rem;
   color: var(--iso-color-foreground);
 }
 
@@ -2161,6 +2162,38 @@ button.address-display {
 
 .transaction-modal-footer > :last-child {
   margin-left: auto;
+}
+
+.transaction-modal-footer-primary {
+  display: grid;
+  justify-items: end;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.transaction-modal-action-block {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  max-width: min(420px, 100%);
+  align-items: flex-start;
+  gap: 0.55rem;
+  border-left: 3px solid var(--iso-color-danger);
+  padding: 0.65rem 0.75rem;
+  background: var(--iso-color-danger-surface);
+  color: var(--iso-color-danger);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.transaction-modal-action-block div,
+.transaction-modal-action-block strong,
+.transaction-modal-action-block span {
+  display: block;
+}
+
+.transaction-modal-action-block span {
+  color: var(--iso-color-foreground);
 }
 
 .transaction-modal-loading-action {
@@ -3780,10 +3813,76 @@ button.address-display {
 
 .activation-group-panel {
   display: grid;
-  overflow: hidden;
-  border: 1px solid var(--iso-color-border);
-  border-radius: var(--iso-radius-md);
-  background: var(--iso-color-surface);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.activation-group-purpose {
+  margin: 0;
+  color: var(--iso-color-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.activation-action-plan-list {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.activation-action-plan-list h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.activation-action-plan-list ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.activation-action-plan-list li {
+  padding-left: 0.2rem;
+}
+
+.activation-action-plan-list strong,
+.activation-action-plan-list span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.activation-action-plan-list span,
+.activation-action-plan-note {
+  color: var(--iso-color-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.activation-action-plan-note {
+  margin: 0;
+}
+
+.activation-finalization-panel {
+  display: grid;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.activation-finalization-panel h3,
+.activation-finalization-panel p {
+  margin: 0;
+}
+
+.activation-finalization-panel h3 {
+  font-size: 1rem;
+}
+
+.activation-finalization-panel p,
+.activation-finalization-note {
+  color: var(--iso-color-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .activation-group-header,
@@ -4718,7 +4817,8 @@ button.address-display {
 
 @media (max-width: 1300px) {
   .setup-wizard-template-grid,
-  .setup-wizard-body-grid {
+  .setup-wizard-body-grid,
+  .setup-wizard-route-grid {
     grid-template-columns: 1fr;
   }
 }
