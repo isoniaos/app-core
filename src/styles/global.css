@@ -1477,6 +1477,117 @@ button.address-display {
   max-width: 1360px;
 }
 
+.execution-permissions-page-stack {
+  max-width: 1360px;
+}
+
+.execution-permissions-disclosure-panel .panel-header {
+  align-items: flex-start;
+}
+
+.execution-permission-metric {
+  min-height: 112px;
+}
+
+.execution-permission-metric small {
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.execution-permission-target-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.execution-permission-target-header > div:first-child {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.execution-permission-target-header .address-display {
+  justify-self: start;
+}
+
+.execution-permission-target-details {
+  grid-template-columns: minmax(260px, 1.4fr) repeat(2, minmax(0, 1fr));
+}
+
+.execution-permission-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.execution-permission-metadata-grid div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--iso-color-border) 78%, transparent);
+  border-radius: var(--iso-radius-md);
+  padding: 0.72rem;
+  background: color-mix(in srgb, var(--iso-color-surface-subtle) 48%, var(--iso-color-surface));
+}
+
+.execution-permission-metadata-grid dt {
+  color: var(--iso-color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.execution-permission-metadata-grid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--iso-color-foreground);
+  font-size: 0.9rem;
+}
+
+.execution-permission-selector-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.execution-permission-selector-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.execution-permission-selector-header h3,
+.execution-permission-selector-header p {
+  margin: 0;
+}
+
+.execution-permission-selector-header h3 {
+  font-size: 0.95rem;
+}
+
+.execution-permission-selector-header p {
+  margin-top: 0.2rem;
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.execution-permission-selector-table code {
+  font-family: var(--iso-font-mono);
+  font-size: 0.84rem;
+}
+
+.execution-permissions-state {
+  min-height: 120px;
+  align-content: center;
+}
+
+.execution-permission-proposal-notice .inline-state {
+  margin: 0;
+}
+
 .archive-disclosure-panel {
   display: grid;
   gap: 1rem;
@@ -5126,6 +5237,7 @@ button.address-display {
     .route-technical-grid,
     .trust-boundary-meta,
     .technical-detail-grid,
+    .execution-permission-metadata-grid,
     .detail-list,
     .detail-list-wide,
   .diagnostics-indicator-details,
@@ -5210,6 +5322,7 @@ button.address-display {
   .proposal-action-readiness-row,
   .proposal-demo-result-header,
   .proposal-demo-result-footer,
+  .execution-permission-selector-header,
   .local-hardhat-header,
   .setup-action-row-top,
   .setup-review-validation-header,

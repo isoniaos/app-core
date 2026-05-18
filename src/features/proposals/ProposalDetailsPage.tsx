@@ -1,5 +1,7 @@
 import type {
   BodyDto,
+  ExecutionTargetPermissionDto,
+  OrganizationExecutionPermissionsDto,
   ProposalDto,
   ProposalRouteExplanationDto,
   RouteBlockedReasonDto,
@@ -14,6 +16,7 @@ import { useOrganizationFinalization } from "../../api/useOrganizationFinalizati
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { AccountabilityRecordPanel } from "../accountability/AccountabilityRecordPanel";
+import { isNotFoundApiError } from "../accountability/accountability-display";
 import { DecisionRecordPanel } from "../accountability/DecisionRecordPanel";
 import { ExternalResourcesPanel } from "../accountability/ExternalResourcesPanel";
 import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider";
@@ -30,6 +33,7 @@ import {
   formatAddress,
   formatChainTime,
   formatLabel,
+  formatNumericString,
 } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
 import { DemoTargetResultPanel } from "./DemoTargetResultPanel";
@@ -49,6 +53,8 @@ import {
 
 interface ProposalDetailsData {
   readonly bodies: readonly BodyDto[];
+  readonly executionPermissions: OrganizationExecutionPermissionsDto | undefined;
+  readonly executionPermissionsError: Error | undefined;
   readonly orgAdminAddress: string | undefined;
   readonly proposal: ProposalDto;
   readonly route: ProposalRouteExplanationDto | undefined;
@@ -61,6 +67,11 @@ interface RouteLoadResult {
   readonly routeError: Error | undefined;
 }
 
+interface ExecutionPermissionsLoadResult {
+  readonly executionPermissions: OrganizationExecutionPermissionsDto | undefined;
+  readonly executionPermissionsError: Error | undefined;
+}
+
 export function ProposalDetailsPage(): JSX.Element {
   const client = useIsoniaClient();
   const params = useParams();
@@ -68,18 +79,27 @@ export function ProposalDetailsPage(): JSX.Element {
   const proposalId = requireParam(params.proposalId, "proposalId");
   const details = useIsoniaQuery(
     async (): Promise<ProposalDetailsData> => {
-      const [proposal, routeResult, overview, bodies, roles] = await Promise.all([
+      const [
+        proposal,
+        routeResult,
+        overview,
+        bodies,
+        roles,
+        executionPermissionsResult,
+      ] = await Promise.all([
         client.getProposal(orgId, proposalId),
         loadProposalRoute(client, orgId, proposalId),
         client.getOrganizationOverview(orgId),
         client.getBodies(orgId),
         client.getRoles(orgId),
+        loadExecutionPermissions(client, orgId),
       ]);
       return {
         bodies,
         orgAdminAddress: overview.organization.adminAddress,
         proposal,
         roles,
+        ...executionPermissionsResult,
         ...routeResult,
       };
     },
@@ -97,9 +117,20 @@ export function ProposalDetailsPage(): JSX.Element {
         emptyMessage={`No indexed proposal #${proposalId} was found for org #${orgId}.`}
         errorTitle="Unable to load proposal"
       >
-        {({ bodies, orgAdminAddress, proposal, roles, route, routeError }) => (
+        {({
+          bodies,
+          executionPermissions,
+          executionPermissionsError,
+          orgAdminAddress,
+          proposal,
+          roles,
+          route,
+          routeError,
+        }) => (
           <ProposalDetailsContent
             bodies={bodies}
+            executionPermissions={executionPermissions}
+            executionPermissionsError={executionPermissionsError}
             metadata={metadata}
             orgAdminAddress={orgAdminAddress}
             orgId={orgId}
@@ -117,6 +148,8 @@ export function ProposalDetailsPage(): JSX.Element {
 
 function ProposalDetailsContent({
   bodies,
+  executionPermissions,
+  executionPermissionsError,
   metadata,
   orgAdminAddress,
   orgId,
@@ -127,6 +160,8 @@ function ProposalDetailsContent({
   routeError,
 }: {
   readonly bodies: readonly BodyDto[];
+  readonly executionPermissions?: OrganizationExecutionPermissionsDto;
+  readonly executionPermissionsError?: Error;
   readonly metadata: MetadataState;
   readonly orgAdminAddress: string | undefined;
   readonly orgId: string;
@@ -219,6 +254,8 @@ function ProposalDetailsContent({
                 content: (
                   <ProposalOverviewTab
                     bodies={bodies}
+                    executionPermissions={executionPermissions}
+                    executionPermissionsError={executionPermissionsError}
                     metadata={metadata}
                     proposal={proposal}
                     route={route}
@@ -343,12 +380,16 @@ function ProposalDetailsContent({
 
 function ProposalOverviewTab({
   bodies,
+  executionPermissions,
+  executionPermissionsError,
   metadata,
   proposal,
   route,
   routeError,
 }: {
   readonly bodies: readonly BodyDto[];
+  readonly executionPermissions?: OrganizationExecutionPermissionsDto;
+  readonly executionPermissionsError?: Error;
   readonly metadata: MetadataState;
   readonly proposal: ProposalDto;
   readonly route?: ProposalRouteExplanationDto;
@@ -422,6 +463,12 @@ function ProposalOverviewTab({
         </div>
         <ProposalLifecycleTimeline proposal={proposal} />
       </section>
+
+      <ExecutionPermissionNotice
+        permissions={executionPermissions}
+        permissionsError={executionPermissionsError}
+        proposal={proposal}
+      />
 
       <section className="product-card product-card-wide">
         <div className="product-card-header">
@@ -503,6 +550,90 @@ function ProposalInfoCard({
         <InfoRow
           label="Executed"
           value={formatChainTime(proposal.executedAtChain)}
+        />
+      </dl>
+    </section>
+  );
+}
+
+function ExecutionPermissionNotice({
+  permissions,
+  permissionsError,
+  proposal,
+}: {
+  readonly permissions?: OrganizationExecutionPermissionsDto;
+  readonly permissionsError?: Error;
+  readonly proposal: ProposalDto;
+}): JSX.Element | null {
+  if (!proposal.targetAddress) {
+    return null;
+  }
+
+  const notice = getExecutionPermissionNotice({
+    permissions,
+    permissionsError,
+    proposal,
+  });
+
+  return (
+    <section
+      className={`product-card product-card-wide execution-permission-proposal-notice execution-permission-proposal-notice-${notice.tone}`}
+    >
+      <div className="product-card-header">
+        <div>
+          <h2>Execution Permission Check</h2>
+          <p>
+            Read-only comparison against the organization execution permission
+            registry. Contract execution remains authoritative.
+          </p>
+        </div>
+        <IsoStatusPill tone={notice.tone}>{notice.label}</IsoStatusPill>
+      </div>
+      <div className={`inline-state inline-state-${notice.inlineTone}`}>
+        <strong>{notice.title}</strong>
+        <span>{notice.message}</span>
+      </div>
+      <dl className="technical-detail-grid">
+        <TechDetail
+          label="Proposal target"
+          value={proposal.targetAddress}
+          mono
+        />
+        <TechDetail
+          label="Proposal value"
+          value={formatValueLimit(proposal.value)}
+          mono
+        />
+        <TechDetail
+          label="Registry target"
+          value={notice.target ? notice.target.targetAddress : "Not returned"}
+          mono
+        />
+        <TechDetail
+          label="Registry value limit"
+          value={
+            notice.target ? formatValueLimit(notice.target.maxValue) : "Unknown"
+          }
+          mono
+        />
+        <TechDetail
+          label="Selector coverage"
+          value={
+            notice.target
+              ? `${notice.target.selectors.length.toLocaleString()} selector rules returned`
+              : "Unknown"
+          }
+        />
+        <TechDetail
+          label="Registry route"
+          value={
+            <Link
+              className="diagnostics-text-link"
+              to={`/orgs/${proposal.orgId}/execution-permissions`}
+            >
+              Open execution permissions
+            </Link>
+          }
         />
       </dl>
     </section>
@@ -1164,6 +1295,104 @@ function routeReadinessLabel(
   return route.execution.executable ? "Route ready" : "Route blocked";
 }
 
+function getExecutionPermissionNotice({
+  permissions,
+  permissionsError,
+  proposal,
+}: {
+  readonly permissions?: OrganizationExecutionPermissionsDto;
+  readonly permissionsError?: Error;
+  readonly proposal: ProposalDto;
+}): {
+  readonly inlineTone: "danger" | "muted" | "success" | "warning";
+  readonly label: string;
+  readonly message: string;
+  readonly target?: ExecutionTargetPermissionDto;
+  readonly title: string;
+  readonly tone: IsoStatusPillTone;
+} {
+  if (!permissions) {
+    return {
+      inlineTone: "warning",
+      label: "Registry unavailable",
+      message: isNotFoundApiError(permissionsError)
+        ? "This Control Plane does not expose the execution permission registry endpoint yet. App Core cannot compare this proposal target against registry read models."
+        : permissionsError?.message ??
+          "Execution permission data is unavailable for this proposal target.",
+      title: "Execution permission data unavailable",
+      tone: "warning",
+    };
+  }
+
+  const target = permissions.targets.find(
+    (entry) =>
+      proposal.targetAddress !== undefined &&
+      sameAddress(entry.targetAddress, proposal.targetAddress),
+  );
+
+  if (!target) {
+    return {
+      inlineTone: "warning",
+      label: "Target not returned",
+      message:
+        "No target rule was returned for this proposal target. Execution may be blocked by the protocol registry, or the read model may be incomplete.",
+      title: "No registry target rule",
+      tone: "warning",
+    };
+  }
+
+  if (!target.enabled) {
+    return {
+      inlineTone: "danger",
+      label: "Target disabled",
+      message:
+        "The current execution permission registry read model marks this target as disabled. The contract remains authoritative when execution is submitted.",
+      target,
+      title: "Registry target is disabled",
+      tone: "danger",
+    };
+  }
+
+  const valueComparison = compareNumericStrings(proposal.value, target.maxValue);
+  if (valueComparison === undefined) {
+    return {
+      inlineTone: "warning",
+      label: "Check value",
+      message:
+        "The target rule is enabled, but App Core could not compare the proposal value against the registry value limit.",
+      target,
+      title: "Value comparison unavailable",
+      tone: "warning",
+    };
+  }
+
+  if (valueComparison > 0) {
+    return {
+      inlineTone: "danger",
+      label: "Value above limit",
+      message:
+        "The proposal value is above the target value limit in the execution permission registry read model. Execution may be blocked by protocol checks.",
+      target,
+      title: "Registry value limit exceeded",
+      tone: "danger",
+    };
+  }
+
+  const selectorMessage =
+    target.selectors.length > 0
+      ? "Selector-specific rules exist for this target, but this proposal detail view exposes the data hash rather than decoded calldata selector. App Core is not decoding target-contract behavior."
+      : "No selector-specific rules were returned for this target.";
+
+  return {
+    inlineTone: "success",
+    label: "Target rule enabled",
+    message: `No target-level permission blocker is visible in the current read model. ${selectorMessage} This does not prove the proposal is executable.`,
+    target,
+    title: "Target-level registry rule is enabled",
+    tone: "success",
+  };
+}
+
 async function loadProposalRoute(
   client: IsoniaControlPlaneClient,
   orgId: string,
@@ -1182,6 +1411,23 @@ async function loadProposalRoute(
   }
 }
 
+async function loadExecutionPermissions(
+  client: IsoniaControlPlaneClient,
+  orgId: string,
+): Promise<ExecutionPermissionsLoadResult> {
+  try {
+    return {
+      executionPermissions: await client.executionPermissions.get(orgId),
+      executionPermissionsError: undefined,
+    };
+  } catch (error: unknown) {
+    return {
+      executionPermissions: undefined,
+      executionPermissionsError: toExecutionPermissionsError(error),
+    };
+  }
+}
+
 function hasDisplayValue(value?: string): boolean {
   return value !== undefined && value.trim().length > 0;
 }
@@ -1191,4 +1437,36 @@ function toError(error: unknown): Error {
     return error;
   }
   return new Error("Route explanation data is unavailable.");
+}
+
+function toExecutionPermissionsError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error("Execution permission data is unavailable.");
+}
+
+function formatValueLimit(value: string | undefined): string {
+  const formatted = formatNumericString(value);
+  return formatted === "Not set" ? formatted : `${formatted} wei`;
+}
+
+function compareNumericStrings(
+  left: string,
+  right: string,
+): number | undefined {
+  try {
+    const leftValue = BigInt(left);
+    const rightValue = BigInt(right);
+    if (leftValue === rightValue) {
+      return 0;
+    }
+    return leftValue > rightValue ? 1 : -1;
+  } catch {
+    return undefined;
+  }
+}
+
+function sameAddress(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
 }

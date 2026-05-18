@@ -4,6 +4,7 @@ import {
   DiagnosticsPage,
 } from "../features/diagnostics/DiagnosticsPage";
 import { PublicArchivePage } from "../features/archive/PublicArchivePage";
+import { OrganizationExecutionPermissionsPage } from "../features/execution-permissions/OrganizationExecutionPermissionsPage";
 import { GovernanceStructurePage } from "../features/governance-structure/GovernanceStructurePage";
 import { OrganizationOverviewPage } from "../features/organizations/OrganizationOverviewPage";
 import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
@@ -34,6 +35,10 @@ export function App(): JSX.Element {
             />
             <Route path="/orgs/:orgId/proposals" element={<ProposalsPage />} />
             <Route path="/orgs/:orgId/archive" element={<PublicArchivePage />} />
+            <Route
+              path="/orgs/:orgId/execution-permissions"
+              element={<OrganizationExecutionPermissionsPage />}
+            />
             <Route
               path="/orgs/:orgId/proposals/new"
               element={<CreateProposalPage />}

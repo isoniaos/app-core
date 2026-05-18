@@ -10,6 +10,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Organization overview
 - Governance structure
 - Public organization archive at `/orgs/:orgId/archive`
+- Organization execution permissions registry at `/orgs/:orgId/execution-permissions`
 - Proposals list
 - Proposal details with route explanation, decision records, accountability records, and external evidence
 - Create proposal transaction flow gated by runtime config
@@ -22,7 +23,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Default theme package via `@isonia/theme-default`
 - Wallet provider foundation
 
-Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, arbitrary calldata builders, provider API clients, external evidence import/write forms, Safe integration, emergency recovery UI, governance-controlled post-finalization mutation UI, or real IPFS publishing.
+Not included in this public app core: SaaS overlays, billing, GraphQL, heavy graph visualization, arbitrary calldata builders, execution permission management transactions, provider API clients, external evidence import/write forms, Safe integration, emergency recovery UI, governance-controlled post-finalization mutation UI, or real IPFS publishing.
 
 ## Install
 
@@ -136,6 +137,8 @@ Execution remains intentionally narrow. The public app core only builds the conf
 
 The public archive route at `/orgs/:orgId/archive` reads `client.archive.get(orgId)` from `@isonia/sdk` and renders the shared `PublicOrganizationArchiveDto`. Proposal detail accountability sections read decision records, accountability records, and external resources through the SDK. These views are read-only: contract/onchain state is presented as authority for Isonia governance state, while external and manual records are displayed as evidence, context, or annotation unless the DTO source disclosure explicitly says otherwise. App Core does not call Snapshot, Safe, Tally, Agora, GitHub, Discourse, block explorer, or other provider APIs directly.
 
+The execution permissions route at `/orgs/:orgId/execution-permissions` reads `client.executionPermissions.get(orgId)` from `@isonia/sdk` and renders the shared `OrganizationExecutionPermissionsDto`. It groups target rules by target address, lists selector rules under each target, shows enabled/disabled state, value limits, and update block/transaction/source-address metadata when the read model provides it. This surface is read-only and non-authoritative for arbitrary target-contract behavior: execution permissions are protocol registry read models describing which targets/selectors the organization has enabled for proposal execution. App Core does not decode target-contract behavior, upload customer ABIs, infer authority from target-contract events, or submit permission-management transactions.
+
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, finalization capability/diagnostic metadata when reported, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator. Use `/diagnostics?orgId=<id>` to inspect the per-organization finalization read model.
 
 The setup activation wizard also reads Control Plane `GET /v1/capabilities`. When typed contract batch activation is explicitly supported, app-core prepares SDK activation plans and submits typed GovCore batch transactions through the existing transaction modal. The user-facing wizard keeps one action group per step: bodies, roles, mandates, policy routes, and final activation. EIP-5792 wallet batching remains feature-gated/prototype diagnostics and is not selected automatically.
@@ -180,8 +183,8 @@ Deployable app-core builds depend on pinned known-good compatibility tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.1",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.1",
+  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.2",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.2",
   "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3"
 }
 ```

@@ -6,6 +6,25 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.8.0-alpha.2]
+
+### Added
+
+- Added the read-only organization execution permissions route at `/orgs/:orgId/execution-permissions`, backed by `client.executionPermissions.get(orgId)` from `@isonia/sdk`.
+- Added target/selector registry rendering with enabled state, target value limits, and update block/transaction/source-address metadata when provided.
+- Added a conservative proposal detail notice when execution permission registry data is unavailable or target-level permission rules indicate execution may be blocked.
+
+### Changed
+
+- Bumped `@isonia/app-core` to `0.8.0-alpha.2`.
+- Updated `@isonia/sdk` dependency ref to `v0.8.0-alpha.2`.
+- Updated `@isonia/types` dependency ref to `v0.8.0-alpha.2`.
+- Updated README scope and authority copy for the execution permissions read-only UI.
+
+## [0.8.0-alpha.1]
+
 ### Added
 
 - Added the read-only public organization archive route at `/orgs/:orgId/archive` with archive counts, proposal history, client-side filters, and source disclosure rendering.

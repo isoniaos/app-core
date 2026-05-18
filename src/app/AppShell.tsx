@@ -116,6 +116,11 @@ function OrganizationNavSection({
         label="Governance Structure"
         to={`/orgs/${orgId}/governance`}
       />
+      <ShellNavLink
+        icon="system"
+        label="Execution Permissions"
+        to={`/orgs/${orgId}/execution-permissions`}
+      />
       {!finalization.finalized ? (
         <ShellNavLink
           icon="setup"
