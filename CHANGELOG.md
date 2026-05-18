@@ -6,6 +6,19 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added the read-only public organization archive route at `/orgs/:orgId/archive` with archive counts, proposal history, client-side filters, and source disclosure rendering.
+- Added proposal detail decision record, accountability, and evidence sections backed by v0.8 SDK methods.
+- Added trust-boundary and source-disclosure UI for contract/onchain, external platform, manual annotation, import preview, and unverified-link records.
+
+### Changed
+
+- Bumped `@isonia/app-core` to `0.8.0-alpha.1`.
+- Updated `@isonia/sdk` dependency ref to `v0.8.0-alpha.1`.
+- Updated `@isonia/types` dependency ref to `v0.8.0-alpha.1`.
+- Refreshed README/runtime copy around the v0.8 read-only public archive/accountability baseline and its non-goals.
+
 ## [0.7.0-alpha.5]
 
 ### Changed

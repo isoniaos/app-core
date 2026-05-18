@@ -1473,6 +1473,255 @@ button.address-display {
   background: color-mix(in srgb, var(--iso-color-surface-subtle) 54%, var(--iso-color-surface));
 }
 
+.archive-page-stack {
+  max-width: 1360px;
+}
+
+.archive-disclosure-panel {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.archive-disclosure-panel .trust-boundary-notice {
+  margin: 0 1rem;
+}
+
+.archive-metric-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.archive-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.archive-table-wrap table {
+  min-width: 1180px;
+}
+
+.archive-empty-state {
+  margin-top: 1rem;
+}
+
+.archive-evidence-counts {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.archive-evidence-counts strong {
+  font-size: 1rem;
+}
+
+.archive-evidence-counts span {
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+}
+
+.accountability-panel-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.accountability-state {
+  justify-items: start;
+}
+
+.accountability-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.accountability-detail-grid div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--iso-color-border) 78%, transparent);
+  border-radius: var(--iso-radius-md);
+  padding: 0.72rem;
+  background: color-mix(in srgb, var(--iso-color-surface-subtle) 48%, var(--iso-color-surface));
+}
+
+.accountability-detail-grid dt {
+  color: var(--iso-color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.accountability-detail-grid dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--iso-color-foreground);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.source-disclosure-badge {
+  max-width: 100%;
+}
+
+.source-disclosure-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trust-boundary-notice {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--iso-color-warning) 36%, var(--iso-color-border));
+  border-radius: var(--iso-radius-md);
+  padding: 0.82rem;
+  background: color-mix(in srgb, var(--iso-color-warning-surface) 58%, var(--iso-color-surface));
+}
+
+.trust-boundary-notice > div:first-child {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.trust-boundary-notice strong {
+  color: var(--iso-color-foreground);
+}
+
+.trust-boundary-notice span,
+.trust-boundary-note {
+  margin: 0;
+  color: var(--iso-color-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.trust-boundary-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.trust-boundary-meta div {
+  min-width: 0;
+}
+
+.trust-boundary-meta dt {
+  color: var(--iso-color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trust-boundary-meta dd {
+  margin: 0.16rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.external-resource-grid,
+.external-resource-ref-list,
+.manual-update-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.external-resource-card,
+.manual-update-card {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.85rem;
+  background: color-mix(in srgb, var(--iso-color-surface) 82%, var(--iso-color-surface-subtle));
+}
+
+.external-resource-header,
+.manual-update-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.external-resource-header h3,
+.external-resource-header span,
+.manual-update-card strong,
+.manual-update-card span {
+  overflow-wrap: anywhere;
+}
+
+.external-resource-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.external-resource-header span,
+.manual-update-card header span {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--iso-color-muted);
+  font-size: 0.82rem;
+}
+
+.external-resource-link-row,
+.accountability-external-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.external-resource-link-row a,
+.accountability-external-link {
+  color: var(--iso-color-primary);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.external-resource-link-row code {
+  color: var(--iso-color-muted);
+  font-family: var(--iso-font-mono);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.external-resource-ref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  min-width: 0;
+  border: 1px solid var(--iso-color-border);
+  border-radius: var(--iso-radius-md);
+  padding: 0.72rem;
+  background: var(--iso-color-surface);
+}
+
+.external-resource-ref:hover {
+  border-color: var(--iso-color-primary);
+}
+
+.external-resource-ref strong,
+.external-resource-ref span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.external-resource-ref span {
+  margin-top: 0.18rem;
+  color: var(--iso-color-muted);
+  font-size: 0.8rem;
+}
+
 .proposal-route-metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4858,6 +5107,9 @@ button.address-display {
   }
 
   .metric-grid,
+  .archive-filter-grid,
+  .archive-metric-grid,
+  .accountability-detail-grid,
   .card-grid,
   .template-grid,
   .setup-validation-counts,
@@ -4872,6 +5124,7 @@ button.address-display {
     .proposal-route-metric-grid,
     .route-summary-grid,
     .route-technical-grid,
+    .trust-boundary-meta,
     .technical-detail-grid,
     .detail-list,
     .detail-list-wide,
@@ -4942,6 +5195,8 @@ button.address-display {
   }
 
   .list-row,
+  .external-resource-header,
+  .external-resource-ref,
   .governance-structure-header,
   .governance-graph-header,
   .governance-graph-footer,

@@ -106,6 +106,11 @@ function OrganizationNavSection({
         to={`/orgs/${orgId}/proposals`}
       />
       <ShellNavLink
+        icon="list"
+        label="Archive"
+        to={`/orgs/${orgId}/archive`}
+      />
+      <ShellNavLink
         icon="structure"
         isActiveOverride={isGovernanceStructureAlias(pathname, orgId)}
         label="Governance Structure"

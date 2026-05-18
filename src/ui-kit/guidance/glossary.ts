@@ -16,7 +16,7 @@ export const glossary = {
   demoTarget: {
     title: "DemoTarget",
     description:
-      "The limited demonstration contract used by v0.6 proposal execution flows.",
+      "The limited demonstration contract used by the current proposal execution flow.",
     details:
       "DemoTarget keeps execution intentionally narrow while the broader governance flow is being validated.",
   },

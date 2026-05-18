@@ -13,6 +13,9 @@ import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import { AccountabilityRecordPanel } from "../accountability/AccountabilityRecordPanel";
+import { DecisionRecordPanel } from "../accountability/DecisionRecordPanel";
+import { ExternalResourcesPanel } from "../accountability/ExternalResourcesPanel";
 import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider";
 import { AsyncContent } from "../../ui/AsyncContent";
 import {
@@ -237,6 +240,37 @@ function ProposalDetailsContent({
                 ),
                 label: "Route",
                 value: "route",
+              },
+              {
+                content: (
+                  <DecisionRecordPanel
+                    orgId={orgId}
+                    proposalId={proposal.proposalId}
+                  />
+                ),
+                label: "Decision Record",
+                value: "decision-record",
+              },
+              {
+                content: (
+                  <AccountabilityRecordPanel
+                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+                    orgId={orgId}
+                    proposalId={proposal.proposalId}
+                  />
+                ),
+                label: "Accountability",
+                value: "accountability",
+              },
+              {
+                content: (
+                  <ExternalResourcesPanel
+                    orgId={orgId}
+                    proposalId={proposal.proposalId}
+                  />
+                ),
+                label: "Evidence",
+                value: "evidence",
               },
               {
                 content: (

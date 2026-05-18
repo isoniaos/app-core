@@ -152,6 +152,9 @@ function OrganizationOverviewContent({
         <Link className="button" to={`/orgs/${orgId}/proposals`}>
           Proposals
         </Link>
+        <Link className="button" to={`/orgs/${orgId}/archive`}>
+          Archive
+        </Link>
       </div>
 
       <section className="panel">

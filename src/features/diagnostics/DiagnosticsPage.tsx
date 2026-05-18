@@ -80,11 +80,11 @@ function DiagnosticsPageContent({
   return (
     <section className="page-stack">
       <PageHeader
-        eyebrow={isHome ? "v0.6 local demo" : "Control Plane"}
-        title={isHome ? "IsoniaOS local demo status" : "Diagnostics"}
+        eyebrow={isHome ? "v0.8 public archive baseline" : "Control Plane"}
+        title={isHome ? "IsoniaOS system status" : "Diagnostics"}
         description={
           isHome
-            ? "Check API, indexer, projections, wallet, runtime config, and chain connectivity before running setup or proposal flows."
+            ? "Check API, indexer, projections, wallet, runtime config, and chain connectivity before reading archive records or running setup/proposal flows."
             : "Operator view for API availability, chain indexing, projection health, stale data, wallet state, and runtime configuration."
         }
       />
@@ -629,8 +629,8 @@ function DiagnosticsSupportGuidance(): JSX.Element {
         <div>
           <h2>When to use this page</h2>
           <p className="panel-subtitle">
-            Local demo support surface for stale UI state and setup/proposal
-            flow troubleshooting.
+            Support surface for stale UI state, archive/accountability reads,
+            and setup/proposal flow troubleshooting.
           </p>
         </div>
       </div>
