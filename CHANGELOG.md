@@ -8,6 +8,20 @@ All notable changes to `@isonia/app-core` are documented here.
 
 No changes yet.
 
+## [0.8.0-alpha.3]
+
+### Added
+
+- Added selector-aware proposal action identity rendering on proposal details, including the protocol-declared `actionSelector` when the read model provides it.
+- Added selector-level execution permission comparison against organization execution permission registry read models with conservative unavailable, disabled, not configured, value-limit, and legacy-selector notices.
+
+### Changed
+
+- Bumped `@isonia/app-core` to `0.8.0-alpha.3`.
+- Updated `@isonia/sdk` dependency ref to `v0.8.0-alpha.3`.
+- Updated `@isonia/types` dependency ref to `v0.8.0-alpha.3`.
+- Updated README v0.8 proposal and execution permission copy for selector-aware action identity rendering and trust boundaries.
+
 ## [0.8.0-alpha.2]
 
 ### Added
@@ -337,7 +351,10 @@ No changes yet.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.7.0-alpha.5...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.8.0-alpha.3...HEAD
+[0.8.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.3
+[0.8.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.2
+[0.8.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.1
 [0.7.0-alpha.5]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.5
 [0.7.0-alpha.4]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.4
 [0.7.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.7.0-alpha.3

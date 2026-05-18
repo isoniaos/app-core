@@ -1,5 +1,6 @@
 import type {
   BodyDto,
+  ExecutionSelectorRuleDto,
   ExecutionTargetPermissionDto,
   OrganizationExecutionPermissionsDto,
   ProposalDto,
@@ -8,7 +9,10 @@ import type {
   RoleDto,
 } from "@isonia/types";
 import { ProposalStatus } from "@isonia/types";
-import type { IsoniaControlPlaneClient } from "@isonia/sdk";
+import {
+  hasKnownActionSelector,
+  type IsoniaControlPlaneClient,
+} from "@isonia/sdk";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
@@ -454,6 +458,58 @@ function ProposalOverviewTab({
         ) : null}
       </section>
 
+      <section className="product-card product-card-wide">
+        <div className="product-card-header">
+          <div>
+            <h2>Protocol Action Identity</h2>
+            <p>
+              Proposal action identity is target address, value,
+              protocol-declared action selector, and data hash. The selector is
+              an execution check input, not a decoded method name.
+            </p>
+          </div>
+          <IsoStatusPill tone={hasKnownActionSelector(proposal) ? "default" : "warning"}>
+            {hasKnownActionSelector(proposal) ? "Selector known" : "Legacy read model"}
+          </IsoStatusPill>
+        </div>
+        <dl className="technical-detail-grid">
+          <TechDetail
+            label="Target address"
+            value={proposal.targetAddress ?? "No target address indexed"}
+            mono
+          />
+          <TechDetail
+            label="Value"
+            value={formatValueLimit(proposal.value)}
+            mono
+          />
+          <TechDetail
+            label="Protocol-declared action selector"
+            value={formatProposalActionSelector(proposal)}
+            mono
+          />
+          <TechDetail
+            label="Data hash"
+            value={proposal.dataHash ?? "No data hash indexed"}
+            mono
+          />
+        </dl>
+        <div className="inline-state inline-state-muted">
+          <strong>Authority boundary</strong>
+          <span>
+            Contracts remain authoritative for modeled onchain governance state.
+            Decoded method labels require future ABI or action metadata, and
+            target-contract events are not governance authority by themselves.
+          </span>
+        </div>
+        {hasKnownActionSelector(proposal) ? null : (
+          <CalmState
+            title="Action selector unavailable"
+            message="This proposal read model does not expose the protocol-declared bytes4 selector. App Core will not infer it from dataHash, parse calldata, or map it to an ABI method name."
+          />
+        )}
+      </section>
+
       <section className="product-card">
         <div className="product-card-header">
           <div>
@@ -584,7 +640,9 @@ function ExecutionPermissionNotice({
           <h2>Execution Permission Check</h2>
           <p>
             Read-only comparison against the organization execution permission
-            registry. Contract execution remains authoritative.
+            registry. The selector is the protocol-declared proposal action
+            selector, not a decoded method label. Contract execution remains
+            authoritative.
           </p>
         </div>
         <IsoStatusPill tone={notice.tone}>{notice.label}</IsoStatusPill>
@@ -605,6 +663,11 @@ function ExecutionPermissionNotice({
           mono
         />
         <TechDetail
+          label="Proposal action selector"
+          value={formatProposalActionSelector(proposal)}
+          mono
+        />
+        <TechDetail
           label="Registry target"
           value={notice.target ? notice.target.targetAddress : "Not returned"}
           mono
@@ -615,6 +678,29 @@ function ExecutionPermissionNotice({
             notice.target ? formatValueLimit(notice.target.maxValue) : "Unknown"
           }
           mono
+        />
+        <TechDetail
+          label="Registry selector"
+          value={
+            notice.selector
+              ? notice.selector.selector
+              : notice.target
+                ? "Not returned"
+                : "Unknown"
+          }
+          mono
+        />
+        <TechDetail
+          label="Registry selector state"
+          value={
+            notice.selector
+              ? notice.selector.enabled
+                ? "Enabled"
+                : "Disabled"
+              : notice.target
+                ? "Not configured"
+                : "Unknown"
+          }
         />
         <TechDetail
           label="Selector coverage"
@@ -716,6 +802,11 @@ function ProposalTechnicalTab({
             mono
           />
           <TechDetail label="Value" value={proposal.value} mono />
+          <TechDetail
+            label="Protocol-declared action selector"
+            value={formatProposalActionSelector(proposal)}
+            mono
+          />
           <TechDetail label="Created block" value={proposal.createdBlock} mono />
           <TechDetail
             label="Created tx"
@@ -1307,6 +1398,7 @@ function getExecutionPermissionNotice({
   readonly inlineTone: "danger" | "muted" | "success" | "warning";
   readonly label: string;
   readonly message: string;
+  readonly selector?: ExecutionSelectorRuleDto;
   readonly target?: ExecutionTargetPermissionDto;
   readonly title: string;
   readonly tone: IsoStatusPillTone;
@@ -1316,9 +1408,9 @@ function getExecutionPermissionNotice({
       inlineTone: "warning",
       label: "Registry unavailable",
       message: isNotFoundApiError(permissionsError)
-        ? "This Control Plane does not expose the execution permission registry endpoint yet. App Core cannot compare this proposal target against registry read models."
+        ? "This Control Plane does not expose the execution permission registry endpoint yet. App Core cannot compare this proposal action identity against registry read models."
         : permissionsError?.message ??
-          "Execution permission data is unavailable for this proposal target.",
+          "Execution permission data is unavailable for this proposal action identity.",
       title: "Execution permission data unavailable",
       tone: "warning",
     };
@@ -1333,9 +1425,9 @@ function getExecutionPermissionNotice({
   if (!target) {
     return {
       inlineTone: "warning",
-      label: "Target not returned",
+      label: "Target not configured",
       message:
-        "No target rule was returned for this proposal target. Execution may be blocked by the protocol registry, or the read model may be incomplete.",
+        "No target rule was returned for this proposal target address. Execution may be blocked by the protocol registry, or the read model may be incomplete.",
       title: "No registry target rule",
       tone: "warning",
     };
@@ -1378,17 +1470,57 @@ function getExecutionPermissionNotice({
     };
   }
 
-  const selectorMessage =
-    target.selectors.length > 0
-      ? "Selector-specific rules exist for this target, but this proposal detail view exposes the data hash rather than decoded calldata selector. App Core is not decoding target-contract behavior."
-      : "No selector-specific rules were returned for this target.";
+  const actionSelector = proposal.actionSelector;
+
+  if (!actionSelector) {
+    return {
+      inlineTone: "warning",
+      label: "Selector unavailable",
+      message:
+        "This legacy proposal read model does not expose the protocol-declared bytes4 action selector. App Core will not infer it from dataHash, parse calldata, or map it to an ABI method name.",
+      target,
+      title: "Protocol action selector unavailable",
+      tone: "warning",
+    };
+  }
+
+  const selector = target.selectors.find((entry) =>
+    sameSelector(entry.selector, actionSelector),
+  );
+
+  if (!selector) {
+    return {
+      inlineTone: "warning",
+      label: "Selector not configured",
+      message:
+        "No selector rule was returned for the protocol-declared action selector under this target. The read model does not show permission for this action selector.",
+      target,
+      title: "No registry selector rule",
+      tone: "warning",
+    };
+  }
+
+  if (!selector.enabled) {
+    return {
+      inlineTone: "danger",
+      label: "Selector disabled",
+      message:
+        "The current execution permission registry read model marks the selector matching this proposal action as disabled. Execution may be blocked by protocol checks.",
+      selector,
+      target,
+      title: "Registry selector is disabled",
+      tone: "danger",
+    };
+  }
 
   return {
     inlineTone: "success",
-    label: "Target rule enabled",
-    message: `No target-level permission blocker is visible in the current read model. ${selectorMessage} This does not prove the proposal is executable.`,
+    label: "Target and selector enabled",
+    message:
+      "Target, value, and protocol-declared action selector match enabled registry read model entries. This does not prove execution will succeed; contracts remain authoritative.",
+    selector,
     target,
-    title: "Target-level registry rule is enabled",
+    title: "Registry target and selector are enabled",
     tone: "success",
   };
 }
@@ -1451,6 +1583,10 @@ function formatValueLimit(value: string | undefined): string {
   return formatted === "Not set" ? formatted : `${formatted} wei`;
 }
 
+function formatProposalActionSelector(proposal: ProposalDto): string {
+  return proposal.actionSelector ?? "Legacy/unavailable";
+}
+
 function compareNumericStrings(
   left: string,
   right: string,
@@ -1468,5 +1604,9 @@ function compareNumericStrings(
 }
 
 function sameAddress(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+function sameSelector(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }

@@ -12,7 +12,7 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Public organization archive at `/orgs/:orgId/archive`
 - Organization execution permissions registry at `/orgs/:orgId/execution-permissions`
 - Proposals list
-- Proposal details with route explanation, decision records, accountability records, and external evidence
+- Proposal details with selector-aware action identity rendering, route explanation, decision records, accountability records, and external evidence
 - Create proposal transaction flow gated by runtime config
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Capability-aware setup activation with serial fallback and typed contract batch support when the Control Plane reports it
@@ -135,9 +135,11 @@ The proposal details screen shows approve, veto, queue, execute, and cancel cont
 
 Execution remains intentionally narrow. The public app core only builds the configured `DemoTarget.setNumber(orgId, newNumber)` action data and verifies its hash against the indexed proposal `dataHash` before calling `executeProposal`; it does not provide an arbitrary calldata builder.
 
+Proposal details render the v0.8 protocol action identity as target address, value, protocol-declared `actionSelector`, and `dataHash` when the read model provides them. The selector is treated as a bytes4 execution check input declared at proposal creation, not as a decoded method label. Missing selectors are shown as legacy/unavailable; App Core does not infer selectors from `dataHash`, parse calldata, or map selectors to ABI names. Decoded labels require future ABI/action metadata, and target-contract events are not governance authority by themselves.
+
 The public archive route at `/orgs/:orgId/archive` reads `client.archive.get(orgId)` from `@isonia/sdk` and renders the shared `PublicOrganizationArchiveDto`. Proposal detail accountability sections read decision records, accountability records, and external resources through the SDK. These views are read-only: contract/onchain state is presented as authority for Isonia governance state, while external and manual records are displayed as evidence, context, or annotation unless the DTO source disclosure explicitly says otherwise. App Core does not call Snapshot, Safe, Tally, Agora, GitHub, Discourse, block explorer, or other provider APIs directly.
 
-The execution permissions route at `/orgs/:orgId/execution-permissions` reads `client.executionPermissions.get(orgId)` from `@isonia/sdk` and renders the shared `OrganizationExecutionPermissionsDto`. It groups target rules by target address, lists selector rules under each target, shows enabled/disabled state, value limits, and update block/transaction/source-address metadata when the read model provides it. This surface is read-only and non-authoritative for arbitrary target-contract behavior: execution permissions are protocol registry read models describing which targets/selectors the organization has enabled for proposal execution. App Core does not decode target-contract behavior, upload customer ABIs, infer authority from target-contract events, or submit permission-management transactions.
+The execution permissions route at `/orgs/:orgId/execution-permissions` reads `client.executionPermissions.get(orgId)` from `@isonia/sdk` and renders the shared `OrganizationExecutionPermissionsDto`. It groups target rules by target address, lists selector rules under each target, shows enabled/disabled state, value limits, and update block/transaction/source-address metadata when the read model provides it. Proposal details compare the proposal target address, value, and protocol-declared `actionSelector` against those read models when available and show conservative notices for unavailable registry data, disabled or missing target/selector rules, value-limit excess, and legacy selector gaps. This surface is read-only and non-authoritative for arbitrary target-contract behavior: execution permissions are protocol registry read models describing which targets/selectors the organization has enabled for proposal execution. App Core does not decode target-contract behavior, upload customer ABIs, infer authority from target-contract events, or submit permission-management transactions.
 
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, finalization capability/diagnostic metadata when reported, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator. Use `/diagnostics?orgId=<id>` to inspect the per-organization finalization read model.
 
@@ -183,8 +185,8 @@ Deployable app-core builds depend on pinned known-good compatibility tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.2",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.2",
+  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.3",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.3",
   "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3"
 }
 ```
