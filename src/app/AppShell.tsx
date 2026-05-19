@@ -121,6 +121,11 @@ function OrganizationNavSection({
         label="Execution Permissions"
         to={`/orgs/${orgId}/execution-permissions`}
       />
+      <ShellNavLink
+        icon="startup"
+        label="Managed Execution"
+        to={`/orgs/${orgId}/managed-execution`}
+      />
       {!finalization.finalized ? (
         <ShellNavLink
           icon="setup"

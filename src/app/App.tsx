@@ -6,6 +6,7 @@ import {
 import { PublicArchivePage } from "../features/archive/PublicArchivePage";
 import { OrganizationExecutionPermissionsPage } from "../features/execution-permissions/OrganizationExecutionPermissionsPage";
 import { GovernanceStructurePage } from "../features/governance-structure/GovernanceStructurePage";
+import { OrganizationManagedExecutionPage } from "../features/managed-execution/OrganizationManagedExecutionPage";
 import { OrganizationOverviewPage } from "../features/organizations/OrganizationOverviewPage";
 import { OrganizationsPage } from "../features/organizations/OrganizationsPage";
 import { CreateProposalPage } from "../features/proposals/CreateProposalPage";
@@ -38,6 +39,10 @@ export function App(): JSX.Element {
             <Route
               path="/orgs/:orgId/execution-permissions"
               element={<OrganizationExecutionPermissionsPage />}
+            />
+            <Route
+              path="/orgs/:orgId/managed-execution"
+              element={<OrganizationManagedExecutionPage />}
             />
             <Route
               path="/orgs/:orgId/proposals/new"

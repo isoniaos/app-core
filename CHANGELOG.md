@@ -8,6 +8,20 @@ All notable changes to `@isonia/app-core` are documented here.
 
 No changes yet.
 
+## [0.8.0-alpha.4]
+
+### Added
+
+- Added the read-only organization managed execution route at `/orgs/:orgId/managed-execution`, backed by `client.managedExecution.get(orgId)` from `@isonia/sdk`.
+- Added proposal detail rendering for canonical direct/managed execution receipts, including final target, value, selector, data hash, execution transaction, block, observed timestamp, and managed executor context.
+
+### Changed
+
+- Bumped `@isonia/app-core` to `0.8.0-alpha.4`.
+- Updated `@isonia/sdk` dependency ref to `v0.8.0-alpha.4`.
+- Updated `@isonia/types` dependency ref to `v0.8.0-alpha.4`.
+- Updated README managed execution and proposal receipt trust-boundary copy.
+
 ## [0.8.0-alpha.3]
 
 ### Added
@@ -351,7 +365,8 @@ No changes yet.
 - Runtime configuration loading from `isonia.config.json`.
 - Default theme integration through `@isonia/theme-default`.
 
-[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.8.0-alpha.3...HEAD
+[Unreleased]: https://github.com/isoniaos/app-core/compare/v0.8.0-alpha.4...HEAD
+[0.8.0-alpha.4]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.4
 [0.8.0-alpha.3]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.3
 [0.8.0-alpha.2]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.2
 [0.8.0-alpha.1]: https://github.com/isoniaos/app-core/releases/tag/v0.8.0-alpha.1

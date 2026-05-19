@@ -1481,8 +1481,45 @@ button.address-display {
   max-width: 1360px;
 }
 
+.managed-execution-page-stack {
+  max-width: 1360px;
+}
+
 .execution-permissions-disclosure-panel .panel-header {
   align-items: flex-start;
+}
+
+.managed-execution-disclosure-panel .panel-header {
+  align-items: flex-start;
+}
+
+.managed-execution-boundary,
+.proposal-execution-receipt-boundary {
+  margin: 0 1rem 1rem;
+}
+
+.managed-execution-metric {
+  min-height: 112px;
+}
+
+.managed-execution-metric small {
+  color: var(--iso-color-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.managed-execution-executor-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1.4fr) minmax(0, 1fr);
+}
+
+.managed-execution-metadata-grid,
+.proposal-execution-receipt-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.managed-execution-state {
+  min-height: 120px;
+  align-content: center;
 }
 
 .execution-permission-metric {
@@ -5237,6 +5274,9 @@ button.address-display {
     .route-technical-grid,
     .trust-boundary-meta,
     .technical-detail-grid,
+    .managed-execution-executor-grid,
+    .managed-execution-metadata-grid,
+    .proposal-execution-receipt-grid,
     .execution-permission-metadata-grid,
     .detail-list,
     .detail-list-wide,

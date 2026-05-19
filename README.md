@@ -11,8 +11,9 @@ This package is a static SPA. It reads governance state from the Isonia Control 
 - Governance structure
 - Public organization archive at `/orgs/:orgId/archive`
 - Organization execution permissions registry at `/orgs/:orgId/execution-permissions`
+- Organization managed execution configuration at `/orgs/:orgId/managed-execution`
 - Proposals list
-- Proposal details with selector-aware action identity rendering, route explanation, decision records, accountability records, and external evidence
+- Proposal details with selector-aware action identity rendering, canonical execution receipts, route explanation, decision records, accountability records, and external evidence
 - Create proposal transaction flow gated by runtime config
 - Proposal action transaction flows for approve, veto, queue, execute, and cancel
 - Capability-aware setup activation with serial fallback and typed contract batch support when the Control Plane reports it
@@ -141,6 +142,10 @@ The public archive route at `/orgs/:orgId/archive` reads `client.archive.get(org
 
 The execution permissions route at `/orgs/:orgId/execution-permissions` reads `client.executionPermissions.get(orgId)` from `@isonia/sdk` and renders the shared `OrganizationExecutionPermissionsDto`. It groups target rules by target address, lists selector rules under each target, shows enabled/disabled state, value limits, and update block/transaction/source-address metadata when the read model provides it. Proposal details compare the proposal target address, value, and protocol-declared `actionSelector` against those read models when available and show conservative notices for unavailable registry data, disabled or missing target/selector rules, value-limit excess, and legacy selector gaps. This surface is read-only and non-authoritative for arbitrary target-contract behavior: execution permissions are protocol registry read models describing which targets/selectors the organization has enabled for proposal execution. App Core does not decode target-contract behavior, upload customer ABIs, infer authority from target-contract events, or submit permission-management transactions.
 
+The managed execution route at `/orgs/:orgId/managed-execution` reads `client.managedExecution.get(orgId)` from `@isonia/sdk` and renders the shared `OrganizationManagedExecutionDto`. It shows the organization id, active org executor address when one is configured, calm empty/compatibility states when the endpoint or executor is unavailable, and event/read-model metadata such as previous executor, updater, transaction hash, block number, and observed timestamp when provided. Managed execution is org-scoped forwarding through a configured executor; it is not a global Isonia superadmin surface and App Core does not expose executor assignment UI.
+
+Proposal details render `executionMode`, `managedExecutorAddress`, and `executionReceipt` when the proposal read model provides them. Direct receipts represent protocol execution against the final target without a managed executor. Managed receipts show that the protocol forwarded execution through the org-scoped executor while preserving final target address, value, action selector, data hash, transaction hash, block, and observed timestamp as the canonical protocol execution receipt. Permission hints continue to compare final target, value, and protocol-declared selector; they do not compare registry rules against the managed executor address. Target-contract events remain evidence/context unless explicitly modeled by a future adapter, and App Core does not infer customer ABI method names from selectors or calldata.
+
 The `/diagnostics` route reads `client.diagnostics.get()` from `@isonia/sdk` and renders the shared `DiagnosticsDto`. It shows API version, chain blocks, configured contract addresses, indexer cursors, raw event counts, projection backlog/failures, stale data indicators, finalization capability/diagnostic metadata when reported, and the latest projection error summary. The app shell also links to this route through a compact global system status indicator. Use `/diagnostics?orgId=<id>` to inspect the per-organization finalization read model.
 
 The setup activation wizard also reads Control Plane `GET /v1/capabilities`. When typed contract batch activation is explicitly supported, app-core prepares SDK activation plans and submits typed GovCore batch transactions through the existing transaction modal. The user-facing wizard keeps one action group per step: bodies, roles, mandates, policy routes, and final activation. EIP-5792 wallet batching remains feature-gated/prototype diagnostics and is not selected automatically.
@@ -185,8 +190,8 @@ Deployable app-core builds depend on pinned known-good compatibility tags:
 
 ```json
 {
-  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.3",
-  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.3",
+  "@isonia/types": "github:isoniaos/types#v0.8.0-alpha.4",
+  "@isonia/sdk": "github:isoniaos/sdk#v0.8.0-alpha.4",
   "@isonia/theme-default": "github:isoniaos/theme-default#v0.6.0-alpha.3"
 }
 ```

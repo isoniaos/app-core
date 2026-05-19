@@ -4,11 +4,12 @@ import type {
   ExecutionTargetPermissionDto,
   OrganizationExecutionPermissionsDto,
   ProposalDto,
+  ProposalExecutionReceiptDto,
   ProposalRouteExplanationDto,
   RouteBlockedReasonDto,
   RoleDto,
 } from "@isonia/types";
-import { ProposalStatus } from "@isonia/types";
+import { ProposalExecutionMode, ProposalStatus } from "@isonia/types";
 import {
   hasKnownActionSelector,
   type IsoniaControlPlaneClient,
@@ -20,7 +21,10 @@ import { useOrganizationFinalization } from "../../api/useOrganizationFinalizati
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { AccountabilityRecordPanel } from "../accountability/AccountabilityRecordPanel";
-import { isNotFoundApiError } from "../accountability/accountability-display";
+import {
+  formatIsoDateTime,
+  isNotFoundApiError,
+} from "../accountability/accountability-display";
 import { DecisionRecordPanel } from "../accountability/DecisionRecordPanel";
 import { ExternalResourcesPanel } from "../accountability/ExternalResourcesPanel";
 import { type MetadataState, useMetadata } from "../../metadata/MetadataProvider";
@@ -257,6 +261,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <ProposalOverviewTab
+                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
                     bodies={bodies}
                     executionPermissions={executionPermissions}
                     executionPermissionsError={executionPermissionsError}
@@ -383,6 +388,7 @@ function ProposalDetailsContent({
 }
 
 function ProposalOverviewTab({
+  blockExplorerUrl,
   bodies,
   executionPermissions,
   executionPermissionsError,
@@ -391,6 +397,7 @@ function ProposalOverviewTab({
   route,
   routeError,
 }: {
+  readonly blockExplorerUrl?: string;
   readonly bodies: readonly BodyDto[];
   readonly executionPermissions?: OrganizationExecutionPermissionsDto;
   readonly executionPermissionsError?: Error;
@@ -526,6 +533,11 @@ function ProposalOverviewTab({
         proposal={proposal}
       />
 
+      <ProposalExecutionReceiptCard
+        blockExplorerUrl={blockExplorerUrl}
+        proposal={proposal}
+      />
+
       <section className="product-card product-card-wide">
         <div className="product-card-header">
           <div>
@@ -607,8 +619,163 @@ function ProposalInfoCard({
           label="Executed"
           value={formatChainTime(proposal.executedAtChain)}
         />
+        {proposal.executionMode ? (
+          <InfoRow
+            label="Execution mode"
+            value={formatLabel(proposal.executionMode)}
+          />
+        ) : null}
+        {proposal.managedExecutorAddress ? (
+          <InfoRow
+            label="Managed executor"
+            value={formatAddress(proposal.managedExecutorAddress)}
+          />
+        ) : null}
       </dl>
     </section>
+  );
+}
+
+function ProposalExecutionReceiptCard({
+  blockExplorerUrl,
+  proposal,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly proposal: ProposalDto;
+}): JSX.Element | null {
+  const receipt = proposal.executionReceipt;
+  const executionMode = receipt?.executionMode ?? proposal.executionMode;
+  const managedExecutorAddress =
+    receipt?.managedExecutorAddress ?? proposal.managedExecutorAddress;
+
+  if (!receipt && !executionMode && !managedExecutorAddress) {
+    return null;
+  }
+
+  const isManaged = executionMode === ProposalExecutionMode.Managed;
+
+  return (
+    <section className="product-card product-card-wide proposal-execution-receipt-card">
+      <div className="product-card-header">
+        <div>
+          <h2>Canonical Execution Receipt</h2>
+          <p>
+            Protocol execution receipt emitted by governance execution. This is
+            not customer ABI decoding and does not treat target-contract events
+            as authority.
+          </p>
+        </div>
+        <IsoStatusPill tone={isManaged ? "default" : "muted"}>
+          {executionMode ? formatLabel(executionMode) : "Receipt metadata"}
+        </IsoStatusPill>
+      </div>
+      <div className="inline-state inline-state-muted proposal-execution-receipt-boundary">
+        <strong>Execution boundary</strong>
+        <span>
+          Direct execution calls the final target from the protocol. Managed
+          execution forwards through the org-scoped executor and still preserves
+          final target, value, selector, and data hash as the canonical action
+          identity. No customer ABI method names are inferred here.
+        </span>
+      </div>
+      {receipt ? (
+        <ProposalExecutionReceiptDetails
+          blockExplorerUrl={blockExplorerUrl}
+          managedExecutorAddress={managedExecutorAddress}
+          receipt={receipt}
+        />
+      ) : (
+        <dl className="technical-detail-grid proposal-execution-receipt-grid">
+          <TechDetail
+            label="Execution mode"
+            value={executionMode ? formatLabel(executionMode) : "Not reported"}
+          />
+          <TechDetail
+            label="Managed executor"
+            value={
+              executionMode === ProposalExecutionMode.Managed
+                ? managedExecutorAddress ?? "Not reported"
+                : "Direct execution"
+            }
+            mono={
+              executionMode === ProposalExecutionMode.Managed &&
+              Boolean(managedExecutorAddress)
+            }
+          />
+          <TechDetail label="Receipt" value="Not indexed" />
+        </dl>
+      )}
+    </section>
+  );
+}
+
+function ProposalExecutionReceiptDetails({
+  blockExplorerUrl,
+  managedExecutorAddress,
+  receipt,
+}: {
+  readonly blockExplorerUrl?: string;
+  readonly managedExecutorAddress?: string;
+  readonly receipt: ProposalExecutionReceiptDto;
+}): JSX.Element {
+  return (
+    <dl className="technical-detail-grid proposal-execution-receipt-grid">
+      <TechDetail
+        label="Execution mode"
+        value={formatLabel(receipt.executionMode)}
+      />
+      <TechDetail label="Executed by" value={receipt.executorAddress} mono />
+      <TechDetail
+        label="Final target address"
+        value={receipt.targetAddress}
+        mono
+      />
+      <TechDetail
+        label="Final value"
+        value={formatValueLimit(receipt.value)}
+        mono
+      />
+      <TechDetail
+        label="Final action selector"
+        value={receipt.actionSelector}
+        mono
+      />
+      <TechDetail label="Final data hash" value={receipt.dataHash} mono />
+      <TechDetail
+        label="Managed executor"
+        value={
+          receipt.executionMode === ProposalExecutionMode.Managed
+            ? managedExecutorAddress ?? "Not reported"
+            : "Direct execution"
+        }
+        mono={
+          receipt.executionMode === ProposalExecutionMode.Managed &&
+          Boolean(managedExecutorAddress)
+        }
+      />
+      <TechDetail
+        label="Execution tx"
+        value={
+          receipt.transactionHash ? (
+            <IsoTransactionHash
+              blockExplorerUrl={blockExplorerUrl}
+              txHash={receipt.transactionHash}
+            />
+          ) : (
+            "Not reported"
+          )
+        }
+      />
+      <TechDetail
+        label="Execution block"
+        value={receipt.blockNumber ?? "Not reported"}
+        mono
+      />
+      <TechDetail
+        label="Observed timestamp"
+        value={formatIsoDateTime(receipt.observedAt)}
+      />
+    </dl>
   );
 }
 
@@ -621,14 +788,16 @@ function ExecutionPermissionNotice({
   readonly permissionsError?: Error;
   readonly proposal: ProposalDto;
 }): JSX.Element | null {
-  if (!proposal.targetAddress) {
+  const identity = getPermissionActionIdentity(proposal);
+
+  if (!identity.targetAddress) {
     return null;
   }
 
   const notice = getExecutionPermissionNotice({
+    identity,
     permissions,
     permissionsError,
-    proposal,
   });
 
   return (
@@ -640,9 +809,9 @@ function ExecutionPermissionNotice({
           <h2>Execution Permission Check</h2>
           <p>
             Read-only comparison against the organization execution permission
-            registry. The selector is the protocol-declared proposal action
-            selector, not a decoded method label. Contract execution remains
-            authoritative.
+            registry. The comparison stays on final target, value, and
+            protocol-declared action selector; managed executor address is not
+            the permission target.
           </p>
         </div>
         <IsoStatusPill tone={notice.tone}>{notice.label}</IsoStatusPill>
@@ -654,18 +823,30 @@ function ExecutionPermissionNotice({
       <dl className="technical-detail-grid">
         <TechDetail
           label="Proposal target"
-          value={proposal.targetAddress}
+          value={identity.targetAddress}
           mono
         />
         <TechDetail
           label="Proposal value"
-          value={formatValueLimit(proposal.value)}
+          value={formatValueLimit(identity.value)}
           mono
         />
         <TechDetail
           label="Proposal action selector"
-          value={formatProposalActionSelector(proposal)}
+          value={identity.actionSelector ?? "Legacy/unavailable"}
           mono
+        />
+        <TechDetail
+          label="Managed executor"
+          value={
+            proposal.managedExecutorAddress ??
+            proposal.executionReceipt?.managedExecutorAddress ??
+            "Not part of permission comparison"
+          }
+          mono={Boolean(
+            proposal.managedExecutorAddress ??
+              proposal.executionReceipt?.managedExecutorAddress,
+          )}
         />
         <TechDetail
           label="Registry target"
@@ -721,6 +902,7 @@ function ExecutionPermissionNotice({
             </Link>
           }
         />
+        <TechDetail label="Comparison basis" value={identity.source} />
       </dl>
     </section>
   );
@@ -806,6 +988,19 @@ function ProposalTechnicalTab({
             label="Protocol-declared action selector"
             value={formatProposalActionSelector(proposal)}
             mono
+          />
+          <TechDetail
+            label="Execution mode"
+            value={
+              proposal.executionMode
+                ? formatLabel(proposal.executionMode)
+                : "Not reported"
+            }
+          />
+          <TechDetail
+            label="Managed executor"
+            value={proposal.managedExecutorAddress ?? "Not reported"}
+            mono={Boolean(proposal.managedExecutorAddress)}
           />
           <TechDetail label="Created block" value={proposal.createdBlock} mono />
           <TechDetail
@@ -922,6 +1117,12 @@ function ProposalTechnicalTab({
           <details className="technical-disclosure">
             <summary>Route DTO</summary>
             <pre>{JSON.stringify(route, null, 2)}</pre>
+          </details>
+        ) : null}
+        {proposal.executionReceipt ? (
+          <details className="technical-disclosure">
+            <summary>Execution Receipt DTO</summary>
+            <pre>{JSON.stringify(proposal.executionReceipt, null, 2)}</pre>
           </details>
         ) : null}
       </section>
@@ -1386,14 +1587,45 @@ function routeReadinessLabel(
   return route.execution.executable ? "Route ready" : "Route blocked";
 }
 
+interface PermissionActionIdentity {
+  readonly actionSelector?: string;
+  readonly source: string;
+  readonly targetAddress?: string;
+  readonly value: string;
+}
+
+function getPermissionActionIdentity(
+  proposal: ProposalDto,
+): PermissionActionIdentity {
+  const receipt = proposal.executionReceipt;
+
+  if (receipt) {
+    return {
+      actionSelector: proposal.actionSelector ?? receipt.actionSelector,
+      source:
+        "Proposal final target, value, and selector; receipt final target used only as fallback. Managed executor ignored.",
+      targetAddress: proposal.targetAddress ?? receipt.targetAddress,
+      value: proposal.value,
+    };
+  }
+
+  return {
+    actionSelector: proposal.actionSelector,
+    source:
+      "Proposal target, value, and protocol-declared selector; managed executor ignored.",
+    targetAddress: proposal.targetAddress,
+    value: proposal.value,
+  };
+}
+
 function getExecutionPermissionNotice({
+  identity,
   permissions,
   permissionsError,
-  proposal,
 }: {
+  readonly identity: PermissionActionIdentity;
   readonly permissions?: OrganizationExecutionPermissionsDto;
   readonly permissionsError?: Error;
-  readonly proposal: ProposalDto;
 }): {
   readonly inlineTone: "danger" | "muted" | "success" | "warning";
   readonly label: string;
@@ -1418,8 +1650,8 @@ function getExecutionPermissionNotice({
 
   const target = permissions.targets.find(
     (entry) =>
-      proposal.targetAddress !== undefined &&
-      sameAddress(entry.targetAddress, proposal.targetAddress),
+      identity.targetAddress !== undefined &&
+      sameAddress(entry.targetAddress, identity.targetAddress),
   );
 
   if (!target) {
@@ -1445,7 +1677,7 @@ function getExecutionPermissionNotice({
     };
   }
 
-  const valueComparison = compareNumericStrings(proposal.value, target.maxValue);
+  const valueComparison = compareNumericStrings(identity.value, target.maxValue);
   if (valueComparison === undefined) {
     return {
       inlineTone: "warning",
@@ -1470,7 +1702,7 @@ function getExecutionPermissionNotice({
     };
   }
 
-  const actionSelector = proposal.actionSelector;
+  const actionSelector = identity.actionSelector;
 
   if (!actionSelector) {
     return {
