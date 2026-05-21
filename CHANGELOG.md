@@ -6,6 +6,10 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added focused regression coverage for proposal execution permission identity so managed execution compares final target, value, and protocol-declared selector instead of the managed executor address.
+
 ### Changed
 
 - Refined proposal detail route/status copy so terminal proposals show lifecycle-complete messaging instead of active route-blocked messaging.
