@@ -58,6 +58,10 @@ import {
   getExecutorBodyLabel,
   getRelatedRouteBodyLabel,
 } from "./proposal-body-labels";
+import {
+  isCompletedProposalStatus,
+  isTerminalProposalStatus,
+} from "./proposal-status-helpers";
 
 interface ProposalDetailsData {
   readonly bodies: readonly BodyDto[];
@@ -236,8 +240,10 @@ function ProposalDetailsContent({
               <IsoStatusPill tone={statusTone(proposal.status)}>
                 {formatLabel(proposal.status)}
               </IsoStatusPill>
-              <IsoStatusPill tone={routeReadinessTone(route, routeError)}>
-                {routeReadinessLabel(route, routeError)}
+              <IsoStatusPill
+                tone={routeReadinessTone(proposal.status, route, routeError)}
+              >
+                {routeReadinessLabel(proposal.status, route, routeError)}
               </IsoStatusPill>
               <IsoStatusPill tone="muted">
                 Policy v{proposal.policyVersion}
@@ -544,8 +550,10 @@ function ProposalOverviewTab({
             <h2>Route Snapshot</h2>
             <p>Approval, veto, timelock, and execution readiness.</p>
           </div>
-          <IsoStatusPill tone={routeReadinessTone(route, routeError)}>
-            {routeReadinessLabel(route, routeError)}
+          <IsoStatusPill
+            tone={routeReadinessTone(proposal.status, route, routeError)}
+          >
+            {routeReadinessLabel(proposal.status, route, routeError)}
           </IsoStatusPill>
         </div>
         <RouteOverviewCards
@@ -1200,7 +1208,11 @@ function RouteOverviewCards({
       />
       <MetricCard
         detail={nextAction.detail}
-        label="Next blocker"
+        label={
+          isTerminalProposalStatus(proposal.status)
+            ? "Next action"
+            : "Next blocker"
+        }
         tone={nextAction.tone}
         value={nextAction.label}
       />
@@ -1377,7 +1389,7 @@ function getNextActionContext(
   readonly title: string;
   readonly tone: IsoStatusPillTone;
 } {
-  if (proposal.status === ProposalStatus.Executed) {
+  if (isCompletedProposalStatus(proposal.status)) {
     return {
       actor: "No further action",
       detail: "The indexed proposal lifecycle is complete.",
@@ -1387,11 +1399,7 @@ function getNextActionContext(
     };
   }
 
-  if (
-    proposal.status === ProposalStatus.Cancelled ||
-    proposal.status === ProposalStatus.Expired ||
-    proposal.status === ProposalStatus.Vetoed
-  ) {
+  if (isTerminalProposalStatus(proposal.status)) {
     return {
       actor: "No standard action",
       detail: `Proposal is ${formatLabel(proposal.status)}.`,
@@ -1556,9 +1564,18 @@ function statusTone(status: ProposalStatus): IsoStatusPillTone {
 }
 
 function routeReadinessTone(
+  status: ProposalStatus,
   route: ProposalRouteExplanationDto | undefined,
   routeError: Error | undefined,
 ): IsoStatusPillTone {
+  if (isCompletedProposalStatus(status)) {
+    return "success";
+  }
+
+  if (isTerminalProposalStatus(status)) {
+    return statusTone(status);
+  }
+
   if (!route) {
     return routeError ? "warning" : "muted";
   }
@@ -1577,9 +1594,18 @@ function routeReadinessTone(
 }
 
 function routeReadinessLabel(
+  status: ProposalStatus,
   route: ProposalRouteExplanationDto | undefined,
   routeError: Error | undefined,
 ): string {
+  if (isCompletedProposalStatus(status)) {
+    return "Lifecycle complete";
+  }
+
+  if (isTerminalProposalStatus(status)) {
+    return "Terminal state";
+  }
+
   if (!route) {
     return routeError ? "Route unavailable" : "Route pending";
   }

@@ -5,6 +5,7 @@ import type {
   RouteBodyRequirementDto,
   RouteBodyVetoDto,
 } from "@isonia/types";
+import { ProposalStatus } from "@isonia/types";
 import { StatusBadge } from "../../ui/StatusBadge";
 import {
   formatAddress,
@@ -19,6 +20,10 @@ import {
   getVetoBodyLabel,
   type ProposalBodyActionRole,
 } from "./proposal-body-labels";
+import {
+  isCompletedProposalStatus,
+  isTerminalProposalStatus,
+} from "./proposal-status-helpers";
 
 export type RouteFallbackContext = Pick<
   ProposalRouteExplanationDto,
@@ -57,6 +62,7 @@ export function RouteExplanationPanel({
   const blockedReasons = route.execution.blockedReasons;
   const executionTone = getExecutionTone(route);
   const nextAction = getNextActionSummary(route, bodies);
+  const terminal = isTerminalProposalStatus(route.status);
 
   return (
     <section className="panel route-panel">
@@ -70,26 +76,24 @@ export function RouteExplanationPanel({
             {formatLabel(route.proposalType)}
           </StatusBadge>
           <StatusBadge tone={executionTone}>
-            {route.execution.executable ? "Executable" : "Blocked"}
+            {getExecutionBadgeLabel(route)}
           </StatusBadge>
         </div>
       </div>
 
       <div className={`route-status-hero route-status-hero-${executionTone}`}>
         <div>
-          <strong>
-            {route.execution.executable
-              ? "Execution eligibility is satisfied"
-              : "Execution is currently blocked"}
-          </strong>
+          <strong>{getRouteHeroTitle(route)}</strong>
           <p>
-            {route.execution.executable
-              ? "Approvals, veto checks, and timelock state all allow execution."
-              : getBlockedSummary(blockedReasons, route, bodies)}
+            {terminal
+              ? getTerminalRouteSummary(route)
+              : route.execution.executable
+                ? "Approvals, veto checks, and timelock state all allow execution."
+                : getBlockedSummary(blockedReasons, route, bodies)}
           </p>
         </div>
         <StatusBadge tone={executionTone}>
-          {route.execution.executable ? "Ready" : "Not ready"}
+          {getRouteHeroBadgeLabel(route)}
         </StatusBadge>
       </div>
 
@@ -140,7 +144,7 @@ export function RouteExplanationPanel({
             detail="Body allowed to execute when the route is eligible"
           />
           <RouteSummaryItem
-            label="Next blocker"
+            label={terminal ? "Next action" : "Next blocker"}
             value={nextAction.value}
             detail={nextAction.detail}
           />
@@ -220,16 +224,14 @@ export function RouteExplanationPanel({
       >
         <div className="execution-state">
           <StatusBadge tone={executionTone}>
-            {route.execution.executable ? "Executable" : "Blocked"}
+            {getExecutionBadgeLabel(route)}
           </StatusBadge>
           <div>
-            <strong>
-              {route.execution.executable
-                ? "The route is executable"
-                : "The route is not executable yet"}
-            </strong>
+            <strong>{getExecutionStateTitle(route)}</strong>
             <span>
-              {route.execution.executorBody
+              {terminal
+                ? getTerminalRouteSummary(route)
+                : route.execution.executorBody
                 ? `${getExecutorBodyLabel({
                     bodies,
                     bodyId: route.execution.executorBody,
@@ -242,19 +244,28 @@ export function RouteExplanationPanel({
       </RouteSection>
 
       <RouteSection
-        title="Blocked Reasons"
-        description="Machine-readable blockers with human explanations."
+        title={terminal ? "Terminal Route Notes" : "Blocked Reasons"}
+        description={
+          terminal
+            ? "Machine-readable route reasons after completion; these are not active next-action blockers."
+            : "Machine-readable blockers with human explanations."
+        }
       >
         {blockedReasons.length === 0 ? (
           <RouteEmptyState
-            title="No blocked reasons"
-            message="The route explainer did not report any active blockers."
+            title={terminal ? "No terminal route notes" : "No blocked reasons"}
+            message={
+              terminal
+                ? "The route explainer did not report terminal route notes."
+                : "The route explainer did not report any active blockers."
+            }
           />
         ) : (
           <div className="blocked-reason-list">
             {blockedReasons.map((reason) => (
               <BlockedReason
                 bodies={bodies}
+                terminal={terminal}
                 reason={reason}
                 route={route}
                 key={getReasonKey(reason)}
@@ -471,14 +482,16 @@ function RouteEmptyState({
 
 function BlockedReason({
   bodies,
+  terminal,
   reason,
   route,
 }: {
   readonly bodies: readonly BodyDto[];
+  readonly terminal: boolean;
   readonly reason: RouteBlockedReasonDto;
   readonly route: ProposalRouteExplanationDto;
 }): JSX.Element {
-  const tone = getBlockedReasonTone(reason);
+  const tone = terminal ? "muted" : getBlockedReasonTone(reason);
   const role = getBlockedReasonBodyRole(reason);
 
   return (
@@ -543,7 +556,69 @@ function getVetoCounts(
   };
 }
 
+function getExecutionBadgeLabel(route: ProposalRouteExplanationDto): string {
+  if (isCompletedProposalStatus(route.status)) {
+    return "Lifecycle complete";
+  }
+
+  if (isTerminalProposalStatus(route.status)) {
+    return "Terminal state";
+  }
+
+  return route.execution.executable ? "Executable" : "Blocked";
+}
+
+function getRouteHeroTitle(route: ProposalRouteExplanationDto): string {
+  if (isCompletedProposalStatus(route.status)) {
+    return "Proposal lifecycle is complete";
+  }
+
+  if (isTerminalProposalStatus(route.status)) {
+    return "Proposal is in a terminal state";
+  }
+
+  return route.execution.executable
+    ? "Execution eligibility is satisfied"
+    : "Execution is currently blocked";
+}
+
+function getRouteHeroBadgeLabel(route: ProposalRouteExplanationDto): string {
+  if (isTerminalProposalStatus(route.status)) {
+    return isCompletedProposalStatus(route.status)
+      ? "Complete"
+      : "No further action";
+  }
+
+  return route.execution.executable ? "Ready" : "Not ready";
+}
+
+function getExecutionStateTitle(route: ProposalRouteExplanationDto): string {
+  if (isTerminalProposalStatus(route.status)) {
+    return "No further execution action is available";
+  }
+
+  return route.execution.executable
+    ? "The route is executable"
+    : "The route is not executable yet";
+}
+
+function getTerminalRouteSummary(route: ProposalRouteExplanationDto): string {
+  if (isCompletedProposalStatus(route.status)) {
+    return "The proposal has executed. Terminal route reasons mean it cannot be executed again, not that governance is actively blocked.";
+  }
+
+  return `Proposal is ${formatLabel(route.status)}. No standard route action is available.`;
+}
+
 function getExecutionTone(route: ProposalRouteExplanationDto): BadgeTone {
+  if (isCompletedProposalStatus(route.status)) {
+    return "success";
+  }
+
+  if (isTerminalProposalStatus(route.status)) {
+    return route.status === ProposalStatus.Vetoed ? "danger" : "muted";
+  }
+
   if (route.execution.executable) {
     return "success";
   }
@@ -604,6 +679,20 @@ function getNextActionSummary(
   readonly detail: string;
   readonly value: string;
 } {
+  if (isCompletedProposalStatus(route.status)) {
+    return {
+      value: "No further action",
+      detail: "The indexed proposal lifecycle is complete.",
+    };
+  }
+
+  if (isTerminalProposalStatus(route.status)) {
+    return {
+      value: "Terminal state",
+      detail: `Proposal is ${formatLabel(route.status)}.`,
+    };
+  }
+
   if (route.execution.executable) {
     return {
       value: "Execute",

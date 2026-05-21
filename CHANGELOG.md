@@ -6,7 +6,9 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- Refined proposal detail route/status copy so terminal proposals show lifecycle-complete messaging instead of active route-blocked messaging.
 
 ## [0.8.0-alpha.4]
 
