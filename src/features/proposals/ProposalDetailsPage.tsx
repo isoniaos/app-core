@@ -6,7 +6,6 @@ import type {
   ProposalDto,
   ProposalExecutionReceiptDto,
   ProposalRouteExplanationDto,
-  RouteBlockedReasonDto,
   RoleDto,
 } from "@isonia/types";
 import { ProposalExecutionMode, ProposalStatus } from "@isonia/types";
@@ -53,15 +52,13 @@ import {
 } from "./RouteExplanationPanel";
 import { useDemoProposalExecution } from "./useDemoProposalExecution";
 import { useProposalAction } from "./useProposalAction";
+import { getExecutorBodyLabel } from "./proposal-body-labels";
 import {
-  formatRouteBlockedReasonMessage,
-  getExecutorBodyLabel,
-  getRelatedRouteBodyLabel,
-} from "./proposal-body-labels";
-import {
-  isCompletedProposalStatus,
-  isTerminalProposalStatus,
-} from "./proposal-status-helpers";
+  getProposalNextActionContext,
+  getProposalStatusTone,
+  getRouteOverviewMetricLabel,
+  getRouteReadinessDisplay,
+} from "./proposal-route-display";
 
 interface ProposalDetailsData {
   readonly bodies: readonly BodyDto[];
@@ -208,6 +205,11 @@ function ProposalDetailsContent({
     `${formatLabel(
       proposal.proposalType,
     )} proposal using policy snapshot v${proposal.policyVersion}.`;
+  const routeReadiness = getRouteReadinessDisplay({
+    route,
+    routeError,
+    status: proposal.status,
+  });
 
   return (
     <>
@@ -237,13 +239,11 @@ function ProposalDetailsContent({
             <h1>{proposalText.title}</h1>
             <p>{headerDescription}</p>
             <div className="proposal-status-row">
-              <IsoStatusPill tone={statusTone(proposal.status)}>
+              <IsoStatusPill tone={getProposalStatusTone(proposal.status)}>
                 {formatLabel(proposal.status)}
               </IsoStatusPill>
-              <IsoStatusPill
-                tone={routeReadinessTone(proposal.status, route, routeError)}
-              >
-                {routeReadinessLabel(proposal.status, route, routeError)}
+              <IsoStatusPill tone={routeReadiness.tone}>
+                {routeReadiness.label}
               </IsoStatusPill>
               <IsoStatusPill tone="muted">
                 Policy v{proposal.policyVersion}
@@ -416,6 +416,11 @@ function ProposalOverviewTab({
   const metadataMissing = !hasMetadataUri;
   const metadataUnavailable =
     hasMetadataUri && !metadata.loading && !metadata.record;
+  const routeReadiness = getRouteReadinessDisplay({
+    route,
+    routeError,
+    status: proposal.status,
+  });
 
   return (
     <div className="proposal-overview-grid">
@@ -425,7 +430,7 @@ function ProposalOverviewTab({
             <h2>Proposal Summary</h2>
             <p>Human-readable state from indexed proposal data.</p>
           </div>
-          <IsoStatusPill tone={statusTone(proposal.status)}>
+          <IsoStatusPill tone={getProposalStatusTone(proposal.status)}>
             {formatLabel(proposal.status)}
           </IsoStatusPill>
         </div>
@@ -550,10 +555,8 @@ function ProposalOverviewTab({
             <h2>Route Snapshot</h2>
             <p>Approval, veto, timelock, and execution readiness.</p>
           </div>
-          <IsoStatusPill
-            tone={routeReadinessTone(proposal.status, route, routeError)}
-          >
-            {routeReadinessLabel(proposal.status, route, routeError)}
+          <IsoStatusPill tone={routeReadiness.tone}>
+            {routeReadiness.label}
           </IsoStatusPill>
         </div>
         <RouteOverviewCards
@@ -927,7 +930,12 @@ function NextActionCard({
   readonly route?: ProposalRouteExplanationDto;
   readonly routeError?: Error;
 }): JSX.Element {
-  const action = getNextActionContext(proposal, route, routeError, bodies);
+  const action = getProposalNextActionContext({
+    bodies,
+    proposal,
+    route,
+    routeError,
+  });
 
   return (
     <section className="context-card">
@@ -1165,7 +1173,12 @@ function RouteOverviewCards({
   const approvedCount = approvals.filter((body) => body.approved).length;
   const vetoes = route.vetoBodies;
   const vetoedCount = vetoes.filter((body) => body.vetoed).length;
-  const nextAction = getNextActionContext(proposal, route, undefined, bodies);
+  const nextAction = getProposalNextActionContext({
+    bodies,
+    proposal,
+    route,
+    routeError: undefined,
+  });
 
   return (
     <div className="proposal-route-metric-grid">
@@ -1208,11 +1221,7 @@ function RouteOverviewCards({
       />
       <MetricCard
         detail={nextAction.detail}
-        label={
-          isTerminalProposalStatus(proposal.status)
-            ? "Next action"
-            : "Next blocker"
-        }
+        label={getRouteOverviewMetricLabel(proposal.status)}
         tone={nextAction.tone}
         value={nextAction.label}
       />
@@ -1375,242 +1384,6 @@ function CalmState({
       <span>{message}</span>
     </div>
   );
-}
-
-function getNextActionContext(
-  proposal: ProposalDto,
-  route: ProposalRouteExplanationDto | undefined,
-  routeError: Error | undefined,
-  bodies: readonly BodyDto[],
-): {
-  readonly actor: string;
-  readonly detail: string;
-  readonly label: string;
-  readonly title: string;
-  readonly tone: IsoStatusPillTone;
-} {
-  if (isCompletedProposalStatus(proposal.status)) {
-    return {
-      actor: "No further action",
-      detail: "The indexed proposal lifecycle is complete.",
-      label: "Complete",
-      title: "Proposal executed",
-      tone: "success",
-    };
-  }
-
-  if (isTerminalProposalStatus(proposal.status)) {
-    return {
-      actor: "No standard action",
-      detail: `Proposal is ${formatLabel(proposal.status)}.`,
-      label: formatLabel(proposal.status),
-      title: "Proposal is final",
-      tone: "danger",
-    };
-  }
-
-  if (!route) {
-    return {
-      actor: "Route endpoint",
-      detail:
-        routeError?.message ??
-        "Approval, veto, timelock, and execution readiness need route data.",
-      label: "Unknown",
-      title: "Route state unavailable",
-      tone: "warning",
-    };
-  }
-
-  if (route.execution.executable) {
-    return {
-      actor: route.execution.executorBody
-        ? getExecutorBodyLabel({
-            bodies,
-            bodyId: route.execution.executorBody,
-            route,
-          })
-        : "Configured executor body",
-      detail: "Approvals, veto checks, and timelock state allow execution.",
-      label: "Execute",
-      title: "Ready for execution",
-      tone: "success",
-    };
-  }
-
-  const firstReason = route.execution.blockedReasons[0];
-
-  if (!firstReason) {
-    return {
-      actor: "Governance route",
-      detail:
-        "Execution is false, but the route explainer did not report a blocker.",
-      label: "Check route",
-      title: "Route needs review",
-      tone: "warning",
-    };
-  }
-
-  return contextFromBlockedReason(firstReason, route, bodies);
-}
-
-function contextFromBlockedReason(
-  reason: RouteBlockedReasonDto,
-  route: ProposalRouteExplanationDto,
-  bodies: readonly BodyDto[],
-): {
-  readonly actor: string;
-  readonly detail: string;
-  readonly label: string;
-  readonly title: string;
-  readonly tone: IsoStatusPillTone;
-} {
-  if (reason.code === "missing_approval") {
-    return {
-      actor: reason.relatedBodyId
-        ? getRelatedRouteBodyLabel({
-            bodies,
-            bodyId: reason.relatedBodyId,
-            route,
-            role: "Approver",
-          })
-        : "Required approval body",
-      detail: formatRouteBlockedReasonMessage({
-        bodies,
-        reason,
-        role: "Approver",
-        route,
-      }),
-      label: "Approval",
-      title: "Approval needed",
-      tone: "warning",
-    };
-  }
-
-  if (reason.code === "not_queued") {
-    return {
-      actor: "Any authorized queue caller",
-      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
-      label: "Queue",
-      title: "Queue needed",
-      tone: "warning",
-    };
-  }
-
-  if (reason.code === "timelock_not_satisfied") {
-    return {
-      actor: "No one yet",
-      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
-      label: "Waiting",
-      title: "Timelock active",
-      tone: "warning",
-    };
-  }
-
-  if (reason.code === "vetoed") {
-    return {
-      actor: "No standard action",
-      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
-      label: "Vetoed",
-      title: "Execution blocked",
-      tone: "danger",
-    };
-  }
-
-  if (reason.code === "policy_snapshot_missing") {
-    return {
-      actor: "Indexer/projection recovery",
-      detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
-      label: "Snapshot",
-      title: "Policy snapshot missing",
-      tone: "danger",
-    };
-  }
-
-  return {
-    actor: reason.relatedBodyId
-      ? getRelatedRouteBodyLabel({
-          bodies,
-          bodyId: reason.relatedBodyId,
-          route,
-        })
-      : "Governance route",
-    detail: formatRouteBlockedReasonMessage({ bodies, reason, route }),
-    label: "Blocked",
-    title: formatLabel(reason.code),
-    tone: ["already_executed", "cancelled", "expired"].includes(reason.code)
-      ? "danger"
-      : "warning",
-  };
-}
-
-function statusTone(status: ProposalStatus): IsoStatusPillTone {
-  if (status === ProposalStatus.Executed || status === ProposalStatus.Approved) {
-    return "success";
-  }
-
-  if (
-    status === ProposalStatus.Cancelled ||
-    status === ProposalStatus.Expired ||
-    status === ProposalStatus.Vetoed
-  ) {
-    return "danger";
-  }
-
-  if (status === ProposalStatus.Queued || status === ProposalStatus.UnderReview) {
-    return "warning";
-  }
-
-  return "default";
-}
-
-function routeReadinessTone(
-  status: ProposalStatus,
-  route: ProposalRouteExplanationDto | undefined,
-  routeError: Error | undefined,
-): IsoStatusPillTone {
-  if (isCompletedProposalStatus(status)) {
-    return "success";
-  }
-
-  if (isTerminalProposalStatus(status)) {
-    return statusTone(status);
-  }
-
-  if (!route) {
-    return routeError ? "warning" : "muted";
-  }
-
-  if (route.execution.executable) {
-    return "success";
-  }
-
-  return route.execution.blockedReasons.some((reason) =>
-    ["vetoed", "already_executed", "cancelled", "expired"].includes(
-      reason.code,
-    ),
-  )
-    ? "danger"
-    : "warning";
-}
-
-function routeReadinessLabel(
-  status: ProposalStatus,
-  route: ProposalRouteExplanationDto | undefined,
-  routeError: Error | undefined,
-): string {
-  if (isCompletedProposalStatus(status)) {
-    return "Lifecycle complete";
-  }
-
-  if (isTerminalProposalStatus(status)) {
-    return "Terminal state";
-  }
-
-  if (!route) {
-    return routeError ? "Route unavailable" : "Route pending";
-  }
-
-  return route.execution.executable ? "Route ready" : "Route blocked";
 }
 
 interface PermissionActionIdentity {

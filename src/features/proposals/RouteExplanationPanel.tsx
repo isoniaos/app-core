@@ -5,7 +5,6 @@ import type {
   RouteBodyRequirementDto,
   RouteBodyVetoDto,
 } from "@isonia/types";
-import { ProposalStatus } from "@isonia/types";
 import { StatusBadge } from "../../ui/StatusBadge";
 import {
   formatAddress,
@@ -21,9 +20,9 @@ import {
   type ProposalBodyActionRole,
 } from "./proposal-body-labels";
 import {
-  isCompletedProposalStatus,
-  isTerminalProposalStatus,
-} from "./proposal-status-helpers";
+  getRouteBlockedReasonTone,
+  getRoutePanelDisplay,
+} from "./proposal-route-display";
 
 export type RouteFallbackContext = Pick<
   ProposalRouteExplanationDto,
@@ -37,8 +36,6 @@ interface RouteExplanationPanelProps {
   readonly routeError?: Error;
   readonly showTechnicalDetails?: boolean;
 }
-
-type BadgeTone = "default" | "success" | "warning" | "danger" | "muted";
 
 export function RouteExplanationPanel({
   bodies = [],
@@ -60,9 +57,10 @@ export function RouteExplanationPanel({
   const approvalCounts = getApprovalCounts(route.requiredApprovalBodies);
   const vetoCounts = getVetoCounts(route.vetoBodies);
   const blockedReasons = route.execution.blockedReasons;
-  const executionTone = getExecutionTone(route);
-  const nextAction = getNextActionSummary(route, bodies);
-  const terminal = isTerminalProposalStatus(route.status);
+  const display = getRoutePanelDisplay(route, bodies);
+  const executionTone = display.executionTone;
+  const nextAction = display.nextActionSummary;
+  const terminal = display.terminal;
 
   return (
     <section className="panel route-panel">
@@ -76,24 +74,18 @@ export function RouteExplanationPanel({
             {formatLabel(route.proposalType)}
           </StatusBadge>
           <StatusBadge tone={executionTone}>
-            {getExecutionBadgeLabel(route)}
+            {display.executionBadgeLabel}
           </StatusBadge>
         </div>
       </div>
 
       <div className={`route-status-hero route-status-hero-${executionTone}`}>
         <div>
-          <strong>{getRouteHeroTitle(route)}</strong>
-          <p>
-            {terminal
-              ? getTerminalRouteSummary(route)
-              : route.execution.executable
-                ? "Approvals, veto checks, and timelock state all allow execution."
-                : getBlockedSummary(blockedReasons, route, bodies)}
-          </p>
+          <strong>{display.heroTitle}</strong>
+          <p>{display.heroSummary}</p>
         </div>
         <StatusBadge tone={executionTone}>
-          {getRouteHeroBadgeLabel(route)}
+          {display.heroBadgeLabel}
         </StatusBadge>
       </div>
 
@@ -144,7 +136,7 @@ export function RouteExplanationPanel({
             detail="Body allowed to execute when the route is eligible"
           />
           <RouteSummaryItem
-            label={terminal ? "Next action" : "Next blocker"}
+            label={display.nextActionLabel}
             value={nextAction.value}
             detail={nextAction.detail}
           />
@@ -224,41 +216,23 @@ export function RouteExplanationPanel({
       >
         <div className="execution-state">
           <StatusBadge tone={executionTone}>
-            {getExecutionBadgeLabel(route)}
+            {display.executionBadgeLabel}
           </StatusBadge>
           <div>
-            <strong>{getExecutionStateTitle(route)}</strong>
-            <span>
-              {terminal
-                ? getTerminalRouteSummary(route)
-                : route.execution.executorBody
-                ? `${getExecutorBodyLabel({
-                    bodies,
-                    bodyId: route.execution.executorBody,
-                    route,
-                  })} can execute when the route is eligible`
-                : "No executor body was reported by the route explainer."}
-            </span>
+            <strong>{display.executionStateTitle}</strong>
+            <span>{display.executionStateSummary}</span>
           </div>
         </div>
       </RouteSection>
 
       <RouteSection
-        title={terminal ? "Terminal Route Notes" : "Blocked Reasons"}
-        description={
-          terminal
-            ? "Machine-readable route reasons after completion; these are not active next-action blockers."
-            : "Machine-readable blockers with human explanations."
-        }
+        title={display.blockedReasonsSection.title}
+        description={display.blockedReasonsSection.description}
       >
         {blockedReasons.length === 0 ? (
           <RouteEmptyState
-            title={terminal ? "No terminal route notes" : "No blocked reasons"}
-            message={
-              terminal
-                ? "The route explainer did not report terminal route notes."
-                : "The route explainer did not report any active blockers."
-            }
+            title={display.blockedReasonsSection.emptyTitle}
+            message={display.blockedReasonsSection.emptyMessage}
           />
         ) : (
           <div className="blocked-reason-list">
@@ -491,7 +465,7 @@ function BlockedReason({
   readonly reason: RouteBlockedReasonDto;
   readonly route: ProposalRouteExplanationDto;
 }): JSX.Element {
-  const tone = terminal ? "muted" : getBlockedReasonTone(reason);
+  const tone = getRouteBlockedReasonTone({ reason, terminal });
   const role = getBlockedReasonBodyRole(reason);
 
   return (
@@ -556,112 +530,6 @@ function getVetoCounts(
   };
 }
 
-function getExecutionBadgeLabel(route: ProposalRouteExplanationDto): string {
-  if (isCompletedProposalStatus(route.status)) {
-    return "Lifecycle complete";
-  }
-
-  if (isTerminalProposalStatus(route.status)) {
-    return "Terminal state";
-  }
-
-  return route.execution.executable ? "Executable" : "Blocked";
-}
-
-function getRouteHeroTitle(route: ProposalRouteExplanationDto): string {
-  if (isCompletedProposalStatus(route.status)) {
-    return "Proposal lifecycle is complete";
-  }
-
-  if (isTerminalProposalStatus(route.status)) {
-    return "Proposal is in a terminal state";
-  }
-
-  return route.execution.executable
-    ? "Execution eligibility is satisfied"
-    : "Execution is currently blocked";
-}
-
-function getRouteHeroBadgeLabel(route: ProposalRouteExplanationDto): string {
-  if (isTerminalProposalStatus(route.status)) {
-    return isCompletedProposalStatus(route.status)
-      ? "Complete"
-      : "No further action";
-  }
-
-  return route.execution.executable ? "Ready" : "Not ready";
-}
-
-function getExecutionStateTitle(route: ProposalRouteExplanationDto): string {
-  if (isTerminalProposalStatus(route.status)) {
-    return "No further execution action is available";
-  }
-
-  return route.execution.executable
-    ? "The route is executable"
-    : "The route is not executable yet";
-}
-
-function getTerminalRouteSummary(route: ProposalRouteExplanationDto): string {
-  if (isCompletedProposalStatus(route.status)) {
-    return "The proposal has executed. Terminal route reasons mean it cannot be executed again, not that governance is actively blocked.";
-  }
-
-  return `Proposal is ${formatLabel(route.status)}. No standard route action is available.`;
-}
-
-function getExecutionTone(route: ProposalRouteExplanationDto): BadgeTone {
-  if (isCompletedProposalStatus(route.status)) {
-    return "success";
-  }
-
-  if (isTerminalProposalStatus(route.status)) {
-    return route.status === ProposalStatus.Vetoed ? "danger" : "muted";
-  }
-
-  if (route.execution.executable) {
-    return "success";
-  }
-
-  return route.execution.blockedReasons.some((reason) =>
-    ["vetoed", "already_executed", "cancelled", "expired"].includes(
-      reason.code,
-    ),
-  )
-    ? "danger"
-    : "warning";
-}
-
-function getBlockedReasonTone(reason: RouteBlockedReasonDto): BadgeTone {
-  return ["vetoed", "already_executed", "cancelled", "expired"].includes(
-    reason.code,
-  )
-    ? "danger"
-    : "warning";
-}
-
-function getBlockedSummary(
-  blockedReasons: readonly RouteBlockedReasonDto[],
-  route: ProposalRouteExplanationDto,
-  bodies: readonly BodyDto[],
-): string {
-  if (blockedReasons.length === 0) {
-    return "The route explainer has not reported a blocker, but execution is not currently eligible.";
-  }
-
-  if (blockedReasons.length === 1) {
-    return formatRouteBlockedReasonMessage({
-      bodies,
-      reason: blockedReasons[0],
-      role:
-        blockedReasons[0].code === "missing_approval" ? "Approver" : undefined,
-      route,
-    });
-  }
-
-  return `${blockedReasons.length} blockers must be resolved before execution.`;
-}
-
 function getTimelockSummary(route: ProposalRouteExplanationDto): string {
   if (!route.timelock.required) {
     return "No delay configured";
@@ -670,111 +538,6 @@ function getTimelockSummary(route: ProposalRouteExplanationDto): string {
   return route.timelock.satisfied
     ? `${formatDuration(route.timelock.seconds)} satisfied`
     : `${formatDuration(route.timelock.seconds)} pending`;
-}
-
-function getNextActionSummary(
-  route: ProposalRouteExplanationDto,
-  bodies: readonly BodyDto[],
-): {
-  readonly detail: string;
-  readonly value: string;
-} {
-  if (isCompletedProposalStatus(route.status)) {
-    return {
-      value: "No further action",
-      detail: "The indexed proposal lifecycle is complete.",
-    };
-  }
-
-  if (isTerminalProposalStatus(route.status)) {
-    return {
-      value: "Terminal state",
-      detail: `Proposal is ${formatLabel(route.status)}.`,
-    };
-  }
-
-  if (route.execution.executable) {
-    return {
-      value: "Execute",
-      detail: route.execution.executorBody
-        ? `${getExecutorBodyLabel({
-            bodies,
-            bodyId: route.execution.executorBody,
-            route,
-          })} can execute`
-        : "Route is executable",
-    };
-  }
-
-  const firstReason = route.execution.blockedReasons[0];
-  if (!firstReason) {
-    return {
-      value: "Check route",
-      detail:
-        "Execution is false, but the route explainer did not report a blocker",
-    };
-  }
-
-  if (firstReason.code === "missing_approval") {
-    return {
-      value: "Approval needed",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "vetoed") {
-    return {
-      value: "Vetoed",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "not_queued") {
-    return {
-      value: "Queue needed",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "timelock_not_satisfied") {
-    return {
-      value: "Timelock active",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "policy_snapshot_missing") {
-    return {
-      value: "Policy snapshot missing",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "already_executed") {
-    return {
-      value: "Already executed",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "cancelled") {
-    return {
-      value: "Cancelled",
-      detail: firstReason.message,
-    };
-  }
-
-  if (firstReason.code === "expired") {
-    return {
-      value: "Expired",
-      detail: firstReason.message,
-    };
-  }
-
-  return {
-    value: "Blocked",
-    detail: firstReason.message,
-  };
 }
 
 function formatDuration(value: string): string {

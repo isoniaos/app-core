@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
+    "test": "node scripts/test-address-utils.mjs && node scripts/test-proposal-route-display.mjs",
     "test:address": "node scripts/test-address-utils.mjs",
+    "test:proposal-route-display": "node scripts/test-proposal-route-display.mjs",
     "typecheck": "node scripts/typecheck-app.mjs --noEmit --pretty false && tsc -p tsconfig.node.json --noEmit --pretty false"
   },
   "dependencies": {
