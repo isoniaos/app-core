@@ -1,77 +1,74 @@
-# IsoniaOS App Core Agent Rules
+# IsoniaOS App Core Agent Instructions
 
-These rules apply to Codex and other AI agents working in `app-core`.
+## Scope
 
-When this repository is used inside the IsoniaOS workspace, read the workspace-level `../AGENTS.md` first, then return to this file for repository-specific instructions.
+This repository owns the React + Vite self-hostable IsoniaOS governance console. It presents and interacts with contract-modeled governance state, Control Plane read models, wallet flows, public archive surfaces, accountability records, diagnostics, source disclosure, and local theme integration.
 
-## Repository Purpose
+It does not own protocol authority, Control Plane indexing logic, SDK package contracts, integration-lab fixtures, SaaS-only billing or tenant administration, private hosted operations, or token launch behavior.
 
-`app-core` is the public self-hostable IsoniaOS governance console.
+## Workspace Instruction Chain
 
-It is a React + Vite SPA for presentation and interaction. It is not a source of governance authority.
+When working inside the private IsoniaOS workspace, read:
 
-## Active Target
+1. `../AGENTS.md`
+2. `../CURRENT_ROADMAP.md`
+3. relevant `../private-docs/` index, governance, roadmap, and migration docs
+4. this repository `AGENTS.md`
+5. this repository `/docs` and `README.md`
+6. current source/config files before editing
 
-Current active target: v0.8 accountability and integration-preview wave.
+If this repository is cloned standalone, use this file as the local agent entry point and avoid relying on private workspace-only paths.
 
-The v0.8 UI baseline is read-oriented:
+## Stack and Commands
 
-- Public Governance Archive;
-- Basic Accountability Dashboard;
-- proposal and route visibility;
-- accountability records and action metadata;
-- external evidence/context with explicit trust boundaries;
-- source disclosure near affected data.
+- React 19, Vite, TypeScript
+- Chakra UI, local UI-kit primitives, `@isonia/theme-default`
+- wagmi/viem for EVM interaction
+- optional Reown AppKit wallet UX
+- Control Plane access through `@isonia/sdk` where available
 
-Public beta readiness is a future decision point, not a current claim.
+Useful commands:
 
-## Dependency Boundaries
+```bash
+corepack pnpm install
+corepack pnpm dev
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+corepack pnpm preview
+git diff --check
+```
 
-- Use `@isonia/sdk` for typed Control Plane calls when a SDK method exists.
-- Use `@isonia/types` DTOs, enums, and constants rather than local duplicates.
-- Do not duplicate endpoint fetch wrappers in App Core when the SDK should own them.
-- Keep theme concerns delegated to theme packages where possible.
-- Do not import demo-stack internals, integration-lab fixtures, Control Plane internals, or SaaS-only modules.
+Set `ISONIA_WORKSPACE_SOURCES=true` only when intentionally testing adjacent `../types` and `../sdk` source trees.
 
-## Authority and Trust UX
+## Development Principles
 
-- Contracts are authoritative for modeled onchain governance state.
-- Control Plane data is an index/read model that may lag or fail.
-- External records are evidence/context unless explicitly modeled as authority.
-- Manual accountability updates are annotations, not protocol truth.
-- Show source disclosure, stale/error/unknown states, and trust boundaries near affected data.
+- App Core is presentation and interaction, not governance authority.
+- Use `@isonia/sdk` for typed Control Plane calls when a method exists.
+- Use `@isonia/types` DTOs, enums, constants, and source disclosure shapes instead of local duplicates.
+- Keep wallet connection state behind `src/wallet/useWalletConnection.ts`.
+- Keep trust boundaries, stale/error/unknown states, and source disclosures visible near affected data.
+- Keep demo target behavior local/lab scoped and do not hardcode Sepolia lab fixtures, provider experiments, presentation scenarios, customer ABIs, or package-version capability assumptions into core UI logic.
+- Do not add SaaS-only billing, subscriptions, tenant admin, premium analytics, hosted operator dashboards, private support tooling, or token launch behavior.
+- Do not make production, audit, public beta, legal, SaaS, provider-completeness, grant, ISO launch, or token launch readiness claims.
 
-## Provider and Demo Rules
+## Documentation Rules
 
-- Do not add Snapshot, Safe, Tally, Agora, GitHub, Discourse, or block explorer API calls unless explicitly scoped.
-- Do not hardcode Sepolia lab fixtures, provider experiments, presentation scenarios, customer ABIs, or DemoTarget assumptions into core UI logic.
-- Do not use package version strings as runtime capability checks.
-- Do not add SaaS-only features such as billing, subscriptions, tenant admin, premium analytics, hosted operator dashboards, or private support tooling.
+Update [`README.md`](README.md), local [`docs/`](docs/), and `CHANGELOG.md` under `Unreleased` when runtime config, wallet behavior, Control Plane API usage, UI behavior, data trust boundaries, or user/developer/operator-visible flows change.
 
-## Wallet and Runtime Config
+Update the public docs repository when public configuration, user workflows, developer guidance, operator behavior, or public claims change.
 
-Wallet UX may use Reown AppKit when scoped, while wagmi and viem remain the core EVM interaction layer.
-
-Self-hosted mode must still work without a Reown Project ID through an injected connector fallback.
-
-Runtime config should make wallet and deployment capabilities explicit.
-
-## Versioning and Claims
-
-- Keep package versions as SemVer without a leading `v`.
-- Do not create Git tags automatically.
-- Update `CHANGELOG.md` under `Unreleased` for user-visible App Core changes.
-- Do not introduce production, audit, public beta, SaaS, legal, provider-completeness, or ISO launch-readiness claims.
-
-## Verification
+## Testing and Validation
 
 For UI behavior changes, run the strongest relevant subset:
 
-- `corepack pnpm lint`
-- `corepack pnpm test`
-- `corepack pnpm typecheck`
-- `corepack pnpm build`
-- relevant browser checks for visual or interaction changes
-- `git diff --check`
+```bash
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+git diff --check
+```
 
-For AGENTS-only changes, `git diff --check` is sufficient.
+Use browser checks for visual, interaction, routing, wallet, or responsive changes. For documentation-only changes, `git diff --check` is normally sufficient.

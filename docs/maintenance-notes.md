@@ -1,0 +1,16 @@
+# Maintenance Notes
+
+This file keeps current App Core maintenance themes that are not tied to an old release line.
+
+## Open Themes
+
+- Review remaining setup address rendering duplication and keep shared address primitives in use.
+- Decide whether setup holder lists should stay raw or become checksum-normalized at input boundaries.
+- Keep transaction lifecycle presentation consistent across setup execution, proposal creation, and proposal actions.
+- Add richer metadata rendering only when a metadata service or resolver contract is actually available.
+- Keep EIP-5792 wallet batching behind explicit capability checks until real wallet and chain support is verified.
+- Coordinate color-mode and address-state token extraction with `@isonia/theme-default` only after App Core usage stabilizes.
+- Improve governance graph layout only when current deterministic layout becomes insufficient.
+- Scope any Proposal Action Builder work around explicit ABI, calldata, metadata, execution schema, and safety-simulation boundaries before implementation.
+
+Do not turn these notes into readiness claims. Promote an item into roadmap or implementation work only when it is explicitly scoped.
