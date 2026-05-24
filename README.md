@@ -80,7 +80,7 @@ Safe built-in defaults are used only when neither runtime config file can be loa
 
 For local development, copy `public/isonia.config.example.json` or `public/isonia.config.json` to `public/isonia.config.local.json` and edit that file. The local override is ignored by git, so it can hold machine-specific endpoints or a local Reown Project ID without committing secrets or operator-specific values. Set `wallet.connectionMode` to `appkit` only when explicitly testing Reown/AppKit on the local Hardhat chain.
 
-When testing the Docker demo stack, remember that `/isonia.config.local.json` is loaded before `/isonia.config.json`. A stale local override served by a local dev server can shadow the generated demo-stack runtime config and point App Core at old contract addresses. The Docker demo image serves the generated `/isonia.config.json`; local Vite debugging should remove or refresh `public/isonia.config.local.json` when contract addresses change.
+The old Docker demo stack path is archived and is not current self-hosting guidance. If you explicitly inspect an archived Docker demo image, remember that `/isonia.config.local.json` is loaded before `/isonia.config.json`. A stale local override served by a local dev server can shadow the generated runtime config and point App Core at old contract addresses. Local Vite debugging should remove or refresh `public/isonia.config.local.json` when contract addresses change.
 
 Keep committed configs free of real Reown Project IDs. Use an empty `wallet.reownProjectId` and `wallet.connectionMode: "injected-only"` in committed local defaults and examples so app-core stays on injected wallet mode until a deployment explicitly enables AppKit.
 

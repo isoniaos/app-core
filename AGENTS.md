@@ -2,6 +2,8 @@
 
 These rules apply to Codex and other AI agents working in `app-core`.
 
+When this repository is used inside the IsoniaOS workspace, read the workspace-level `../AGENTS.md` first, then return to this file for repository-specific instructions.
+
 ## Repository Purpose
 
 `app-core` is the public self-hostable IsoniaOS governance console.
