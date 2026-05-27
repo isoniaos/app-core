@@ -1,69 +1,9 @@
 :root {
-  --iso-color-accent: #3B82F6;
-  --iso-color-accent-surface: color-mix(in srgb, #3B82F6 12%, #FAFAF7);
-  --iso-color-background: #F8F7F2;
-  --iso-color-border: color-mix(in srgb, #64748B 36%, #F8F7F2);
-  --iso-color-danger: #DC2626;
-  --iso-color-danger-surface: color-mix(in srgb, #DC2626 11%, #FAFAF7);
-  --iso-color-foreground: #0B1220;
-  --iso-color-info-surface: color-mix(in srgb, #2563EB 10%, #FAFAF7);
-  --iso-color-muted: #475569;
-  --iso-color-policy: #6D5DFB;
-  --iso-color-policy-surface: color-mix(in srgb, #6D5DFB 11%, #FAFAF7);
-  --iso-color-primary: #2563EB;
-  --iso-color-primary-foreground: #FAFAF7;
-  --iso-color-primary-strong: #2F6FED;
-  --iso-color-shell: #F8F7F2;
-  --iso-color-sidebar: color-mix(in srgb, #FAFAF7 76%, #F8F7F2);
-  --iso-color-success: #10B981;
-  --iso-color-success-surface: color-mix(in srgb, #10B981 12%, #FAFAF7);
-  --iso-color-surface: #FAFAF7;
-  --iso-color-surface-raised: #FFFFFF;
-  --iso-color-surface-subtle: #F5F1E8;
-  --iso-color-topbar: color-mix(in srgb, #FAFAF7 88%, transparent);
-  --iso-color-topbar-border: color-mix(in srgb, #64748B 24%, transparent);
-  --iso-color-warning: #D97706;
-  --iso-color-warning-surface: color-mix(in srgb, #F59E0B 15%, #FAFAF7);
-  --iso-font-condensed: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", sans-serif;
-  --iso-font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --iso-font-sans: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --iso-shadow-card: 0 1px 2px color-mix(in srgb, #0B1220 7%, transparent), 0 12px 30px color-mix(in srgb, #0B1220 4%, transparent);
-  --iso-shadow-shell: 0 18px 48px color-mix(in srgb, #0B1220 8%, transparent);
   color: var(--iso-color-foreground);
   background: var(--iso-color-background);
   font-family: var(--iso-font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-}
-
-:root[data-theme="dark"] {
-  --iso-color-accent: #7AA7F7;
-  --iso-color-accent-surface: color-mix(in srgb, #7AA7F7 16%, #111D2E);
-  --iso-color-background: #071120;
-  --iso-color-border: color-mix(in srgb, #64748B 34%, #111D2E);
-  --iso-color-danger: #F87171;
-  --iso-color-danger-surface: color-mix(in srgb, #F87171 14%, #111D2E);
-  --iso-color-foreground: #F7F3EA;
-  --iso-color-info-surface: color-mix(in srgb, #7AA7F7 14%, #111D2E);
-  --iso-color-muted: #AAB7C7;
-  --iso-color-policy: #A78BFA;
-  --iso-color-policy-surface: color-mix(in srgb, #A78BFA 14%, #111D2E);
-  --iso-color-primary: #7AA7F7;
-  --iso-color-primary-foreground: #071120;
-  --iso-color-primary-strong: #9ABCFB;
-  --iso-color-shell: #071120;
-  --iso-color-sidebar: color-mix(in srgb, #111D2E 86%, #071120);
-  --iso-color-success: #34D399;
-  --iso-color-success-surface: color-mix(in srgb, #34D399 13%, #111D2E);
-  --iso-color-surface: #111D2E;
-  --iso-color-surface-raised: #142338;
-  --iso-color-surface-subtle: #182A42;
-  --iso-color-topbar: color-mix(in srgb, #111D2E 88%, transparent);
-  --iso-color-topbar-border: color-mix(in srgb, #64748B 30%, transparent);
-  --iso-color-warning: #FBBF24;
-  --iso-color-warning-surface: color-mix(in srgb, #FBBF24 14%, #111D2E);
-  --iso-shadow-card: 0 1px 2px color-mix(in srgb, #000000 28%, transparent), 0 16px 36px color-mix(in srgb, #000000 22%, transparent);
-  --iso-shadow-shell: 0 18px 48px color-mix(in srgb, #000000 30%, transparent);
 }
 
 * {
@@ -155,7 +95,7 @@ td {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 64px;
+  min-height: var(--iso-layout-topbar-height);
   padding: 0.65rem clamp(1rem, 2.2vw, 1.6rem);
   border-bottom: 1px solid var(--iso-color-topbar-border);
   background: var(--iso-color-topbar);
@@ -250,8 +190,8 @@ td {
 
 .shell-body {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  min-height: calc(100vh - 64px);
+  grid-template-columns: var(--iso-layout-sidebar-width) minmax(0, 1fr);
+  min-height: calc(100vh - var(--iso-layout-topbar-height));
 }
 
 .sidebar {
@@ -353,7 +293,7 @@ td {
 .page-stack {
   display: grid;
   gap: 1.25rem;
-  max-width: 1180px;
+  max-width: var(--iso-layout-content-max-width);
 }
 
 .section-header {
@@ -695,36 +635,6 @@ td {
 .mono-input {
   font-family: var(--iso-font-mono);
   font-size: 0.84rem;
-}
-
-.iso-state-neutral {
-  --iso-state-color: var(--iso-color-muted);
-  --iso-state-border: var(--iso-color-border);
-  --iso-state-surface: var(--iso-color-surface-subtle);
-}
-
-.iso-state-success {
-  --iso-state-color: var(--iso-color-success);
-  --iso-state-border: color-mix(in srgb, var(--iso-color-success) 65%, var(--iso-color-border));
-  --iso-state-surface: var(--iso-color-success-surface);
-}
-
-.iso-state-warning {
-  --iso-state-color: var(--iso-color-warning);
-  --iso-state-border: color-mix(in srgb, var(--iso-color-warning) 65%, var(--iso-color-border));
-  --iso-state-surface: var(--iso-color-warning-surface);
-}
-
-.iso-state-danger {
-  --iso-state-color: var(--iso-color-danger);
-  --iso-state-border: color-mix(in srgb, var(--iso-color-danger) 65%, var(--iso-color-border));
-  --iso-state-surface: var(--iso-color-danger-surface);
-}
-
-.iso-state-accent {
-  --iso-state-color: var(--iso-color-accent);
-  --iso-state-border: color-mix(in srgb, var(--iso-color-accent) 65%, var(--iso-color-border));
-  --iso-state-surface: var(--iso-color-accent-surface);
 }
 
 .iso-icon {
@@ -5228,7 +5138,7 @@ button.address-display {
 
   .sidebar {
     position: sticky;
-    top: 64px;
+    top: var(--iso-layout-topbar-height);
     z-index: 8;
     align-self: start;
     overflow-x: auto;

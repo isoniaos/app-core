@@ -29,4 +29,5 @@ This note records the local address display and input surface in App Core.
 
 - Prefer shared address primitives over ad hoc string formatting in React components.
 - Keep checksum normalization and duplicate handling explicit at form boundaries.
-- Keep concrete component CSS in App Core until the reusable theme contract is stable enough to move into `@isonia/theme-default`.
+- Use `@isonia/theme-default` for address-state variables and reusable address token defaults.
+- Keep concrete address component layout CSS in App Core until a broader reusable package contract is needed.

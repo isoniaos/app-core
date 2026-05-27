@@ -14,6 +14,7 @@ All notable changes to `@isonia/app-core` are documented here.
 ### Changed
 
 - Switched local alpha `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` dependencies to private workspace links.
+- Replaced local duplicated theme palette and Chakra token setup with the normalized `@isonia/theme-default` theme module and Chakra adapter.
 - Reworked runtime config around `activeChainId` and `deployments[]`, with `isoCoreAddress` and `isoProposalsAddress` contract fields.
 - Derived wallet mode from Reown project ID availability, using injected-only mode when no project ID is configured.
 - Updated App Core source, UI copy, and Control Plane client usage for the active `Iso*` / `iso*` protocol namespace.
