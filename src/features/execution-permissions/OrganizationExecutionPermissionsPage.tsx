@@ -89,7 +89,7 @@ export function OrganizationExecutionPermissionsPage(): JSX.Element {
 
   return (
     <OrganizationExecutionPermissionsContent
-      blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+      blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
       orgId={orgId}
       permissions={permissions.data}
     />

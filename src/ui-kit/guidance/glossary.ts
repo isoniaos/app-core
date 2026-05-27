@@ -13,12 +13,12 @@ export const glossary = {
     details:
       "The hash lets observers verify that off-chain content matches the data referenced by a proposal or execution path.",
   },
-  demoTarget: {
-    title: "DemoTarget",
+  localDemoTarget: {
+    title: "Local demo target",
     description:
-      "The limited demonstration contract used by the current proposal execution flow.",
+      "An optional local-only target contract used by the current proposal execution flow.",
     details:
-      "DemoTarget keeps execution intentionally narrow while the broader governance flow is being validated.",
+      "The local demo target keeps execution intentionally narrow while the broader governance flow is being validated.",
   },
   executorBody: {
     title: "Executor body",

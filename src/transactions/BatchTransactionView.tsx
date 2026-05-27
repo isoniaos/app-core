@@ -86,7 +86,7 @@ export function BatchTransactionView({
             />
           </>
         ) : (
-          <BatchMetaItem label="Execution" value="Typed GovCore batch function" />
+          <BatchMetaItem label="Execution" value="Typed IsoCore batch function" />
         )}
       </div>
       {batch.batchId ? (
@@ -202,7 +202,7 @@ function BatchIntroDescription({
   if (kind === "contract_batch") {
     return (
       <span>
-        This path submits one typed GovCore batch transaction for this activation
+        This path submits one typed IsoCore batch transaction for this activation
         step. Serial activation remains available, and indexed{" "}
         <IsoHelpTerm term="controlPlane">Control Plane</IsoHelpTerm> read models
         remain the source of setup progress.
@@ -343,7 +343,7 @@ function getBatchStatusCopy(
   if (kind === "contract_batch") {
     switch (status) {
       case "ready":
-        return "Ready to submit one typed GovCore batch transaction.";
+        return "Ready to submit one typed IsoCore batch transaction.";
       case "waiting_for_wallet":
         return "Confirm the batch transaction in your wallet.";
       case "submitted":

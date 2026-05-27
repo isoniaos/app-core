@@ -25,7 +25,7 @@ export function LocalHardhatTimeControls({
   onAdvanced,
 }: LocalHardhatTimeControlsProps): JSX.Element | null {
   const runtimeConfig = useRuntimeConfig();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
   const [customSeconds, setCustomSeconds] = useState("300");
   const [busyLabel, setBusyLabel] = useState<string | undefined>();
   const [status, setStatus] = useState<LocalControlStatus>({
@@ -33,7 +33,7 @@ export function LocalHardhatTimeControls({
     tone: "muted",
   });
 
-  if (runtimeConfig.chainId !== 31_337) {
+  if (runtimeConfig.activeDeployment.chainId !== 31_337) {
     return null;
   }
 

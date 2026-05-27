@@ -13,7 +13,7 @@ export function WalletStatus(): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const isWrongChain = isUnexpectedChain(
     connection.chainId,
-    runtimeConfig.chainId,
+    runtimeConfig.activeDeployment.chainId,
   );
 
   if (setup.appKitEnabled) {
@@ -47,7 +47,7 @@ function InjectedWalletStatus(): JSX.Element {
   const { disconnect } = useDisconnect();
   const isWrongChain = isUnexpectedChain(
     connection.chainId,
-    runtimeConfig.chainId,
+    runtimeConfig.activeDeployment.chainId,
   );
 
   if (connection.isConnected) {
@@ -56,8 +56,8 @@ function InjectedWalletStatus(): JSX.Element {
       : "Connected";
     const chainLabel = getChainLabel(
       connection.chainId,
-      runtimeConfig.chainId,
-      runtimeConfig.chainName,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.chainName,
     );
 
     return (

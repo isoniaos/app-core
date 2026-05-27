@@ -5,7 +5,7 @@ import type {
 } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import {
-  GOV_CORE_ABI,
+  ISO_CORE_ABI,
   parseMandateAssignedLog,
 } from "../../chain/setup-contracts";
 import { waitForIndexedMandate } from "./indexing-waiters";
@@ -120,12 +120,12 @@ export async function executeAssignMandateAction({
     return;
   }
 
-  if (account.chainId !== runtimeConfig.chainId) {
+  if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
     setMandateActionFailed(
       action,
       `Wallet is connected to chain ${String(
         account.chainId,
-      )}; expected chain ${runtimeConfig.chainId}.`,
+      )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
     );
     return;
   }
@@ -134,8 +134,8 @@ export async function executeAssignMandateAction({
     accountChainId: account.chainId,
     connected: account.isConnected,
     connectedAddress: account.address,
-    govCoreAddress: runtimeConfig.contracts.govCoreAddress,
-    runtimeChainId: runtimeConfig.chainId,
+    isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+    runtimeChainId: runtimeConfig.activeDeployment.chainId,
     setupWritesEnabled,
   });
   if (!signerPreflight.canExecute) {
@@ -143,10 +143,10 @@ export async function executeAssignMandateAction({
     return;
   }
 
-  if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+  if (!isConfiguredAddress(runtimeConfig.activeDeployment.contracts.isoCoreAddress)) {
     setMandateActionFailed(
       action,
-      "GovCore contract address is missing from runtime config.",
+      "IsoCore contract address is missing from runtime config.",
     );
     return;
   }
@@ -177,11 +177,11 @@ export async function executeAssignMandateAction({
       stage: "wallet_pending",
     });
     const txHash = await writeContractAsync({
-      address: runtimeConfig.contracts.govCoreAddress,
-      abi: GOV_CORE_ABI,
+      address: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+      abi: ISO_CORE_ABI,
       functionName: "assignMandate",
       args: buildAssignMandateCallArgs(payload),
-      chainId: runtimeConfig.chainId,
+      chainId: runtimeConfig.activeDeployment.chainId,
       account: signerAddress,
     });
 
@@ -206,7 +206,7 @@ export async function executeAssignMandateAction({
     assertSuccessfulReceipt(receipt);
     const assigned = parseMandateAssignedLog(
       receipt,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     );
     if (!assigned) {
       throw new Error(

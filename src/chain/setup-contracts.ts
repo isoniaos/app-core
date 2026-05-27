@@ -18,7 +18,7 @@ export {
   validateOrganizationSlug,
 } from "./slug";
 
-export const GOV_CORE_ABI = [
+export const ISO_CORE_ABI = [
   {
     type: "function",
     name: "createOrganization",
@@ -341,9 +341,9 @@ interface PolicyRuleSetArgs {
 
 export function parseOrganizationCreatedLog(
   receipt: TransactionReceipt,
-  govCoreAddress: Address,
+  isoCoreAddress: Address,
 ): OrganizationCreatedLog | undefined {
-  const expectedAddress = govCoreAddress.toLowerCase();
+  const expectedAddress = isoCoreAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -352,7 +352,7 @@ export function parseOrganizationCreatedLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         data: log.data,
         topics: log.topics,
       });
@@ -378,9 +378,9 @@ export function parseOrganizationCreatedLog(
 
 export function parseBodyCreatedLog(
   receipt: TransactionReceipt,
-  govCoreAddress: Address,
+  isoCoreAddress: Address,
 ): BodyCreatedLog | undefined {
-  const expectedAddress = govCoreAddress.toLowerCase();
+  const expectedAddress = isoCoreAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -389,7 +389,7 @@ export function parseBodyCreatedLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         data: log.data,
         topics: log.topics,
       });
@@ -420,9 +420,9 @@ export function parseBodyCreatedLog(
 
 export function parseRoleCreatedLog(
   receipt: TransactionReceipt,
-  govCoreAddress: Address,
+  isoCoreAddress: Address,
 ): RoleCreatedLog | undefined {
-  const expectedAddress = govCoreAddress.toLowerCase();
+  const expectedAddress = isoCoreAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -431,7 +431,7 @@ export function parseRoleCreatedLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         data: log.data,
         topics: log.topics,
       });
@@ -463,9 +463,9 @@ export function parseRoleCreatedLog(
 
 export function parseMandateAssignedLog(
   receipt: TransactionReceipt,
-  govCoreAddress: Address,
+  isoCoreAddress: Address,
 ): MandateAssignedLog | undefined {
-  const expectedAddress = govCoreAddress.toLowerCase();
+  const expectedAddress = isoCoreAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -474,7 +474,7 @@ export function parseMandateAssignedLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         data: log.data,
         topics: log.topics,
       });
@@ -505,9 +505,9 @@ export function parseMandateAssignedLog(
 
 export function parsePolicyRuleSetLog(
   receipt: TransactionReceipt,
-  govCoreAddress: Address,
+  isoCoreAddress: Address,
 ): PolicyRuleSetLog | undefined {
-  const expectedAddress = govCoreAddress.toLowerCase();
+  const expectedAddress = isoCoreAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -516,7 +516,7 @@ export function parsePolicyRuleSetLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         data: log.data,
         topics: log.topics,
       });

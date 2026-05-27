@@ -9,7 +9,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 
-export const GOV_PROPOSALS_ABI = [
+export const ISO_PROPOSALS_ABI = [
   {
     type: "function",
     name: "createProposal",
@@ -94,7 +94,7 @@ export const GOV_PROPOSALS_ABI = [
   },
 ] as const satisfies Abi;
 
-export const DEMO_TARGET_ABI = [
+export const LOCAL_DEMO_TARGET_ABI = [
   {
     type: "function",
     name: "lastOrgId",
@@ -173,7 +173,7 @@ export function buildDemoSetNumberAction(
   newNumber: bigint,
 ): DemoProposalAction {
   const actionData = encodeFunctionData({
-    abi: DEMO_TARGET_ABI,
+    abi: LOCAL_DEMO_TARGET_ABI,
     functionName: "setNumber",
     args: [orgId, newNumber],
   });
@@ -186,9 +186,9 @@ export function buildDemoSetNumberAction(
 
 export function parseProposalCreatedLog(
   receipt: TransactionReceipt,
-  govProposalsAddress: Address,
+  isoProposalsAddress: Address,
 ): ProposalCreatedLog | undefined {
-  const expectedAddress = govProposalsAddress.toLowerCase();
+  const expectedAddress = isoProposalsAddress.toLowerCase();
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== expectedAddress) {
@@ -197,7 +197,7 @@ export function parseProposalCreatedLog(
 
     try {
       const decoded = decodeEventLog({
-        abi: GOV_PROPOSALS_ABI,
+        abi: ISO_PROPOSALS_ABI,
         data: log.data,
         topics: log.topics,
       });

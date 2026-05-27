@@ -76,7 +76,7 @@ export function OrganizationManagedExecutionPage(): JSX.Element {
 
   return (
     <OrganizationManagedExecutionContent
-      blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+      blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
       managedExecution={managedExecution.data}
       orgId={orgId}
     />

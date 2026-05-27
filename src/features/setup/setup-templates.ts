@@ -76,10 +76,14 @@ export const DEFAULT_SIMPLE_DAO_PLUS_DRAFT_INPUTS: SimpleDaoPlusDraftInputs = {
 
 interface SetupDraftOptions {
   readonly chainId: ChainId;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress?: Address;
   readonly includeActivationActions?: boolean;
   readonly inputs?: Partial<SimpleDaoPlusDraftInputs>;
   readonly orgId?: NumericString;
+}
+
+interface SetupDraftActionOptions extends SetupDraftOptions {
+  readonly isoCoreAddress: Address;
 }
 
 interface DraftBodyDefinition {
@@ -318,7 +322,7 @@ export const SETUP_TEMPLATES: readonly TemplateDescriptor[] = [
 
 export function createSimpleDaoPlusDraft({
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   includeActivationActions = true,
   inputs,
   orgId,
@@ -331,11 +335,12 @@ export function createSimpleDaoPlusDraft({
     ? { indexedId: orgId }
     : { draftId: ORGANIZATION_DRAFT_ID };
   const adminAddress = maybeAddress(normalizedInputs.organizationAdminAddress);
+  const expectedIsoCoreAddress = isoCoreAddress ?? ZERO_ADDRESS;
   const roleDefinitions = createRoleDefinitions(normalizedInputs);
   const baseActions: readonly SetupAction[] = [
     ...createOrganizationActions({
       chainId,
-      govCoreAddress,
+      isoCoreAddress: expectedIsoCoreAddress,
       inputs: normalizedInputs,
       orgId,
     }),
@@ -344,27 +349,27 @@ export function createSimpleDaoPlusDraft({
           ...createBodyActions({
             adminAddress,
             chainId,
-            govCoreAddress,
+            isoCoreAddress: expectedIsoCoreAddress,
             organizationRef,
             orgId,
           }),
           ...createRoleActions({
             adminAddress,
             chainId,
-            govCoreAddress,
+            isoCoreAddress: expectedIsoCoreAddress,
             roleDefinitions,
           }),
           ...createMandateActions({
             adminAddress,
             chainId,
-            govCoreAddress,
+            isoCoreAddress: expectedIsoCoreAddress,
             inputs: normalizedInputs,
             roleDefinitions,
           }),
           ...createPolicyActions({
             adminAddress,
             chainId,
-            govCoreAddress,
+            isoCoreAddress: expectedIsoCoreAddress,
             inputs: normalizedInputs,
             organizationRef,
           }),
@@ -541,10 +546,10 @@ function createRoleDefinitions(
 
 function createOrganizationActions({
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   inputs,
   orgId,
-}: SetupDraftOptions & {
+}: SetupDraftActionOptions & {
   readonly inputs: SimpleDaoPlusDraftInputs;
 }): readonly CreateOrganizationSetupAction[] {
   if (orgId) {
@@ -564,7 +569,7 @@ function createOrganizationActions({
         "Create the protocol organization root before topology setup begins.",
       executionStatus: SetupActionExecutionStatus.Draft,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       fallbackName,
       kind: SetupActionKind.CreateOrganization,
       label: "Create organization",
@@ -592,10 +597,10 @@ function buildDraftOrganizationSlug(
 function createBodyActions({
   adminAddress,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   organizationRef,
   orgId,
-}: SetupDraftOptions & {
+}: SetupDraftActionOptions & {
   readonly adminAddress?: Address;
   readonly organizationRef: SetupEntityReference;
 }): readonly CreateBodySetupAction[] {
@@ -608,7 +613,7 @@ function createBodyActions({
     description: body.description,
     executionStatus: SetupActionExecutionStatus.Draft,
     expectedChainId: chainId,
-    expectedContractAddress: govCoreAddress,
+    expectedContractAddress: isoCoreAddress,
     fallbackName: body.fallbackName,
     kind: SetupActionKind.CreateBody,
     label: `Create ${body.fallbackName}`,
@@ -621,9 +626,9 @@ function createBodyActions({
 function createRoleActions({
   adminAddress,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   roleDefinitions,
-}: SetupDraftOptions & {
+}: SetupDraftActionOptions & {
   readonly adminAddress?: Address;
   readonly roleDefinitions: readonly DraftRoleDefinition[];
 }): readonly CreateRoleSetupAction[] {
@@ -634,7 +639,7 @@ function createRoleActions({
     dependsOn: [getBodyActionId(role.bodyDraftId)],
     executionStatus: SetupActionExecutionStatus.Draft,
     expectedChainId: chainId,
-    expectedContractAddress: govCoreAddress,
+    expectedContractAddress: isoCoreAddress,
     fallbackName: role.fallbackName,
     kind: SetupActionKind.CreateRole,
     label: `Create ${role.fallbackName}`,
@@ -648,10 +653,10 @@ function createRoleActions({
 function createMandateActions({
   adminAddress,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   inputs,
   roleDefinitions,
-}: SetupDraftOptions & {
+}: SetupDraftActionOptions & {
   readonly adminAddress?: Address;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly roleDefinitions: readonly DraftRoleDefinition[];
@@ -665,7 +670,7 @@ function createMandateActions({
       endTime: "0",
       executionStatus: SetupActionExecutionStatus.Draft,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       holderAddress: holderAddress as Address,
       kind: SetupActionKind.AssignMandate,
       label: `Assign ${role.fallbackName}`,
@@ -684,10 +689,10 @@ function createMandateActions({
 function createPolicyActions({
   adminAddress,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   inputs,
   organizationRef,
-}: SetupDraftOptions & {
+}: SetupDraftActionOptions & {
   readonly adminAddress?: Address;
   readonly inputs: SimpleDaoPlusDraftInputs;
   readonly organizationRef: SetupEntityReference;
@@ -716,7 +721,7 @@ function createPolicyActions({
       executionStatus: SetupActionExecutionStatus.Draft,
       executorBody: standardExecutor,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
       label: "Set standard policy route",
       organizationRef,
@@ -742,7 +747,7 @@ function createPolicyActions({
       executionStatus: SetupActionExecutionStatus.Draft,
       executorBody: treasury,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
       label: "Set treasury policy route",
       organizationRef,
@@ -766,7 +771,7 @@ function createPolicyActions({
       executionStatus: SetupActionExecutionStatus.Draft,
       executorBody: standardExecutor,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
       label: "Set upgrade policy route",
       organizationRef,
@@ -789,7 +794,7 @@ function createPolicyActions({
       executionStatus: SetupActionExecutionStatus.Draft,
       executorBody: security,
       expectedChainId: chainId,
-      expectedContractAddress: govCoreAddress,
+      expectedContractAddress: isoCoreAddress,
       kind: SetupActionKind.SetPolicyRule,
       label: "Set emergency policy route",
       organizationRef,

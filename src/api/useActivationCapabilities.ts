@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import type { ActivationCapabilities } from "@isonia/types";
-import { useRuntimeConfig } from "../config/runtime-config";
+import { useIsoniaClient } from "./IsoniaClientProvider";
 import {
   deriveActivationCapabilitiesState,
-  loadControlPlaneCapabilities,
   type ActivationCapabilitiesDerivedState,
   type ControlPlaneCapabilitiesDto,
 } from "./activation-capabilities";
@@ -19,10 +18,10 @@ export interface ActivationCapabilitiesQuery
 }
 
 export function useActivationCapabilities(): ActivationCapabilitiesQuery {
-  const runtimeConfig = useRuntimeConfig();
+  const client = useIsoniaClient();
   const query = useIsoniaQuery(
-    () => loadControlPlaneCapabilities(runtimeConfig.apiBaseUrl),
-    [runtimeConfig.apiBaseUrl],
+    () => client.capabilities.get(),
+    [client],
   );
   const derived = useMemo(
     () =>

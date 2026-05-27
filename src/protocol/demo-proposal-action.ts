@@ -12,24 +12,26 @@ export interface DemoExecutionState {
 
 export function buildDemoExecution({
   demoNumber,
-  demoTargetAddress,
+  localDemoTargetAddress,
   proposal,
 }: {
   readonly demoNumber: string;
-  readonly demoTargetAddress: string | undefined;
+  readonly localDemoTargetAddress: string | undefined;
   readonly proposal: ProposalDto;
 }): DemoExecutionState {
-  if (!demoTargetAddress) {
+  if (!localDemoTargetAddress) {
     return {
       ready: false,
-      message: "Configured target address is missing from runtime config.",
+      message:
+        "Optional local demo target address is missing from runtime config.",
     };
   }
 
-  if (!sameAddress(proposal.targetAddress, demoTargetAddress)) {
+  if (!sameAddress(proposal.targetAddress, localDemoTargetAddress)) {
     return {
       ready: false,
-      message: "Only proposals targeting the current configured target can execute here.",
+      message:
+        "Only proposals targeting the configured local demo target can execute here.",
     };
   }
 

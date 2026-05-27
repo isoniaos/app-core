@@ -12,9 +12,10 @@ import {
   OrganizationStatus,
 } from "@isonia/types";
 import { usePublicClient, useWriteContract } from "wagmi";
-import { loadOrganizationFinalization } from "../../api/organization-finalization";
+import type { IsoniaControlPlaneClient } from "@isonia/sdk";
+import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { markOrganizationFinalized } from "../../api/useOrganizationFinalization";
-import { GOV_CORE_ABI } from "../../chain/setup-contracts";
+import { ISO_CORE_ABI } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
   useTransactionModal,
@@ -79,8 +80,9 @@ export function useOrganizationFinalizationAction({
   orgId,
 }: UseOrganizationFinalizationActionOptions): OrganizationFinalizationAction {
   const runtimeConfig = useRuntimeConfig();
+  const client = useIsoniaClient();
   const wallet = useWalletConnection();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
     openSingle: openTransactionModal,
@@ -107,9 +109,9 @@ export function useOrganizationFinalizationAction({
         finalization,
         finalizationError,
         finalizationLoading,
-        govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
         publicClientReady: Boolean(publicClient),
-        runtimeChainId: runtimeConfig.chainId,
+        runtimeChainId: runtimeConfig.activeDeployment.chainId,
         setupWritesEnabled,
       }),
     [
@@ -118,8 +120,8 @@ export function useOrganizationFinalizationAction({
       finalizationError,
       finalizationLoading,
       publicClient,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
       setupWritesEnabled,
       wallet.address,
       wallet.chainId,
@@ -149,7 +151,7 @@ export function useOrganizationFinalizationAction({
     ): void => {
       setTransaction(next);
       updateTransactionModalItem(itemId, {
-        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
         error: next.error,
         retry: undefined,
         retryLabel: undefined,
@@ -188,6 +190,13 @@ export function useOrganizationFinalizationAction({
       return;
     }
 
+    const isoCoreAddress =
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+    if (!isConfiguredAddress(isoCoreAddress)) {
+      fail("IsoCore contract address is missing from runtime config.");
+      return;
+    }
+
     const parsedOrgId = parseOrganizationId(orgId);
     if (parsedOrgId instanceof Error) {
       fail(parsedOrgId.message);
@@ -198,11 +207,11 @@ export function useOrganizationFinalizationAction({
     try {
       setFinalizationTransaction({ stage: "wallet_pending" });
       txHash = await writeContractAsync({
-        address: runtimeConfig.contracts.govCoreAddress,
-        abi: GOV_CORE_ABI,
+        address: isoCoreAddress,
+        abi: ISO_CORE_ABI,
         functionName: plan.functionName,
         args: [parsedOrgId],
-        chainId: runtimeConfig.chainId,
+        chainId: runtimeConfig.activeDeployment.chainId,
         account: signerAddress,
       });
 
@@ -218,7 +227,7 @@ export function useOrganizationFinalizationAction({
         txHash,
       });
       const indexed = await waitForFinalizationIndexed({
-        apiBaseUrl: runtimeConfig.apiBaseUrl,
+        client,
         orgId,
       });
 
@@ -229,15 +238,15 @@ export function useOrganizationFinalizationAction({
       fail(normalizeTransactionError(error), txHash);
     }
   }, [
+    client,
     onIndexed,
     orgId,
     plan.functionName,
     publicClient,
     readiness,
-    runtimeConfig.apiBaseUrl,
-    runtimeConfig.blockExplorerUrl,
-    runtimeConfig.chainId,
-    runtimeConfig.contracts.govCoreAddress,
+    runtimeConfig.activeDeployment.blockExplorerUrl,
+    runtimeConfig.activeDeployment.chainId,
+    runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     updateTransactionModalItem,
     wallet.address,
     writeContractAsync,
@@ -251,7 +260,7 @@ export function useOrganizationFinalizationAction({
     setTransaction({ stage: "idle" });
     openTransactionModal({
       description:
-        "Activate the organization through GovCore, then wait for Control Plane to index finalization metadata.",
+        "Activate the organization through IsoCore, then wait for Control Plane to index finalization metadata.",
       item: {
         actionBlock: readiness
           ? {
@@ -259,7 +268,7 @@ export function useOrganizationFinalizationAction({
               title: readiness.title,
             }
           : undefined,
-        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
         description: `${plan.functionName}(${plan.orgId}) closes bootstrap setup authority after activation is indexed.`,
         execute: readiness ? undefined : () => executeRef.current?.(),
         executeLabel: "Activate Organization",
@@ -269,7 +278,7 @@ export function useOrganizationFinalizationAction({
       },
       title: "Activate organization",
     });
-  }, [openTransactionModal, orgId, plan, readiness, runtimeConfig.blockExplorerUrl]);
+  }, [openTransactionModal, orgId, plan, readiness, runtimeConfig.activeDeployment.blockExplorerUrl]);
 
   return {
     busy,
@@ -288,7 +297,7 @@ function getOrganizationFinalizationReadiness({
   finalization,
   finalizationError,
   finalizationLoading,
-  govCoreAddress,
+  isoCoreAddress,
   publicClientReady,
   runtimeChainId,
   setupWritesEnabled,
@@ -300,7 +309,7 @@ function getOrganizationFinalizationReadiness({
   readonly finalization?: OrganizationFinalizationReadModelDto;
   readonly finalizationError?: Error;
   readonly finalizationLoading: boolean;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address | undefined;
   readonly publicClientReady: boolean;
   readonly runtimeChainId: number;
   readonly setupWritesEnabled: boolean;
@@ -372,10 +381,10 @@ function getOrganizationFinalizationReadiness({
     };
   }
 
-  if (!isConfiguredAddress(govCoreAddress)) {
+  if (!isConfiguredAddress(isoCoreAddress)) {
     return {
       buttonLabel: "Protocol config missing",
-      message: "Set contracts.govCoreAddress in runtime config.",
+      message: "Set activeDeployment.contracts.isoCoreAddress in runtime config.",
       title: "Protocol config missing",
     };
   }
@@ -429,10 +438,10 @@ function getOrganizationFinalizationReadiness({
 }
 
 async function waitForFinalizationIndexed({
-  apiBaseUrl,
+  client,
   orgId,
 }: {
-  readonly apiBaseUrl: string;
+  readonly client: IsoniaControlPlaneClient;
   readonly orgId: string;
 }): Promise<OrganizationFinalizationReadModelDto> {
   const deadline = Date.now() + FINALIZATION_INDEXER_TIMEOUT_MS;
@@ -440,7 +449,7 @@ async function waitForFinalizationIndexed({
 
   while (Date.now() < deadline) {
     try {
-      const finalization = await loadOrganizationFinalization(apiBaseUrl, orgId);
+      const finalization = await client.organizationFinalization.get(orgId);
       if (
         finalization.finalized === true ||
         isOrganizationFinalizedStatus(finalization.finalizationStatus)

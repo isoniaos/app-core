@@ -9,7 +9,7 @@ export function getReadiness({
   accountChainId,
   action,
   connected,
-  govCoreAddress,
+  isoCoreAddress,
   publicClientReady,
   runtimeChainId,
   setupWritesEnabled,
@@ -18,7 +18,7 @@ export function getReadiness({
   readonly accountChainId: number | undefined;
   readonly action: CreateOrganizationSetupAction | undefined;
   readonly connected: boolean;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address | undefined;
   readonly publicClientReady: boolean;
   readonly runtimeChainId: number;
   readonly setupWritesEnabled: boolean;
@@ -45,10 +45,10 @@ export function getReadiness({
     };
   }
 
-  if (!isConfiguredAddress(govCoreAddress)) {
+  if (!isConfiguredAddress(isoCoreAddress)) {
     return {
       title: "Protocol config missing",
-      message: "Set contracts.govCoreAddress in runtime config.",
+      message: "Set activeDeployment.contracts.isoCoreAddress in runtime config.",
     };
   }
 

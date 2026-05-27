@@ -1,35 +1,17 @@
 import {
-  buildControlPlanePath,
   isContractBatchActivationMode,
   isSerialActivationMode,
   isWalletBatchEip5792Mode,
+  type IsoniaCapabilitiesDto,
 } from "@isonia/sdk";
 import {
   ADMIN_BATCH_ACTIVATION_FUNCTION_NAME_VALUES,
   ActivationCapabilityStatus,
   type ActivationCapabilities,
   type AdminBatchActivationFunctionName,
-  type ChainId,
-  type OrganizationFinalizationCapability,
 } from "@isonia/types";
 
-export interface ControlPlaneCapabilitiesDto {
-  readonly apiVersion: string;
-  readonly chainId: ChainId;
-  readonly activation: ActivationCapabilities;
-  readonly finalization?: ControlPlaneFinalizationCapabilitiesDto;
-  readonly generatedAt: string;
-}
-
-export interface ControlPlaneFinalizationCapabilitiesDto {
-  readonly organization: OrganizationFinalizationCapability;
-  readonly emergencyRecovery: {
-    readonly status: string;
-  };
-  readonly governanceControlledPostFinalizationMutation: {
-    readonly status: string;
-  };
-}
+export type ControlPlaneCapabilitiesDto = IsoniaCapabilitiesDto;
 
 export interface ActivationCapabilitiesNotice {
   readonly message: string;
@@ -43,29 +25,6 @@ export interface ActivationCapabilitiesDerivedState {
   readonly eip5792AvailableMode: boolean;
   readonly notice: ActivationCapabilitiesNotice;
   readonly serialFallbackAvailable: boolean;
-}
-
-export async function loadControlPlaneCapabilities(
-  apiBaseUrl: string,
-): Promise<ControlPlaneCapabilitiesDto> {
-  const response = await fetch(
-    `${normalizeBaseUrl(apiBaseUrl)}${buildControlPlanePath("capabilities")}`,
-    {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-      },
-      method: "GET",
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Control Plane capabilities request failed: HTTP ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as ControlPlaneCapabilitiesDto;
 }
 
 export function deriveActivationCapabilitiesState({
@@ -182,12 +141,4 @@ function getActivationCapabilitiesNotice({
     title: "Compatible activation",
     tone: "muted",
   };
-}
-
-function normalizeBaseUrl(baseUrl: string): string {
-  const trimmed = baseUrl.trim().replace(/\/+$/, "");
-  if (trimmed.length === 0) {
-    throw new Error("Isonia Control Plane baseUrl must not be empty.");
-  }
-  return trimmed;
 }

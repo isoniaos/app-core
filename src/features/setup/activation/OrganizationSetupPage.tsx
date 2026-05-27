@@ -38,16 +38,16 @@ export function OrganizationSetupPage(): JSX.Element {
   const draft = useMemo(
     () =>
       createSimpleDaoPlusDraft({
-        chainId: runtimeConfig.chainId,
-        govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        chainId: runtimeConfig.activeDeployment.chainId,
+        isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
         inputs: activationInputs,
         orgId,
       }),
     [
       activationInputs,
       orgId,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     ],
   );
   const execution = useSetupActionExecution({

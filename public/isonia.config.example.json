@@ -1,26 +1,28 @@
 {
   "appName": "IsoniaOS",
-  "mode": "self-hosted",
   "apiBaseUrl": "https://control-plane.example.org",
-  "chainId": 31337,
-  "chainName": "Hardhat Local",
-  "rpcUrl": "http://127.0.0.1:8545",
-  "blockExplorerUrl": "https://explorer.example.org",
-  "nativeCurrencyName": "Ether",
-  "nativeCurrencySymbol": "ETH",
-  "contracts": {
-    "govCoreAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-    "govProposalsAddress": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    "demoTargetAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-  },
+  "activeChainId": 1,
+  "deployments": [
+    {
+      "chainId": 1,
+      "chainName": "Example EVM Network",
+      "rpcUrl": "https://rpc.example.org",
+      "blockExplorerUrl": "https://explorer.example.org",
+      "nativeCurrencyName": "Ether",
+      "nativeCurrencySymbol": "ETH",
+      "contracts": {
+        "isoCoreAddress": "0x0000000000000000000000000000000000000000",
+        "isoProposalsAddress": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  ],
   "features": {
     "createProposal": false,
+    "eip5792Batch": false,
     "writeActions": false,
     "manageOrg": false,
     "advancedAnalytics": false,
-    "billing": false,
-    "customTheme": false,
-    "saasAdmin": false
+    "customTheme": false
   },
   "theme": {
     "source": "default"
@@ -31,7 +33,6 @@
     "timeoutMs": 1500
   },
   "wallet": {
-    "connectionMode": "injected-only",
     "reownProjectId": "",
     "appUrl": "https://app.example.org",
     "icons": ["https://app.example.org/icon.png"]

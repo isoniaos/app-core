@@ -22,12 +22,12 @@ export function NewOrganizationSetupPage(): JSX.Element {
   const draft = useMemo(
     () =>
       createSimpleDaoPlusDraft({
-        chainId: runtimeConfig.chainId,
-        govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        chainId: runtimeConfig.activeDeployment.chainId,
+        isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
         includeActivationActions: false,
         inputs,
       }),
-    [inputs, runtimeConfig.chainId, runtimeConfig.contracts.govCoreAddress],
+    [inputs, runtimeConfig.activeDeployment.chainId, runtimeConfig.activeDeployment.contracts.isoCoreAddress],
   );
   const execution = useSetupActionExecution({ draft });
   const activationOrgId = execution.state.resolvedOrgId;

@@ -1,7 +1,7 @@
 import type { CreateBodySetupAction } from "@isonia/types";
 import { SetupActionKind } from "@isonia/types";
 import {
-  GOV_CORE_ABI,
+  ISO_CORE_ABI,
   parseBodyCreatedLog,
 } from "../../chain/setup-contracts";
 import { waitForIndexedBody } from "./indexing-waiters";
@@ -82,12 +82,12 @@ export async function executeCreateBodyAction({
     return;
   }
 
-  if (account.chainId !== runtimeConfig.chainId) {
+  if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
     setBodyActionFailed(
       action,
       `Wallet is connected to chain ${String(
         account.chainId,
-      )}; expected chain ${runtimeConfig.chainId}.`,
+      )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
     );
     return;
   }
@@ -96,8 +96,8 @@ export async function executeCreateBodyAction({
     accountChainId: account.chainId,
     connected: account.isConnected,
     connectedAddress: account.address,
-    govCoreAddress: runtimeConfig.contracts.govCoreAddress,
-    runtimeChainId: runtimeConfig.chainId,
+    isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+    runtimeChainId: runtimeConfig.activeDeployment.chainId,
     setupWritesEnabled,
   });
   if (!signerPreflight.canExecute) {
@@ -105,10 +105,10 @@ export async function executeCreateBodyAction({
     return;
   }
 
-  if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+  if (!isConfiguredAddress(runtimeConfig.activeDeployment.contracts.isoCoreAddress)) {
     setBodyActionFailed(
       action,
-      "GovCore contract address is missing from runtime config.",
+      "IsoCore contract address is missing from runtime config.",
     );
     return;
   }
@@ -133,11 +133,11 @@ export async function executeCreateBodyAction({
       stage: "wallet_pending",
     });
     const txHash = await writeContractAsync({
-      address: runtimeConfig.contracts.govCoreAddress,
-      abi: GOV_CORE_ABI,
+      address: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+      abi: ISO_CORE_ABI,
       functionName: "createBody",
       args: buildCreateBodyCallArgs(payload),
-      chainId: runtimeConfig.chainId,
+      chainId: runtimeConfig.activeDeployment.chainId,
       account: signerAddress,
     });
 
@@ -158,7 +158,7 @@ export async function executeCreateBodyAction({
     assertSuccessfulReceipt(receipt);
     const created = parseBodyCreatedLog(
       receipt,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     );
     if (!created) {
       throw new Error(

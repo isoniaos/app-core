@@ -44,11 +44,11 @@ export function useDemoProposalExecution({
   const demoExecution = useMemo(
     () =>
       buildDemoExecution({
-        demoTargetAddress: runtimeConfig.contracts.demoTargetAddress,
+        localDemoTargetAddress: runtimeConfig.activeDeployment.localDemoTargetAddress,
         demoNumber,
         proposal,
       }),
-    [demoNumber, proposal, runtimeConfig.contracts.demoTargetAddress],
+    [demoNumber, proposal, runtimeConfig.activeDeployment.localDemoTargetAddress],
   );
 
   return { demoExecution, demoNumber, setDemoNumber };

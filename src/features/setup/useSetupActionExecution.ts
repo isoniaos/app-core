@@ -22,7 +22,7 @@ import {
 } from "@isonia/sdk";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
-import { GOV_CORE_ABI } from "../../chain/setup-contracts";
+import { ISO_CORE_ABI } from "../../chain/setup-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import {
   useTransactionModal,
@@ -145,7 +145,7 @@ export function useSetupActionExecution({
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
   const account = useWalletConnection();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
     openBatch: openBatchTransactionModal,
@@ -232,7 +232,7 @@ export function useSetupActionExecution({
   } = useEip5792Capabilities({
     accountChainId: account.chainId,
     address: account.address,
-    chainId: runtimeConfig.chainId,
+    chainId: runtimeConfig.activeDeployment.chainId,
     connected: account.isConnected,
     connector: account.connector,
     enabled: eip5792BatchFeatureEnabled,
@@ -250,7 +250,7 @@ export function useSetupActionExecution({
         }
 
         const patch = buildSetupTransactionModalItemPatch({
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           draft,
           executionState: returnedState,
           itemId: item.id,
@@ -271,7 +271,7 @@ export function useSetupActionExecution({
         }
 
         const patch = buildSetupTransactionModalItemPatch({
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           draft,
           executionState: returnedState,
           itemId: item.id,
@@ -288,7 +288,7 @@ export function useSetupActionExecution({
     const activeItemId = activeTransactionModalItemId.current;
     if (activeItemId && isSetupTransactionModalItemId(activeItemId)) {
       const patch = buildSetupTransactionModalItemPatch({
-        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
         draft,
         executionState: returnedState,
         itemId: activeItemId,
@@ -303,7 +303,7 @@ export function useSetupActionExecution({
     draft,
     readModels,
     returnedState,
-    runtimeConfig.blockExplorerUrl,
+    runtimeConfig.activeDeployment.blockExplorerUrl,
     transactionModalState.mode,
     transactionModalState.open,
     updateTransactionModalItem,
@@ -347,9 +347,9 @@ export function useSetupActionExecution({
         accountChainId: account.chainId,
         action: createOrganizationAction,
         connected: account.isConnected,
-        govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+        isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
         publicClientReady: Boolean(publicClient),
-        runtimeChainId: runtimeConfig.chainId,
+        runtimeChainId: runtimeConfig.activeDeployment.chainId,
         setupWritesEnabled,
         transaction: returnedState.createOrganization,
       }),
@@ -358,8 +358,8 @@ export function useSetupActionExecution({
       account.isConnected,
       createOrganizationAction,
       publicClient,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
       setupWritesEnabled,
       returnedState.createOrganization,
     ],
@@ -423,8 +423,8 @@ export function useSetupActionExecution({
             accountChainId: account.chainId,
             connected: account.isConnected,
             connectedAddress: account.address,
-            govCoreAddress: runtimeConfig.contracts.govCoreAddress,
-            runtimeChainId: runtimeConfig.chainId,
+            isoCoreAddress: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+            runtimeChainId: runtimeConfig.activeDeployment.chainId,
             setupWritesEnabled,
           })
         : undefined;
@@ -441,7 +441,7 @@ export function useSetupActionExecution({
         description,
         item: {
           actionBlock,
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           description,
           error: preflightReady ? transaction.error : undefined,
           execute: preflightReady ? start : undefined,
@@ -465,9 +465,9 @@ export function useSetupActionExecution({
       account.chainId,
       account.isConnected,
       openTransactionModal,
-      runtimeConfig.blockExplorerUrl,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
       setupWritesEnabled,
       startSetupTransaction,
     ],
@@ -829,7 +829,7 @@ export function useSetupActionExecution({
       const providerContext = await getEip5792ProviderContext(account.connector);
       const provider = providerContext.provider;
       const errorContext = {
-        chainId: runtimeConfig.chainId,
+        chainId: runtimeConfig.activeDeployment.chainId,
         connectorName:
           providerContext.diagnostics.connector.name ??
           providerContext.diagnostics.connector.id,
@@ -1087,7 +1087,7 @@ export function useSetupActionExecution({
       eip5792BatchCapability.canSendCalls,
       eip5792BatchCapability.reason,
       resolvedOrgId,
-      runtimeConfig.chainId,
+      runtimeConfig.activeDeployment.chainId,
       setExecutionState,
       updateTransactionBatch,
       updateTransactionModalItem,
@@ -1101,6 +1101,12 @@ export function useSetupActionExecution({
         throw new Error("Wallet is not connected.");
       }
 
+      const isoCoreAddress =
+        runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+      if (!isConfiguredAddress(isoCoreAddress)) {
+        throw new Error("IsoCore contract address is missing from runtime config.");
+      }
+
       switch (call.group) {
         case "bodies": {
           const args = buildBatchCreateBodiesCallArgs({
@@ -1111,11 +1117,11 @@ export function useSetupActionExecution({
             throw args;
           }
           return await writeContractAsync({
-            address: runtimeConfig.contracts.govCoreAddress,
-            abi: GOV_CORE_ABI,
+            address: isoCoreAddress,
+            abi: ISO_CORE_ABI,
             functionName: getAdminBatchActivationFunctionName("bodies"),
             args,
-            chainId: runtimeConfig.chainId,
+            chainId: runtimeConfig.activeDeployment.chainId,
             account: signerAddress,
           });
         }
@@ -1128,11 +1134,11 @@ export function useSetupActionExecution({
             throw args;
           }
           return await writeContractAsync({
-            address: runtimeConfig.contracts.govCoreAddress,
-            abi: GOV_CORE_ABI,
+            address: isoCoreAddress,
+            abi: ISO_CORE_ABI,
             functionName: getAdminBatchActivationFunctionName("roles"),
             args,
-            chainId: runtimeConfig.chainId,
+            chainId: runtimeConfig.activeDeployment.chainId,
             account: signerAddress,
           });
         }
@@ -1145,11 +1151,11 @@ export function useSetupActionExecution({
             throw args;
           }
           return await writeContractAsync({
-            address: runtimeConfig.contracts.govCoreAddress,
-            abi: GOV_CORE_ABI,
+            address: isoCoreAddress,
+            abi: ISO_CORE_ABI,
             functionName: getAdminBatchActivationFunctionName("mandates"),
             args,
-            chainId: runtimeConfig.chainId,
+            chainId: runtimeConfig.activeDeployment.chainId,
             account: signerAddress,
           });
         }
@@ -1162,11 +1168,11 @@ export function useSetupActionExecution({
             throw args;
           }
           return await writeContractAsync({
-            address: runtimeConfig.contracts.govCoreAddress,
-            abi: GOV_CORE_ABI,
+            address: isoCoreAddress,
+            abi: ISO_CORE_ABI,
             functionName: getAdminBatchActivationFunctionName("policyRules"),
             args,
-            chainId: runtimeConfig.chainId,
+            chainId: runtimeConfig.activeDeployment.chainId,
             account: signerAddress,
           });
         }
@@ -1175,8 +1181,8 @@ export function useSetupActionExecution({
     },
     [
       account.address,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
       writeContractAsync,
     ],
   );
@@ -1208,17 +1214,17 @@ export function useSetupActionExecution({
         return;
       }
 
-      if (account.chainId !== runtimeConfig.chainId) {
+      if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
         failBatch(
           `Wallet is connected to chain ${String(
             account.chainId,
-          )}; expected chain ${runtimeConfig.chainId}.`,
+          )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
         );
         return;
       }
 
-      if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
-        failBatch("GovCore contract address is missing from runtime config.");
+      if (!isConfiguredAddress(runtimeConfig.activeDeployment.contracts.isoCoreAddress)) {
+        failBatch("IsoCore contract address is missing from runtime config.");
         return;
       }
 
@@ -1307,8 +1313,8 @@ export function useSetupActionExecution({
       client,
       publicClient,
       resolvedOrgId,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
       setExecutionState,
       submitContractBatchPlanCall,
       updateTransactionModalItem,
@@ -1338,7 +1344,7 @@ export function useSetupActionExecution({
       const items = actions.map((action) =>
         createSetupGroupTransactionItem({
           action,
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           draft,
           executionState: returnedState,
           getItemId,
@@ -1367,7 +1373,7 @@ export function useSetupActionExecution({
       readModels,
       returnedState,
       runSetupGroupTransactions,
-      runtimeConfig.blockExplorerUrl,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
     ],
   );
 
@@ -1416,7 +1422,7 @@ export function useSetupActionExecution({
         const itemId = getItemId(action.actionId);
         const failed = Boolean(preparationError && index >= prepared.length);
         return {
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           description: action.description,
           error: failed ? preparationError?.message : undefined,
           id: itemId,
@@ -1478,7 +1484,7 @@ export function useSetupActionExecution({
       readModels,
       returnedState,
       runSetupGroupBatchTransactions,
-      runtimeConfig.blockExplorerUrl,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
     ],
   );
 
@@ -1537,7 +1543,7 @@ export function useSetupActionExecution({
           : `setup:contract-batch:${call.group}`;
       const modalItem: TransactionFlowItem = {
         actionBlock,
-        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
         description,
         error: preparationError?.message,
         execute:
@@ -1580,7 +1586,7 @@ export function useSetupActionExecution({
       readModels,
       returnedState,
       runSetupGroupContractBatchTransaction,
-      runtimeConfig.blockExplorerUrl,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
     ],
   );
 
@@ -1615,7 +1621,7 @@ export function useSetupActionExecution({
           actions: createBodyActions,
           call,
           description:
-            "Submit one typed GovCore batch for ready body setup calls, then wait for indexed read models.",
+            "Submit one typed IsoCore batch for ready body setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("create-body", actionId),
           title: "Activate bodies",
@@ -1636,13 +1642,19 @@ export function useSetupActionExecution({
         "Submit ready body setup calls as an EIP-5792 wallet batch, then wait for indexed read models.",
       getItemId: (actionId) =>
         buildSetupTransactionModalItemId("create-body", actionId),
-      prepareCall: (action) =>
-        prepareCreateBodyCall({
+      prepareCall: (action) => {
+        const isoCoreAddress =
+          runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+        if (!isConfiguredAddress(isoCoreAddress)) {
+          return new Error("IsoCore contract address is missing from runtime config.");
+        }
+        return prepareCreateBodyCall({
           action: action as CreateBodySetupAction,
-          chainId: runtimeConfig.chainId,
-          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          chainId: runtimeConfig.activeDeployment.chainId,
+          isoCoreAddress,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
-        }),
+        });
+      },
       runSerialFallback: () => openCreateBodyGroupSerial(),
       title: "Batch activate bodies",
     });
@@ -1651,8 +1663,8 @@ export function useSetupActionExecution({
     openCreateBodyGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
-    runtimeConfig.chainId,
-    runtimeConfig.contracts.govCoreAddress,
+    runtimeConfig.activeDeployment.chainId,
+    runtimeConfig.activeDeployment.contracts.isoCoreAddress,
   ]);
 
   const openCreateRoleGroupSerial = useCallback(async (): Promise<void> => {
@@ -1688,7 +1700,7 @@ export function useSetupActionExecution({
           actions: createRoleActions,
           call,
           description:
-            "Submit one typed GovCore batch for ready role setup calls, then wait for indexed read models.",
+            "Submit one typed IsoCore batch for ready role setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("create-role", actionId),
           title: "Activate roles",
@@ -1710,15 +1722,21 @@ export function useSetupActionExecution({
         "Submit ready role setup calls as an EIP-5792 wallet batch, then wait for indexed read models.",
       getItemId: (actionId) =>
         buildSetupTransactionModalItemId("create-role", actionId),
-      prepareCall: (action) =>
-        prepareCreateRoleCall({
+      prepareCall: (action) => {
+        const isoCoreAddress =
+          runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+        if (!isConfiguredAddress(isoCoreAddress)) {
+          return new Error("IsoCore contract address is missing from runtime config.");
+        }
+        return prepareCreateRoleCall({
           action: action as CreateRoleSetupAction,
           bodyActions: createBodyActions,
-          chainId: runtimeConfig.chainId,
-          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          chainId: runtimeConfig.activeDeployment.chainId,
+          isoCoreAddress,
           resolvedBodyIds: stateRef.current.resolvedBodyIds,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
-        }),
+        });
+      },
       runSerialFallback: () => openCreateRoleGroupSerial(),
       title: "Batch activate roles",
     });
@@ -1728,8 +1746,8 @@ export function useSetupActionExecution({
     openCreateRoleGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
-    runtimeConfig.chainId,
-    runtimeConfig.contracts.govCoreAddress,
+    runtimeConfig.activeDeployment.chainId,
+    runtimeConfig.activeDeployment.contracts.isoCoreAddress,
   ]);
 
   const openAssignMandateGroupSerial = useCallback(async (): Promise<void> => {
@@ -1769,7 +1787,7 @@ export function useSetupActionExecution({
           actions: assignMandateActions,
           call,
           description:
-            "Submit one typed GovCore batch for ready mandate setup calls, then wait for indexed read models.",
+            "Submit one typed IsoCore batch for ready mandate setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("assign-mandate", actionId),
           title: "Activate mandates",
@@ -1803,10 +1821,15 @@ export function useSetupActionExecution({
             "Assign mandate is blocked until the referenced role is indexed and the real roleId is resolved.",
           );
         }
+        const isoCoreAddress =
+          runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+        if (!isConfiguredAddress(isoCoreAddress)) {
+          return new Error("IsoCore contract address is missing from runtime config.");
+        }
         return prepareAssignMandateCall({
           action: mandateAction,
-          chainId: runtimeConfig.chainId,
-          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          chainId: runtimeConfig.activeDeployment.chainId,
+          isoCoreAddress,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
           resolvedRoleId,
         });
@@ -1820,8 +1843,8 @@ export function useSetupActionExecution({
     openAssignMandateGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
-    runtimeConfig.chainId,
-    runtimeConfig.contracts.govCoreAddress,
+    runtimeConfig.activeDeployment.chainId,
+    runtimeConfig.activeDeployment.contracts.isoCoreAddress,
   ]);
 
   const openSetPolicyRuleGroupSerial = useCallback(async (): Promise<void> => {
@@ -1873,7 +1896,7 @@ export function useSetupActionExecution({
           actions: setPolicyRuleActions,
           call,
           description:
-            "Submit one typed GovCore batch for ready policy route setup calls, then wait for indexed read models.",
+            "Submit one typed IsoCore batch for ready policy route setup calls, then wait for indexed read models.",
           getItemId: (actionId) =>
             buildSetupTransactionModalItemId("set-policy-rule", actionId),
           title: "Activate policy routes",
@@ -1908,11 +1931,16 @@ export function useSetupActionExecution({
         if (dependencyError) {
           return dependencyError;
         }
+        const isoCoreAddress =
+          runtimeConfig.activeDeployment.contracts.isoCoreAddress;
+        if (!isConfiguredAddress(isoCoreAddress)) {
+          return new Error("IsoCore contract address is missing from runtime config.");
+        }
         return prepareSetPolicyRuleCall({
           action: policyAction,
           bodyActions: createBodyActions,
-          chainId: runtimeConfig.chainId,
-          govCoreAddress: runtimeConfig.contracts.govCoreAddress,
+          chainId: runtimeConfig.activeDeployment.chainId,
+          isoCoreAddress,
           resolvedBodyIds: stateRef.current.resolvedBodyIds,
           resolvedOrgId: stateRef.current.resolvedOrgId ?? resolvedOrgId ?? "",
         });
@@ -1927,8 +1955,8 @@ export function useSetupActionExecution({
     openSetPolicyRuleGroupSerial,
     openSetupGroupBatchTransactionModal,
     resolvedOrgId,
-    runtimeConfig.chainId,
-    runtimeConfig.contracts.govCoreAddress,
+    runtimeConfig.activeDeployment.chainId,
+    runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     setPolicyRuleActions,
   ]);
 
@@ -2273,8 +2301,8 @@ function getSetupPreflightEnvironment(
     accountChainId: context.account.chainId,
     connected: context.account.isConnected,
     connectedAddress: context.account.address,
-    govCoreAddress: context.runtimeConfig.contracts.govCoreAddress,
-    runtimeChainId: context.runtimeConfig.chainId,
+    isoCoreAddress: context.runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+    runtimeChainId: context.runtimeConfig.activeDeployment.chainId,
     setupWritesEnabled: context.setupWritesEnabled,
   };
 }

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OrganizationFinalizationReadModelDto } from "@isonia/types";
-import { useRuntimeConfig } from "../config/runtime-config";
+import { useIsoniaClient } from "./IsoniaClientProvider";
 import {
   deriveOrganizationFinalizationState,
-  loadOrganizationFinalization,
   type OrganizationFinalizationDerivedState,
 } from "./organization-finalization";
 import {
@@ -33,11 +32,11 @@ export function markOrganizationFinalized(orgId: string): void {
 export function useOrganizationFinalization(
   orgId: string,
 ): OrganizationFinalizationQuery {
-  const runtimeConfig = useRuntimeConfig();
+  const client = useIsoniaClient();
   const [revision, setRevision] = useState(0);
   const query = useIsoniaQuery(
-    () => loadOrganizationFinalization(runtimeConfig.apiBaseUrl, orgId),
-    [runtimeConfig.apiBaseUrl, orgId],
+    () => client.organizationFinalization.get(orgId),
+    [client, orgId],
   );
   const reloadFinalization = query.reload;
   const finalizedOverride = finalizedOrgIdOverrides.has(orgId);

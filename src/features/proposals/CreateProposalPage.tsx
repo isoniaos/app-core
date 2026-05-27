@@ -10,7 +10,7 @@ import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import {
   buildDemoSetNumberAction,
   CREATE_PROPOSAL_TYPES,
-  GOV_PROPOSALS_ABI,
+  ISO_PROPOSALS_ABI,
   isBytes32Hash,
   parseProposalCreatedLog,
   proposalTypeToChainCode,
@@ -83,20 +83,20 @@ export function CreateProposalPage(): JSX.Element {
   const client = useIsoniaClient();
   const navigate = useNavigate();
   const account = useWalletConnection();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
     openSingle: openTransactionModal,
     updateItem: updateTransactionModalItem,
   } = useTransactionModal();
   const orgId = requireParam(useParams().orgId, "orgId");
-  const demoTargetAddress = runtimeConfig.contracts.demoTargetAddress;
+  const localDemoTargetAddress = runtimeConfig.activeDeployment.localDemoTargetAddress;
   const activeTransactionModalItemId = useRef<string | undefined>(undefined);
   const [form, setForm] = useState<FormState>(() => ({
     proposalType: ProposalType.Standard,
     title: "",
     descriptionUri: "",
-    targetMode: demoTargetAddress ? "demo" : "custom",
+    targetMode: localDemoTargetAddress ? "demo" : "custom",
     targetAddress: "",
     value: "0",
     demoNumber: "",
@@ -116,8 +116,8 @@ export function CreateProposalPage(): JSX.Element {
     [orgId, form.demoNumber],
   );
   const formErrors = useMemo(
-    () => validateForm(form, orgId, demoTargetAddress),
-    [demoTargetAddress, form, orgId],
+    () => validateForm(form, orgId, localDemoTargetAddress),
+    [localDemoTargetAddress, form, orgId],
   );
   const visibleErrors = useMemo(
     () => getVisibleErrors(formErrors, touched, submitAttempted),
@@ -126,7 +126,7 @@ export function CreateProposalPage(): JSX.Element {
   const blockingNotice = getBlockingNotice({
     account,
     publicClientReady: Boolean(publicClient),
-    runtimeChainId: runtimeConfig.chainId,
+    runtimeChainId: runtimeConfig.activeDeployment.chainId,
     writeFlowEnabled,
   });
   const isSubmitting =
@@ -151,7 +151,7 @@ export function CreateProposalPage(): JSX.Element {
       ): void => {
         setTransaction(next);
         updateTransactionModalItem(itemId, {
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           error: next.error,
           retry: undefined,
           retryLabel: undefined,
@@ -190,11 +190,11 @@ export function CreateProposalPage(): JSX.Element {
         return;
       }
 
-      if (account.chainId !== runtimeConfig.chainId) {
+      if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
         fail(
           `Wallet is connected to chain ${String(
             account.chainId,
-          )}; expected chain ${runtimeConfig.chainId}.`,
+          )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
         );
         return;
       }
@@ -204,13 +204,20 @@ export function CreateProposalPage(): JSX.Element {
         return;
       }
 
+      const isoProposalsAddress =
+        runtimeConfig.activeDeployment.contracts.isoProposalsAddress;
+      if (!isoProposalsAddress || !isAddress(isoProposalsAddress)) {
+        fail("IsoProposals contract address is missing from runtime config.");
+        return;
+      }
+
       let txHash: `0x${string}` | undefined;
       let proposalId: string | undefined;
       try {
         setCreateTransaction({ stage: "wallet_pending" });
         txHash = await writeContractAsync({
-          address: runtimeConfig.contracts.govProposalsAddress,
-          abi: GOV_PROPOSALS_ABI,
+          address: isoProposalsAddress,
+          abi: ISO_PROPOSALS_ABI,
           functionName: "createProposal",
           args: [
             payload.orgId,
@@ -220,7 +227,7 @@ export function CreateProposalPage(): JSX.Element {
             payload.dataHash,
             payload.metadataUri,
           ],
-          chainId: runtimeConfig.chainId,
+          chainId: runtimeConfig.activeDeployment.chainId,
           account: signerAddress,
         });
 
@@ -236,7 +243,7 @@ export function CreateProposalPage(): JSX.Element {
 
         const created = parseProposalCreatedLog(
           receipt,
-          runtimeConfig.contracts.govProposalsAddress,
+          isoProposalsAddress,
         );
 
         if (!created || created.orgId !== orgId) {
@@ -272,9 +279,9 @@ export function CreateProposalPage(): JSX.Element {
       navigate,
       orgId,
       publicClient,
-      runtimeConfig.blockExplorerUrl,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govProposalsAddress,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoProposalsAddress,
       updateTransactionModalItem,
       writeContractAsync,
       writeFlowEnabled,
@@ -289,7 +296,7 @@ export function CreateProposalPage(): JSX.Element {
       return;
     }
 
-    const payload = buildPayload(form, orgId, demoTargetAddress);
+    const payload = buildPayload(form, orgId, localDemoTargetAddress);
     if (payload instanceof Error) {
       setTransaction({ stage: "failed", error: payload.message });
       return;
@@ -302,7 +309,7 @@ export function CreateProposalPage(): JSX.Element {
       description:
         "Create the proposal on-chain, then wait for Control Plane to index the ProposalCreated event.",
       item: {
-        blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+        blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
         description: `${formatLabel(form.proposalType)} proposal for org #${orgId}`,
         execute: () => executeCreateProposal(payload, itemId),
         executeLabel: "Create",
@@ -319,7 +326,7 @@ export function CreateProposalPage(): JSX.Element {
       <PageHeader
         eyebrow={`Org #${orgId}`}
         title="Create Proposal"
-        description="Submit a proposal to the configured GovProposals contract and wait for the indexed read model."
+        description="Submit a proposal to the configured IsoProposals contract and wait for the indexed read model."
       />
 
       <div className="action-row">
@@ -415,11 +422,11 @@ export function CreateProposalPage(): JSX.Element {
               <div className="segmented-control" role="group">
                 <button
                   className={segmentClassName(form.targetMode === "demo")}
-                  disabled={!demoTargetAddress}
+                  disabled={!localDemoTargetAddress}
                   type="button"
                   onClick={() => setForm({ ...form, targetMode: "demo" })}
                 >
-                  Current configured target
+                  Local demo target
                 </button>
                 <button
                   className={segmentClassName(form.targetMode === "custom")}
@@ -439,7 +446,7 @@ export function CreateProposalPage(): JSX.Element {
                 type="text"
                 value={
                   form.targetMode === "demo"
-                    ? demoTargetAddress ?? ""
+                    ? localDemoTargetAddress ?? ""
                     : form.targetAddress
                 }
                 onChange={(event) =>
@@ -512,7 +519,7 @@ export function CreateProposalPage(): JSX.Element {
         </section>
 
         <CreateProposalTransactionStatus
-          blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+          blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
           transaction={transaction}
         />
 
@@ -614,7 +621,7 @@ function formFieldClassName(error: string | undefined, wide = false): string {
 function validateForm(
   form: FormState,
   orgId: string,
-  demoTargetAddress: Address | undefined,
+  localDemoTargetAddress: Address | undefined,
 ): ProposalFormErrors {
   const errors: ProposalFormErrors = {};
 
@@ -636,7 +643,7 @@ function validateForm(
   }
 
   if (form.targetMode === "demo") {
-    if (!demoTargetAddress) {
+    if (!localDemoTargetAddress) {
       errors.targetAddress = "Configured target address is missing.";
     }
     const number = parseUint(form.demoNumber, "setNumber value");
@@ -693,7 +700,7 @@ function mapCreateProposalStageToTransactionFlowStage(
 function buildPayload(
   form: FormState,
   orgId: string,
-  demoTargetAddress: Address | undefined,
+  localDemoTargetAddress: Address | undefined,
 ): CreateProposalPayload | Error {
   const parsedOrgId = parseUint(formValue(orgId), "Organization ID");
   if (parsedOrgId instanceof Error) {
@@ -717,7 +724,7 @@ function buildPayload(
   }
 
   if (form.targetMode === "demo") {
-    if (!demoTargetAddress) {
+    if (!localDemoTargetAddress) {
       return new Error("Configured target address is missing from runtime config.");
     }
     const demoNumber = parseUint(form.demoNumber, "setNumber value");
@@ -727,7 +734,7 @@ function buildPayload(
     return {
       orgId: parsedOrgId,
       proposalTypeCode,
-      targetAddress: demoTargetAddress,
+      targetAddress: localDemoTargetAddress,
       value,
       dataHash: buildDemoSetNumberAction(parsedOrgId, demoNumber).dataHash,
       metadataUri,

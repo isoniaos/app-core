@@ -9,7 +9,7 @@ import { ProposalStatus } from "@isonia/types";
 import type { Hex, TransactionReceipt } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
-import { GOV_PROPOSALS_ABI } from "../../chain/proposal-contracts";
+import { ISO_PROPOSALS_ABI } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { useTransactionModal, type TransactionFlowStage } from "../../transactions";
 import { useWalletConnection } from "../../wallet/useWalletConnection";
@@ -90,7 +90,7 @@ export function useProposalAction({
   const runtimeConfig = useRuntimeConfig();
   const client = useIsoniaClient();
   const account = useWalletConnection();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
   const { writeContractAsync } = useWriteContract();
   const {
     openSingle: openTransactionModal,
@@ -111,17 +111,17 @@ export function useProposalAction({
       getReadiness({
         accountChainId: account.chainId,
         connected: account.isConnected,
-        govProposalsAddress: runtimeConfig.contracts.govProposalsAddress,
+        isoProposalsAddress: runtimeConfig.activeDeployment.contracts.isoProposalsAddress,
         publicClientReady: Boolean(publicClient),
-        runtimeChainId: runtimeConfig.chainId,
+        runtimeChainId: runtimeConfig.activeDeployment.chainId,
         writeActionsEnabled: runtimeConfig.features.writeActions,
       }),
     [
       account.chainId,
       account.isConnected,
       publicClient,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govProposalsAddress,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoProposalsAddress,
       runtimeConfig.features.writeActions,
     ],
   );
@@ -154,7 +154,7 @@ export function useProposalAction({
       ): void => {
         setTransaction(next);
         updateTransactionModalItem(itemId, {
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           error: next.error,
           retry: undefined,
           retryLabel: undefined,
@@ -193,17 +193,17 @@ export function useProposalAction({
         return;
       }
 
-      if (account.chainId !== runtimeConfig.chainId) {
+      if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
         fail(
           `Wallet is connected to chain ${String(
             account.chainId,
-          )}; expected chain ${runtimeConfig.chainId}.`,
+          )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
         );
         return;
       }
 
-      if (!isConfiguredAddress(runtimeConfig.contracts.govProposalsAddress)) {
-        fail("GovProposals contract address is missing from runtime config.");
+      if (!isConfiguredAddress(runtimeConfig.activeDeployment.contracts.isoProposalsAddress)) {
+        fail("IsoProposals contract address is missing from runtime config.");
         return;
       }
 
@@ -227,8 +227,8 @@ export function useProposalAction({
         });
         txHash = await writeProposalAction({
           account: signerAddress,
-          address: runtimeConfig.contracts.govProposalsAddress,
-          chainId: runtimeConfig.chainId,
+          address: runtimeConfig.activeDeployment.contracts.isoProposalsAddress,
+          chainId: runtimeConfig.activeDeployment.chainId,
           ids: parsedIds,
           request,
           writeContractAsync,
@@ -284,9 +284,9 @@ export function useProposalAction({
       onIndexed,
       proposal,
       publicClient,
-      runtimeConfig.blockExplorerUrl,
-      runtimeConfig.chainId,
-      runtimeConfig.contracts.govProposalsAddress,
+      runtimeConfig.activeDeployment.blockExplorerUrl,
+      runtimeConfig.activeDeployment.chainId,
+      runtimeConfig.activeDeployment.contracts.isoProposalsAddress,
       runtimeConfig.features.writeActions,
       updateTransactionModalItem,
       writeContractAsync,
@@ -304,7 +304,7 @@ export function useProposalAction({
       openTransactionModal({
         description: getProposalActionModalDescription(request),
         item: {
-          blockExplorerUrl: runtimeConfig.blockExplorerUrl,
+          blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
           description: getProposalActionModalItemDescription(request),
           execute: () => executeActionRef.current?.(request, itemId),
           executeLabel: actionLabel(request.kind),
@@ -315,7 +315,7 @@ export function useProposalAction({
         title: `${actionLabel(request.kind)} proposal`,
       });
     },
-    [openTransactionModal, proposal, runtimeConfig.blockExplorerUrl],
+    [openTransactionModal, proposal, runtimeConfig.activeDeployment.blockExplorerUrl],
   );
 
   return { busy, readiness, reset, runAction, transaction };
@@ -425,7 +425,7 @@ async function writeProposalAction({
     }
     return writeContractAsync({
       address,
-      abi: GOV_PROPOSALS_ABI,
+      abi: ISO_PROPOSALS_ABI,
       functionName: "approveProposal",
       args: [ids.orgId, ids.proposalId, ids.bodyId],
       chainId,
@@ -439,7 +439,7 @@ async function writeProposalAction({
     }
     return writeContractAsync({
       address,
-      abi: GOV_PROPOSALS_ABI,
+      abi: ISO_PROPOSALS_ABI,
       functionName: "vetoProposal",
       args: [ids.orgId, ids.proposalId, ids.bodyId],
       chainId,
@@ -450,7 +450,7 @@ async function writeProposalAction({
   if (request.kind === "queue") {
     return writeContractAsync({
       address,
-      abi: GOV_PROPOSALS_ABI,
+      abi: ISO_PROPOSALS_ABI,
       functionName: "queueProposal",
       args: [ids.orgId, ids.proposalId],
       chainId,
@@ -461,7 +461,7 @@ async function writeProposalAction({
   if (request.kind === "execute") {
     return writeContractAsync({
       address,
-      abi: GOV_PROPOSALS_ABI,
+      abi: ISO_PROPOSALS_ABI,
       functionName: "executeProposal",
       args: [ids.orgId, ids.proposalId, request.actionData],
       chainId,
@@ -472,7 +472,7 @@ async function writeProposalAction({
 
   return writeContractAsync({
     address,
-    abi: GOV_PROPOSALS_ABI,
+    abi: ISO_PROPOSALS_ABI,
     functionName: "cancelProposal",
     args: [ids.orgId, ids.proposalId],
     chainId,
@@ -576,14 +576,14 @@ function isActionIndexed(
 function getReadiness({
   accountChainId,
   connected,
-  govProposalsAddress,
+  isoProposalsAddress,
   publicClientReady,
   runtimeChainId,
   writeActionsEnabled,
 }: {
   readonly accountChainId: number | undefined;
   readonly connected: boolean;
-  readonly govProposalsAddress: Address;
+  readonly isoProposalsAddress: Address | undefined;
   readonly publicClientReady: boolean;
   readonly runtimeChainId: number;
   readonly writeActionsEnabled: boolean;
@@ -595,10 +595,10 @@ function getReadiness({
     };
   }
 
-  if (!isConfiguredAddress(govProposalsAddress)) {
+  if (!isConfiguredAddress(isoProposalsAddress)) {
     return {
       title: "Protocol config missing",
-      message: "Set contracts.govProposalsAddress in runtime config.",
+      message: "Set activeDeployment.contracts.isoProposalsAddress in runtime config.",
     };
   }
 
@@ -628,8 +628,8 @@ function getReadiness({
   return undefined;
 }
 
-function isConfiguredAddress(value: Address): boolean {
-  return !/^0x0{40}$/i.test(value);
+function isConfiguredAddress(value: Address | undefined): value is Address {
+  return typeof value === "string" && !/^0x0{40}$/i.test(value);
 }
 
 function parseUint(value: string, label: string): bigint | Error {

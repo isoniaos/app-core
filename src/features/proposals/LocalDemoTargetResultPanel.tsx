@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Bytes32Hash, ProposalDto } from "@isonia/types";
 import { ProposalStatus } from "@isonia/types";
 import { usePublicClient } from "wagmi";
-import { DEMO_TARGET_ABI } from "../../chain/proposal-contracts";
+import { LOCAL_DEMO_TARGET_ABI } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import type { DemoExecutionState } from "../../protocol/demo-proposal-action";
 import { SetupTransactionHash } from "../setup/SetupTransactionStatus";
@@ -14,7 +14,7 @@ import {
 } from "../../utils/format";
 import type { ProposalActionTransaction } from "./useProposalAction";
 
-interface DemoTargetResultPanelProps {
+interface LocalDemoTargetResultPanelProps {
   readonly demoExecution: DemoExecutionState;
   readonly demoNumber: string;
   readonly onRefresh?: () => void;
@@ -22,34 +22,34 @@ interface DemoTargetResultPanelProps {
   readonly transaction: ProposalActionTransaction;
 }
 
-interface DemoTargetResult {
+interface LocalDemoTargetResult {
   readonly lastActionHash: Bytes32Hash;
   readonly lastOrgId: string;
   readonly number: string;
 }
 
-interface DemoTargetReadState {
-  readonly data?: DemoTargetResult;
+interface LocalDemoTargetReadState {
+  readonly data?: LocalDemoTargetResult;
   readonly error?: string;
   readonly loading: boolean;
 }
 
-export function DemoTargetResultPanel({
+export function LocalDemoTargetResultPanel({
   demoExecution,
   demoNumber,
   onRefresh,
   proposal,
   transaction,
-}: DemoTargetResultPanelProps): JSX.Element {
+}: LocalDemoTargetResultPanelProps): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
-  const publicClient = usePublicClient({ chainId: runtimeConfig.chainId });
-  const demoTargetAddress = runtimeConfig.contracts.demoTargetAddress;
-  const isDemoTargetProposal = sameAddress(
+  const publicClient = usePublicClient({ chainId: runtimeConfig.activeDeployment.chainId });
+  const localDemoTargetAddress = runtimeConfig.activeDeployment.localDemoTargetAddress;
+  const isLocalDemoTargetProposal = sameAddress(
     proposal.targetAddress,
-    demoTargetAddress,
+    localDemoTargetAddress,
   );
   const [refreshToken, setRefreshToken] = useState(0);
-  const [result, setResult] = useState<DemoTargetReadState>({
+  const [result, setResult] = useState<LocalDemoTargetReadState>({
     loading: false,
   });
 
@@ -59,32 +59,32 @@ export function DemoTargetResultPanel({
   }, [onRefresh]);
 
   useEffect(() => {
-    if (!demoTargetAddress || !isDemoTargetProposal || !publicClient) {
+    if (!localDemoTargetAddress || !isLocalDemoTargetProposal || !publicClient) {
       setResult({ loading: false });
       return;
     }
 
     const client = publicClient;
-    const address = demoTargetAddress;
+    const address = localDemoTargetAddress;
     let cancelled = false;
 
-    async function readDemoTarget(): Promise<void> {
+    async function readLocalDemoTarget(): Promise<void> {
       setResult((current) => ({ ...current, loading: true, error: undefined }));
       try {
         const [lastOrgId, number, lastActionHash] = await Promise.all([
           client.readContract({
             address,
-            abi: DEMO_TARGET_ABI,
+            abi: LOCAL_DEMO_TARGET_ABI,
             functionName: "lastOrgId",
           }),
           client.readContract({
             address,
-            abi: DEMO_TARGET_ABI,
+            abi: LOCAL_DEMO_TARGET_ABI,
             functionName: "number",
           }),
           client.readContract({
             address,
-            abi: DEMO_TARGET_ABI,
+            abi: LOCAL_DEMO_TARGET_ABI,
             functionName: "lastActionHash",
           }),
         ]);
@@ -108,14 +108,14 @@ export function DemoTargetResultPanel({
       }
     }
 
-    void readDemoTarget();
+    void readLocalDemoTarget();
 
     return () => {
       cancelled = true;
     };
   }, [
-    demoTargetAddress,
-    isDemoTargetProposal,
+    localDemoTargetAddress,
+    isLocalDemoTargetProposal,
     proposal.status,
     publicClient,
     refreshToken,
@@ -124,21 +124,21 @@ export function DemoTargetResultPanel({
 
   const match = useMemo(
     () =>
-      getDemoTargetMatch({
+      getLocalDemoTargetMatch({
         proposal,
         result: result.data,
       }),
     [proposal, result.data],
   );
 
-  if (!demoTargetAddress) {
+  if (!localDemoTargetAddress) {
     return (
       <section className="proposal-demo-result">
-        <ResultHeader tone="muted" title="DemoTarget Result" value="Not configured" />
+        <ResultHeader tone="muted" title="Local Demo Target Result" value="Not configured" />
         <div className="route-empty-state">
-          <strong>DemoTarget address missing</strong>
+          <strong>Local demo target address missing</strong>
           <span>
-            Runtime config does not include contracts.demoTargetAddress, so the
+            Runtime config does not include activeDeployment.localDemoTargetAddress, so the
             narrow local result check is unavailable.
           </span>
         </div>
@@ -146,14 +146,14 @@ export function DemoTargetResultPanel({
     );
   }
 
-  if (!isDemoTargetProposal) {
+  if (!isLocalDemoTargetProposal) {
     return (
       <section className="proposal-demo-result">
-        <ResultHeader tone="muted" title="DemoTarget Result" value="Not targeted" />
+        <ResultHeader tone="muted" title="Local Demo Target Result" value="Not targeted" />
         <div className="route-empty-state">
-          <strong>Proposal does not target DemoTarget</strong>
+          <strong>Proposal does not target the local demo target</strong>
           <span>
-            This demo surface only reads the configured DemoTarget.setNumber
+            This demo surface only reads the configured local demo target setNumber
             result. It does not build or execute arbitrary calldata.
           </span>
         </div>
@@ -165,7 +165,7 @@ export function DemoTargetResultPanel({
     <section className="proposal-demo-result">
       <ResultHeader
         tone={match.tone}
-        title="DemoTarget Result"
+        title="Local Demo Target Result"
         value={match.label}
       />
 
@@ -176,11 +176,11 @@ export function DemoTargetResultPanel({
         />
         <RouteDetail
           label="Demo target"
-          value={formatAddress(demoTargetAddress)}
+          value={formatAddress(localDemoTargetAddress)}
         />
         <RouteDetail
           label="Expected call"
-          value={`DemoTarget.setNumber(org ${proposal.orgId}, ${
+          value={`local demo target setNumber(org ${proposal.orgId}, ${
             demoNumber.trim() || "number"
           })`}
         />
@@ -197,11 +197,11 @@ export function DemoTargetResultPanel({
           value={demoNumber.trim() ? formatNumericString(demoNumber) : "Not set"}
         />
         <RouteDetail
-          label="Last DemoTarget org"
+          label="Last local demo target org"
           value={result.data?.lastOrgId ?? "Not read"}
         />
         <RouteDetail
-          label="Current DemoTarget number"
+          label="Current local demo target number"
           value={formatNumericString(result.data?.number)}
         />
         <RouteDetail
@@ -214,7 +214,7 @@ export function DemoTargetResultPanel({
         <div className="proposal-demo-transaction">
           <span>Execute transaction</span>
           <SetupTransactionHash
-            blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+            blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
             txHash={transaction.txHash}
           />
         </div>
@@ -225,7 +225,7 @@ export function DemoTargetResultPanel({
           <strong>{match.summary}</strong>
           <span>
             {result.loading
-              ? "Reading DemoTarget from the configured chain."
+              ? "Reading local demo target from the configured chain."
               : result.error ?? match.detail}
           </span>
         </div>
@@ -255,7 +255,7 @@ function ResultHeader({
     <div className="proposal-demo-result-header">
       <div>
         <h3>{title}</h3>
-        <p>Read-only check of the configured DemoTarget contract.</p>
+        <p>Read-only check of the configured local demo target contract.</p>
       </div>
       <StatusBadge tone={tone}>{value}</StatusBadge>
     </div>
@@ -277,12 +277,12 @@ function RouteDetail({
   );
 }
 
-function getDemoTargetMatch({
+function getLocalDemoTargetMatch({
   proposal,
   result,
 }: {
   readonly proposal: ProposalDto;
-  readonly result?: DemoTargetResult;
+  readonly result?: LocalDemoTargetResult;
 }): {
   readonly detail: string;
   readonly label: string;
@@ -291,9 +291,9 @@ function getDemoTargetMatch({
 } {
   if (!result) {
     return {
-      detail: "DemoTarget has not been read yet.",
+      detail: "Local demo target has not been read yet.",
       label: "Unread",
-      summary: "DemoTarget result pending",
+      summary: "Local demo target result pending",
       tone: "muted",
     };
   }
@@ -301,7 +301,7 @@ function getDemoTargetMatch({
   if (proposal.status !== ProposalStatus.Executed) {
     return {
       detail:
-        "The proposal is not executed yet. The current DemoTarget value may belong to an earlier demo proposal.",
+        "The proposal is not executed yet. The current local demo target value may belong to an earlier demo proposal.",
       label: "Pending execution",
       summary: "Proposal has not reached executed state",
       tone: "warning",
@@ -312,7 +312,7 @@ function getDemoTargetMatch({
     return {
       detail: "Proposal data hash is missing from the read model.",
       label: "Missing hash",
-      summary: "Cannot compare DemoTarget result",
+      summary: "Cannot compare local demo target result",
       tone: "danger",
     };
   }
@@ -324,18 +324,18 @@ function getDemoTargetMatch({
   if (actionHashMatches && orgMatches) {
     return {
       detail:
-        "DemoTarget.lastActionHash and lastOrgId match this executed proposal.",
+        "local demo target lastActionHash and lastOrgId match this executed proposal.",
       label: "Matched",
-      summary: "DemoTarget reflects this proposal",
+      summary: "Local demo target reflects this proposal",
       tone: "success",
     };
   }
 
   return {
     detail:
-      "The proposal is executed, but DemoTarget's latest stored action does not match this proposal.",
+      "The proposal is executed, but the local demo target's latest stored action does not match this proposal.",
     label: "Mismatch",
-    summary: "DemoTarget does not match this proposal yet",
+    summary: "Local demo target does not match this proposal yet",
     tone: "danger",
   };
 }
@@ -362,5 +362,5 @@ function getErrorMessage(error: unknown): string {
     }
   }
 
-  return "Unable to read DemoTarget result.";
+  return "Unable to read local demo target result.";
 }

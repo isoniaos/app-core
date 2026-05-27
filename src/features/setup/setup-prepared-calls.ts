@@ -14,7 +14,7 @@ import {
   getBodyKindChainCode,
   getProposalTypeChainCode,
   getRoleTypeChainCode,
-  GOV_CORE_ABI,
+  ISO_CORE_ABI,
 } from "../../chain/setup-contracts";
 import type { PreparedContractCall } from "../../transactions/prepared-contract-call";
 import {
@@ -100,12 +100,12 @@ export type BatchSetPolicyRulesCallArgs = readonly [
 export function prepareCreateBodyCall({
   action,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   resolvedOrgId,
 }: {
   readonly action: CreateBodySetupAction;
   readonly chainId: number;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address;
   readonly resolvedOrgId: string;
 }): PreparedSetupActionCall<CreateBodyPayload> | Error {
   const payload = buildCreateBodyPayload(action, resolvedOrgId);
@@ -118,12 +118,12 @@ export function prepareCreateBodyCall({
       actionId: action.actionId,
       chainId,
       data: encodeFunctionData({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         args: buildCreateBodyCallArgs(payload),
         functionName: "createBody",
       }),
       title: action.label,
-      to: govCoreAddress,
+      to: isoCoreAddress,
       value: "0x0",
     },
     payload,
@@ -134,14 +134,14 @@ export function prepareCreateRoleCall({
   action,
   bodyActions,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   resolvedBodyIds,
   resolvedOrgId,
 }: {
   readonly action: CreateRoleSetupAction;
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly chainId: number;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address;
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string;
 }): PreparedSetupActionCall<CreateRolePayload> | Error {
@@ -166,12 +166,12 @@ export function prepareCreateRoleCall({
       actionId: action.actionId,
       chainId,
       data: encodeFunctionData({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         args: buildCreateRoleCallArgs(payload),
         functionName: "createRole",
       }),
       title: action.label,
-      to: govCoreAddress,
+      to: isoCoreAddress,
       value: "0x0",
     },
     payload,
@@ -181,13 +181,13 @@ export function prepareCreateRoleCall({
 export function prepareAssignMandateCall({
   action,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   resolvedOrgId,
   resolvedRoleId,
 }: {
   readonly action: AssignMandateSetupAction;
   readonly chainId: number;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address;
   readonly resolvedOrgId: string;
   readonly resolvedRoleId: string;
 }): PreparedSetupActionCall<AssignMandatePayload> | Error {
@@ -205,12 +205,12 @@ export function prepareAssignMandateCall({
       actionId: action.actionId,
       chainId,
       data: encodeFunctionData({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         args: buildAssignMandateCallArgs(payload),
         functionName: "assignMandate",
       }),
       title: action.label,
-      to: govCoreAddress,
+      to: isoCoreAddress,
       value: "0x0",
     },
     payload,
@@ -221,14 +221,14 @@ export function prepareSetPolicyRuleCall({
   action,
   bodyActions,
   chainId,
-  govCoreAddress,
+  isoCoreAddress,
   resolvedBodyIds,
   resolvedOrgId,
 }: {
   readonly action: SetPolicyRuleSetupAction;
   readonly bodyActions: readonly CreateBodySetupAction[];
   readonly chainId: number;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address;
   readonly resolvedBodyIds: Readonly<Record<string, string>>;
   readonly resolvedOrgId: string;
 }): PreparedSetupActionCall<SetPolicyRulePayload> | Error {
@@ -247,12 +247,12 @@ export function prepareSetPolicyRuleCall({
       actionId: action.actionId,
       chainId,
       data: encodeFunctionData({
-        abi: GOV_CORE_ABI,
+        abi: ISO_CORE_ABI,
         args: buildSetPolicyRuleCallArgs(payload),
         functionName: "setPolicyRule",
       }),
       title: action.label,
-      to: govCoreAddress,
+      to: isoCoreAddress,
       value: "0x0",
     },
     payload,
@@ -621,7 +621,7 @@ export function buildCreateBodyPayload(
 ): CreateBodyPayload | Error {
   if (!action.active) {
     return new Error(
-      "GovCore createBody creates active bodies only; inactive body drafts are not executable.",
+      "IsoCore createBody creates active bodies only; inactive body drafts are not executable.",
     );
   }
 
@@ -650,7 +650,7 @@ export function buildCreateRolePayload(
 ): CreateRolePayload | Error {
   if (!action.active) {
     return new Error(
-      "GovCore createRole creates active roles only; inactive role drafts are not executable.",
+      "IsoCore createRole creates active roles only; inactive role drafts are not executable.",
     );
   }
 

@@ -1,37 +1,43 @@
 # IsoniaOS App Core
 
-App Core is the public self-hostable IsoniaOS governance console. It is a React and Vite single-page application for reading, explaining, and interacting with IsoniaOS governance state through Control Plane APIs and configured EVM contracts.
+App Core is the public self-hostable IsoniaOS governance console. It is a React and Vite single-page application for reading, explaining, and interacting with IsoniaOS governance state through Control Plane APIs and configured EVM deployments.
 
-App Core is not governance authority. It presents contract-modeled state, Control Plane read models, wallet transaction flows, source disclosure, and trust-boundary UI. The public developer overview is in [site/developers/app-core.md](https://github.com/isoniaos/docs/blob/main/site/developers/app-core.md).
+App Core is not governance authority. It presents contract-modeled state, Control Plane read models, wallet transaction flows, source disclosure, and trust-boundary UI. The public developer overview is in [site/developers/index.md](https://github.com/isoniaos/docs/blob/main/site/developers/index.md).
 
 ## Installation
 
 Requires Node.js 22 or newer and pnpm through Corepack.
 
+During coordinated alpha work inside the private workspace, install from the workspace root so local `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` packages resolve through `workspace:*` links:
+
 ```bash
 corepack pnpm install
 ```
 
+Standalone installs of this alpha manifest require the sibling workspace packages. Use a released compatibility set, pinned tags, or immutable commits when installing outside the private workspace.
+
 ## Configuration
 
-Runtime configuration is loaded by [`src/config/runtime-config.tsx`](src/config/runtime-config.tsx). The app tries `/isonia.config.local.json` first, then `/isonia.config.json`, and falls back to the built-in local defaults if no config can be loaded.
+Runtime configuration is loaded by [`src/config/runtime-config-loader.ts`](src/config/runtime-config-loader.ts) and provided through [`src/config/runtime-config.tsx`](src/config/runtime-config.tsx).
 
-Committed examples live in [`public/isonia.config.example.json`](public/isonia.config.example.json), [`public/isonia.config.json`](public/isonia.config.json), and [`public/isonia.config.local.json`](public/isonia.config.local.json).
+Load order:
+
+1. `window.__ISONIA_CONFIG__`
+2. `VITE_ISONIA_CONFIG_URL`
+3. `VITE_ISONIA_*` environment variables
+4. safe built-in fallback with no protocol contract addresses and writes disabled
+
+Committed examples live in [`public/isonia.config.example.json`](public/isonia.config.example.json) and [`.env.example`](.env.example). Do not commit active `public/isonia.config.json` or `public/isonia.config.local.json` files.
 
 Current runtime config fields:
 
 - `appName`
-- `mode`: `self-hosted`, `hosted-free`, or `saas`
 - `apiBaseUrl`
-- `chainId`
-- `chainName`
-- `rpcUrl`
-- `blockExplorerUrl`
-- `nativeCurrencyName`
-- `nativeCurrencySymbol`
-- `contracts.govCoreAddress`
-- `contracts.govProposalsAddress`
-- `contracts.demoTargetAddress` for local/lab proposal flows
+- `activeChainId`
+- `deployments[]`, keyed by `chainId`
+- `deployments[].contracts.isoCoreAddress`
+- `deployments[].contracts.isoProposalsAddress`
+- `deployments[].localDemoTargetAddress`, optional local-only proposal target support
 - `features.createProposal`
 - `features.eip5792Batch`
 - `features.writeActions`
@@ -43,21 +49,18 @@ Current runtime config fields:
 - `metadata.enabled`
 - `metadata.ipfsGatewayUrl`
 - `metadata.timeoutMs`
-- `wallet.connectionMode`: `auto`, `appkit`, or `injected-only`
 - `wallet.reownProjectId`
 - `wallet.appUrl`
 - `wallet.icons`
 
-`features.billing` and `features.saasAdmin` are not enabled by the current parser and must not be treated as active public or SaaS functionality.
+Wallet mode is derived automatically. A non-empty Reown project ID enables the Reown/AppKit path; otherwise App Core uses injected-only wallet mode. SaaS billing and tenant-admin flags are not active App Core runtime config.
 
-Build-time workspace-source aliases are opt-in:
+Build-time workspace-source aliases remain opt-in for direct source testing:
 
 ```bash
 ISONIA_WORKSPACE_SOURCES=true corepack pnpm typecheck
 ISONIA_WORKSPACE_SOURCES=true corepack pnpm build
 ```
-
-When enabled, Vite resolves `@isonia/sdk` and `@isonia/types` from adjacent workspace source directories.
 
 ## Run / Usage
 
@@ -84,11 +87,11 @@ corepack pnpm preview
 
 ## Troubleshooting
 
-- If startup falls back to default config, check that `/isonia.config.local.json` or `/isonia.config.json` is valid JSON and served from `public/`.
-- If wallet writes are disabled, confirm `features.writeActions`, `features.manageOrg`, configured contract addresses, and the connected wallet chain.
-- If wallet connection stays injected-only, check `wallet.connectionMode` and `wallet.reownProjectId`. Missing or failed Reown AppKit setup falls back to injected wallet mode.
+- If startup uses fallback config, provide `VITE_ISONIA_*` variables, `VITE_ISONIA_CONFIG_URL`, or `window.__ISONIA_CONFIG__`.
+- If writes are disabled, confirm `features.writeActions`, the specific write feature, and the required `iso*` protocol addresses are set for the active deployment.
+- If wallet connection stays injected-only, configure `VITE_ISONIA_REOWN_PROJECT_ID` or `wallet.reownProjectId`.
 - If metadata labels are missing, check `metadata.enabled`, `metadata.ipfsGatewayUrl`, and `metadata.timeoutMs`. Built-in seed metadata is only a local fallback.
-- If workspace-source builds fail, confirm adjacent `../types` and `../sdk` source trees are present.
+- If workspace installs fail from inside `app-core`, run install/build/test commands from the private workspace root while this alpha manifest uses `workspace:*` dependencies.
 
 ## Contribution
 

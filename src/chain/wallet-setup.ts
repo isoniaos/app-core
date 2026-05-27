@@ -58,14 +58,20 @@ export async function createWalletSetup(
   const wagmiChain = createConfiguredViemChain(runtimeConfig);
   const reownProjectId = runtimeConfig.wallet.reownProjectId.trim();
 
-  if (runtimeConfig.wallet.connectionMode === "injected-only") {
-    return createInjectedWalletSetup(wagmiChain, runtimeConfig.rpcUrl, [
-      {
-        code: "injected_wallet_mode",
-        level: "info",
-        message: "Runtime wallet mode forces injected wallet fallback.",
-      },
-    ]);
+  if (runtimeConfig.wallet.mode === "injected-only") {
+    return createInjectedWalletSetup(
+      wagmiChain,
+      runtimeConfig.activeDeployment.rpcUrl,
+      [
+        {
+          code: reownProjectId ? "injected_wallet_mode" : "reown_project_id_missing",
+          level: "info",
+          message: reownProjectId
+            ? "Injected-only wallet mode is active."
+            : "No Reown project ID configured; injected-only wallet mode is active.",
+        },
+      ],
+    );
   }
 
   if (reownProjectId.length > 0) {
@@ -92,7 +98,7 @@ export async function createWalletSetup(
       });
       const initialThemeMode = getInitialIsoResolvedColorMode();
 
-      const setupKey = `${reownProjectId}:${runtimeConfig.chainId}`;
+      const setupKey = `${reownProjectId}:${runtimeConfig.activeDeployment.chainId}`;
       if (!initializedAppKitKeys.has(setupKey)) {
         createAppKit({
           adapters: [wagmiAdapter],
@@ -125,7 +131,7 @@ export async function createWalletSetup(
         accountMode: "eoa_only_appkit",
         appKitEnabled: true,
         diagnostics: [],
-        wagmiConfig: wagmiAdapter.wagmiConfig,
+        wagmiConfig: wagmiAdapter.wagmiConfig as unknown as Config,
       };
     } catch (error) {
       const diagnostic: WalletSetupDiagnostic = {
@@ -136,22 +142,25 @@ export async function createWalletSetup(
       };
 
       console.error(diagnostic.message, error);
-      return createInjectedWalletSetup(wagmiChain, runtimeConfig.rpcUrl, [
-        diagnostic,
-      ]);
+      return createInjectedWalletSetup(
+        wagmiChain,
+        runtimeConfig.activeDeployment.rpcUrl,
+        [diagnostic],
+      );
     }
   }
 
   const diagnostic: WalletSetupDiagnostic = {
     code: "reown_project_id_missing",
-    level:
-      runtimeConfig.wallet.connectionMode === "appkit" ? "warning" : "info",
+    level: "info",
     message: "Reown project ID missing; using injected wallet fallback.",
   };
   console.info(diagnostic.message);
-  return createInjectedWalletSetup(wagmiChain, runtimeConfig.rpcUrl, [
-    diagnostic,
-  ]);
+  return createInjectedWalletSetup(
+    wagmiChain,
+    runtimeConfig.activeDeployment.rpcUrl,
+    [diagnostic],
+  );
 }
 
 export function isWalletSetupError(error: unknown): error is WalletSetupError {
@@ -185,7 +194,7 @@ function createConfiguredAppKitNetwork(
   runtimeConfig: RuntimeConfig,
   defineAppKitChain: typeof import("@reown/appkit/networks")["defineChain"],
 ): AppKitNetwork {
-  const caipNetworkId: `eip155:${number}` = `eip155:${runtimeConfig.chainId}`;
+  const caipNetworkId: `eip155:${number}` = `eip155:${runtimeConfig.activeDeployment.chainId}`;
 
   return defineAppKitChain({
     ...createChainCore(runtimeConfig),
@@ -217,23 +226,23 @@ function createChainCore(runtimeConfig: RuntimeConfig): {
     | undefined;
 } {
   return {
-    id: runtimeConfig.chainId,
-    name: runtimeConfig.chainName,
+    id: runtimeConfig.activeDeployment.chainId,
+    name: runtimeConfig.activeDeployment.chainName,
     nativeCurrency: {
       decimals: 18,
-      name: runtimeConfig.nativeCurrencyName,
-      symbol: runtimeConfig.nativeCurrencySymbol,
+      name: runtimeConfig.activeDeployment.nativeCurrencyName,
+      symbol: runtimeConfig.activeDeployment.nativeCurrencySymbol,
     },
     rpcUrls: {
       default: {
-        http: [runtimeConfig.rpcUrl],
+        http: [runtimeConfig.activeDeployment.rpcUrl],
       },
     },
-    blockExplorers: runtimeConfig.blockExplorerUrl
+    blockExplorers: runtimeConfig.activeDeployment.blockExplorerUrl
       ? {
           default: {
             name: "Explorer",
-            url: runtimeConfig.blockExplorerUrl,
+            url: runtimeConfig.activeDeployment.blockExplorerUrl,
           },
         }
       : undefined,
@@ -253,19 +262,19 @@ function validateWalletRuntimeConfig(
   const diagnostics: WalletSetupDiagnostic[] = [];
 
   if (
-    !Number.isSafeInteger(runtimeConfig.chainId) ||
-    runtimeConfig.chainId <= 0
+    !Number.isSafeInteger(runtimeConfig.activeDeployment.chainId) ||
+    runtimeConfig.activeDeployment.chainId <= 0
   ) {
     diagnostics.push({
       code: "invalid_chain_config",
-      detail: `Received chainId: ${String(runtimeConfig.chainId)}`,
+      detail: `Received chainId: ${String(runtimeConfig.activeDeployment.chainId)}`,
       level: "error",
       message:
         "Invalid chain config: chainId must be a positive safe integer.",
     });
   }
 
-  if (runtimeConfig.chainName.trim().length === 0) {
+  if (runtimeConfig.activeDeployment.chainName.trim().length === 0) {
     diagnostics.push({
       code: "invalid_chain_config",
       level: "error",
@@ -273,7 +282,7 @@ function validateWalletRuntimeConfig(
     });
   }
 
-  if (runtimeConfig.nativeCurrencyName.trim().length === 0) {
+  if (runtimeConfig.activeDeployment.nativeCurrencyName.trim().length === 0) {
     diagnostics.push({
       code: "invalid_chain_config",
       level: "error",
@@ -281,7 +290,7 @@ function validateWalletRuntimeConfig(
     });
   }
 
-  if (runtimeConfig.nativeCurrencySymbol.trim().length === 0) {
+  if (runtimeConfig.activeDeployment.nativeCurrencySymbol.trim().length === 0) {
     diagnostics.push({
       code: "invalid_chain_config",
       level: "error",
@@ -289,10 +298,10 @@ function validateWalletRuntimeConfig(
     });
   }
 
-  if (!isHttpUrl(runtimeConfig.rpcUrl)) {
+  if (!isHttpUrl(runtimeConfig.activeDeployment.rpcUrl)) {
     diagnostics.push({
       code: "invalid_rpc_config",
-      detail: `Received rpcUrl: ${runtimeConfig.rpcUrl}`,
+      detail: `Received rpcUrl: ${runtimeConfig.activeDeployment.rpcUrl}`,
       level: "error",
       message:
         "Invalid RPC config: rpcUrl must be an absolute http or https URL.",

@@ -38,7 +38,7 @@ import {
   formatNumericString,
 } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
-import { DemoTargetResultPanel } from "./DemoTargetResultPanel";
+import { LocalDemoTargetResultPanel } from "./LocalDemoTargetResultPanel";
 import { LocalHardhatTimeControls } from "./LocalHardhatTimeControls";
 import { ProposalActionsPanel } from "./ProposalActionsPanel";
 import {
@@ -266,7 +266,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <ProposalOverviewTab
-                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+                    blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
                     bodies={bodies}
                     executionPermissions={executionPermissions}
                     executionPermissionsError={executionPermissionsError}
@@ -305,7 +305,7 @@ function ProposalDetailsContent({
               {
                 content: (
                   <AccountabilityRecordPanel
-                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+                    blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
                     orgId={orgId}
                     proposalId={proposal.proposalId}
                   />
@@ -362,7 +362,7 @@ function ProposalDetailsContent({
                 content: (
                   <ProposalTechnicalTab
                     bodies={bodies}
-                    blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+                    blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
                     proposal={proposal}
                     route={route}
                     routeError={routeError}
@@ -377,7 +377,7 @@ function ProposalDetailsContent({
 
         <aside className="proposal-detail-aside" aria-label="Proposal context">
           <ProposalInfoCard
-            blockExplorerUrl={runtimeConfig.blockExplorerUrl}
+            blockExplorerUrl={runtimeConfig.activeDeployment.blockExplorerUrl}
             proposal={proposal}
           />
           <NextActionCard
@@ -575,10 +575,10 @@ function ProposalExecutionResultTab({
   onRefresh,
   proposal,
   transaction,
-}: Parameters<typeof DemoTargetResultPanel>[0]): JSX.Element {
+}: Parameters<typeof LocalDemoTargetResultPanel>[0]): JSX.Element {
   return (
     <div className="proposal-result-tab">
-      <DemoTargetResultPanel
+      <LocalDemoTargetResultPanel
         demoExecution={demoExecution}
         demoNumber={demoNumber}
         proposal={proposal}

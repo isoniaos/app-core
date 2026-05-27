@@ -3,7 +3,7 @@ import { isAddress } from "viem";
 import {
   buildOrganizationSlug,
   validateOrganizationSlug,
-  GOV_CORE_ABI,
+  ISO_CORE_ABI,
   parseOrganizationCreatedLog,
 } from "../../chain/setup-contracts";
 import { waitForIndexedOrganization } from "./indexing-waiters";
@@ -58,20 +58,20 @@ export async function executeCreateOrganizationAction({
     return;
   }
 
-  if (account.chainId !== runtimeConfig.chainId) {
+  if (account.chainId !== runtimeConfig.activeDeployment.chainId) {
     setActionFailed(
       action,
       `Wallet is connected to chain ${String(
         account.chainId,
-      )}; expected chain ${runtimeConfig.chainId}.`,
+      )}; expected chain ${runtimeConfig.activeDeployment.chainId}.`,
     );
     return;
   }
 
-  if (!isConfiguredAddress(runtimeConfig.contracts.govCoreAddress)) {
+  if (!isConfiguredAddress(runtimeConfig.activeDeployment.contracts.isoCoreAddress)) {
     setActionFailed(
       action,
-      "GovCore contract address is missing from runtime config.",
+      "IsoCore contract address is missing from runtime config.",
     );
     return;
   }
@@ -108,11 +108,11 @@ export async function executeCreateOrganizationAction({
       slug: payload.slug,
     });
     const txHash = await writeContractAsync({
-      address: runtimeConfig.contracts.govCoreAddress,
-      abi: GOV_CORE_ABI,
+      address: runtimeConfig.activeDeployment.contracts.isoCoreAddress,
+      abi: ISO_CORE_ABI,
       functionName: "createOrganization",
       args: [payload.slug, payload.metadataUri, payload.adminAddress],
-      chainId: runtimeConfig.chainId,
+      chainId: runtimeConfig.activeDeployment.chainId,
       account: signerAddress,
     });
 
@@ -133,7 +133,7 @@ export async function executeCreateOrganizationAction({
     assertSuccessfulReceipt(receipt);
     const created = parseOrganizationCreatedLog(
       receipt,
-      runtimeConfig.contracts.govCoreAddress,
+      runtimeConfig.activeDeployment.contracts.isoCoreAddress,
     );
     if (!created) {
       throw new Error(

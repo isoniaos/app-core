@@ -392,7 +392,7 @@ function DiagnosticsActivationCapabilities({
         <div className="two-column-grid">
           <DiagnosticsPanel
             title="Contract Batch"
-            subtitle="Typed GovCore batch activation support reported by Control Plane."
+            subtitle="Typed IsoCore batch activation support reported by Control Plane."
           >
             <DetailList
               items={[
@@ -665,7 +665,7 @@ function DiagnosticsLocalRuntime({
   const walletTone = walletConnection.isConnected ? "success" : "muted";
   const chainTone =
     walletConnection.chainId === undefined ||
-    walletConnection.chainId === runtimeConfig.chainId
+    walletConnection.chainId === runtimeConfig.activeDeployment.chainId
       ? "success"
       : "danger";
 
@@ -677,19 +677,25 @@ function DiagnosticsLocalRuntime({
       >
         <DetailList
           items={[
-            ["Mode", formatLabel(runtimeConfig.mode)],
+            [
+              "Config source",
+              `${formatLabel(runtimeConfig.source.kind)}: ${
+                runtimeConfig.source.detail
+              }`,
+            ],
             ["API base URL", runtimeConfig.apiBaseUrl],
-            ["RPC URL", runtimeConfig.rpcUrl],
+            ["Deployments", runtimeConfig.deployments.length.toLocaleString()],
+            ["RPC URL", runtimeConfig.activeDeployment.rpcUrl],
             [
               "Configured chain",
-              `${runtimeConfig.chainName} (${runtimeConfig.chainId})`,
+              `${runtimeConfig.activeDeployment.chainName} (${runtimeConfig.activeDeployment.chainId})`,
             ],
             [
-              "Wallet connection mode",
-              formatLabel(runtimeConfig.wallet.connectionMode),
-              runtimeConfig.wallet.connectionMode === "injected-only"
+              "Wallet mode",
+              formatLabel(runtimeConfig.wallet.mode),
+              runtimeConfig.wallet.mode === "injected-only"
                 ? "success"
-                : runtimeConfig.wallet.connectionMode === "appkit"
+                : runtimeConfig.wallet.mode === "appkit"
                   ? "warning"
                   : "muted",
             ],
@@ -720,11 +726,19 @@ function DiagnosticsLocalRuntime({
               runtimeConfig.features.writeActions ? "Enabled" : "Disabled",
               runtimeConfig.features.writeActions ? "success" : "muted",
             ],
-            ["GovCore", runtimeConfig.contracts.govCoreAddress],
-            ["GovProposals", runtimeConfig.contracts.govProposalsAddress],
             [
-              "DemoTarget",
-              runtimeConfig.contracts.demoTargetAddress ?? "Not configured",
+              "IsoCore",
+              runtimeConfig.activeDeployment.contracts.isoCoreAddress ??
+                "Not configured",
+            ],
+            [
+              "IsoProposals",
+              runtimeConfig.activeDeployment.contracts.isoProposalsAddress ??
+                "Not configured",
+            ],
+            [
+              "Local demo target",
+              runtimeConfig.activeDeployment.localDemoTargetAddress ?? "Not configured",
             ],
           ]}
         />
@@ -752,7 +766,7 @@ function DiagnosticsLocalRuntime({
             ],
             [
               "Expected chain",
-              String(runtimeConfig.chainId),
+              String(runtimeConfig.activeDeployment.chainId),
               chainTone,
             ],
             [
@@ -1150,12 +1164,12 @@ function DiagnosticsEmptyState(): JSX.Element {
 }
 
 function formatContractName(name: string): string {
-  if (name === "govCore") {
-    return "GovCore";
+  if (name === "isoCore") {
+    return "IsoCore";
   }
 
-  if (name === "govProposals") {
-    return "GovProposals";
+  if (name === "isoProposals") {
+    return "IsoProposals";
   }
 
   return formatLabel(name);

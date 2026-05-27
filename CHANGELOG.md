@@ -8,11 +8,22 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Added
 
+- Added focused runtime-config regression coverage for `VITE_ISONIA_*` env parsing, deployment selection, `iso*` contract fields, wallet derivation, fallback config, window config, config URL loading, and old `gov*` field rejection.
 - Added focused regression coverage for proposal execution permission identity so managed execution compares final target, value, and protocol-declared selector instead of the managed executor address.
 
 ### Changed
 
+- Switched local alpha `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` dependencies to private workspace links.
+- Reworked runtime config around `activeChainId` and `deployments[]`, with `isoCoreAddress` and `isoProposalsAddress` contract fields.
+- Derived wallet mode from Reown project ID availability, using injected-only mode when no project ID is configured.
+- Updated App Core source, UI copy, and Control Plane client usage for the active `Iso*` / `iso*` protocol namespace.
+- Moved capabilities and organization-finalization reads to the active SDK client methods.
 - Refined proposal detail route/status copy so terminal proposals show lifecycle-complete messaging instead of active route-blocked messaging.
+
+### Removed
+
+- Removed committed active `public/isonia.config.json` and `public/isonia.config.local.json` files with local demo addresses.
+- Removed active SaaS billing/admin runtime flags and old `gov*` config aliases from runtime parsing.
 
 ## [0.8.0-alpha.4]
 

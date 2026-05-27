@@ -1,5 +1,4 @@
 import {
-  buildControlPlanePath,
   createOrganizationFinalizationReadPlan,
   isOrganizationFinalizedStatus,
   isOrganizationNotFinalizedStatus,
@@ -26,34 +25,6 @@ export interface OrganizationFinalizationDerivedState {
   readonly statusTone: OrganizationFinalizationStatusTone;
   readonly unknown: boolean;
   readonly unsupported: boolean;
-}
-
-export async function loadOrganizationFinalization(
-  apiBaseUrl: string,
-  orgId: string,
-): Promise<OrganizationFinalizationReadModelDto> {
-  const response = await fetch(
-    `${normalizeBaseUrl(apiBaseUrl)}${buildControlPlanePath(
-      "orgs",
-      orgId,
-      "finalization",
-    )}`,
-    {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-      },
-      method: "GET",
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Control Plane finalization request failed: HTTP ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return (await response.json()) as OrganizationFinalizationReadModelDto;
 }
 
 export function deriveOrganizationFinalizationState({
@@ -202,12 +173,4 @@ function getFinalizationStatusTone({
     return "muted";
   }
   return "muted";
-}
-
-function normalizeBaseUrl(baseUrl: string): string {
-  const trimmed = baseUrl.trim().replace(/\/+$/, "");
-  if (trimmed.length === 0) {
-    throw new Error("Isonia Control Plane baseUrl must not be empty.");
-  }
-  return trimmed;
 }

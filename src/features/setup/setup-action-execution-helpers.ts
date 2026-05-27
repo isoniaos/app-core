@@ -235,8 +235,8 @@ export function isBusyStage(stage: SetupActionLifecycleStage): boolean {
   );
 }
 
-export function isConfiguredAddress(value: Address): boolean {
-  return isAddress(value) && !isZeroAddress(value);
+export function isConfiguredAddress(value: Address | undefined): value is Address {
+  return typeof value === "string" && isAddress(value) && !isZeroAddress(value);
 }
 
 export function isZeroAddress(value: string): boolean {

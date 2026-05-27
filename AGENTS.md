@@ -26,6 +26,7 @@ If this repository is cloned standalone, use this file as the local agent entry 
 - wagmi/viem for EVM interaction
 - optional Reown AppKit wallet UX
 - Control Plane access through `@isonia/sdk` where available
+- alpha workspace dependencies use `workspace:*` for `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` inside the private root workspace
 
 Useful commands:
 
@@ -42,11 +43,17 @@ git diff --check
 
 Set `ISONIA_WORKSPACE_SOURCES=true` only when intentionally testing adjacent `../types` and `../sdk` source trees.
 
+Run install/build/test commands from the private workspace root while this alpha manifest uses `workspace:*` dependencies. A standalone App Core install is expected to need a released compatibility set, pinned tags, immutable commits, or sibling workspace packages.
+
 ## Development Principles
 
 - App Core is presentation and interaction, not governance authority.
 - Use `@isonia/sdk` for typed Control Plane calls when a method exists.
 - Use `@isonia/types` DTOs, enums, constants, and source disclosure shapes instead of local duplicates.
+- Keep runtime config multi-chain-oriented through `activeChainId` plus `deployments[]` keyed by `chainId`.
+- Use active `Iso*`, `iso*`, and `ISONIA_*` protocol vocabulary for runtime config, UI, tests, and docs.
+- Do not commit active `public/isonia.config.json` or `public/isonia.config.local.json`; use `.env.example`, `VITE_ISONIA_*`, `VITE_ISONIA_CONFIG_URL`, or `window.__ISONIA_CONFIG__`.
+- Wallet mode is derived from a non-empty Reown project ID; do not require a separate wallet mode flag for normal local development.
 - Keep wallet connection state behind `src/wallet/useWalletConnection.ts`.
 - Keep trust boundaries, stale/error/unknown states, and source disclosures visible near affected data.
 - Keep demo target behavior local/lab scoped and do not hardcode Sepolia lab fixtures, provider experiments, presentation scenarios, customer ABIs, or package-version capability assumptions into core UI logic.

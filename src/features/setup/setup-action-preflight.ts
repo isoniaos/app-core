@@ -25,7 +25,7 @@ export interface SetupActionExecutionPreflightEnvironment {
   readonly accountChainId?: number;
   readonly connected: boolean;
   readonly connectedAddress?: Address;
-  readonly govCoreAddress: Address;
+  readonly isoCoreAddress: Address | undefined;
   readonly runtimeChainId: number;
   readonly setupWritesEnabled: boolean;
 }
@@ -53,7 +53,7 @@ export function getSetupActionGroupExecutionPreflight(
   if (
     expectedSigners.length > 1 &&
     environment.setupWritesEnabled &&
-    isConfiguredAddress(environment.govCoreAddress)
+    isConfiguredAddress(environment.isoCoreAddress)
   ) {
     return {
       buttonLabel: "Run one by one",
@@ -78,7 +78,7 @@ function getBaseSetupExecutionPreflight({
   connected,
   connectedAddress,
   expectedSignerAddress,
-  govCoreAddress,
+  isoCoreAddress,
   runtimeChainId,
   setupWritesEnabled,
 }: SetupActionExecutionPreflightEnvironment & {
@@ -97,13 +97,13 @@ function getBaseSetupExecutionPreflight({
     };
   }
 
-  if (!isConfiguredAddress(govCoreAddress)) {
+  if (!isConfiguredAddress(isoCoreAddress)) {
     return {
       buttonLabel: "Protocol config missing",
       canExecute: false,
       connectedSignerAddress: connectedAddress,
       expectedSignerAddress,
-      message: "Set contracts.govCoreAddress in runtime config.",
+      message: "Set activeDeployment.contracts.isoCoreAddress in runtime config.",
       status: "protocol_config_missing",
       title: "Protocol config missing",
     };
