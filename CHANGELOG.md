@@ -26,6 +26,10 @@ All notable changes to `@isonia/app-core` are documented here.
 - Removed committed active `public/isonia.config.json` and `public/isonia.config.local.json` files with local demo addresses.
 - Removed active SaaS billing/admin runtime flags and old `gov*` config aliases from runtime parsing.
 
+### Fixed
+
+- Fixed Vite dev startup against linked workspace `@isonia/sdk` and `@isonia/types` packages by explicitly pre-bundling them for browser ESM consumption.
+
 ## [0.8.0-alpha.4]
 
 ### Added

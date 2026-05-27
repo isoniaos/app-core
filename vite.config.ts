@@ -34,6 +34,11 @@ export default defineConfig({
         },
       }
     : undefined,
+  optimizeDeps: workspaceSourcesEnabled
+    ? undefined
+    : {
+        include: ["@isonia/sdk", "@isonia/types"],
+      },
   build: {
     rollupOptions: {
       output: {
