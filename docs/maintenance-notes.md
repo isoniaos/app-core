@@ -9,7 +9,7 @@ This file keeps current App Core maintenance themes that are not tied to an old 
 - Keep transaction lifecycle presentation consistent across setup execution, proposal creation, and proposal actions.
 - Add richer metadata rendering only when a metadata service or resolver contract is actually available.
 - Keep EIP-5792 wallet batching behind explicit capability checks until real wallet and chain support is verified.
-- Keep future color-mode, shell, shadow, layout, and address-state theme token additions coordinated through `@isonia/theme-default`.
+- Keep future color-mode, typography, shell, shadow, layout, and address-state theme token additions coordinated through `@isonia/theme-default`.
 - Improve governance graph layout only when current deterministic layout becomes insufficient.
 - Scope any Proposal Action Builder work around explicit ABI, calldata, metadata, execution schema, and safety-simulation boundaries before implementation.
 

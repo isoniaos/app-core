@@ -18,7 +18,12 @@ export function IsoFormSection({
     <Box as="section">
       <Stack gap="4">
         <Stack gap="1">
-          <Text as="h2" color="isonia.foreground" fontSize="lg" fontWeight="700">
+          <Text
+            as="h2"
+            color="isonia.foreground"
+            fontSize="lg"
+            fontWeight="var(--iso-font-weight-bold)"
+          >
             {title}
           </Text>
           {description ? (

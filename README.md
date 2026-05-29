@@ -55,7 +55,7 @@ Current runtime config fields:
 
 Wallet mode is derived automatically. A non-empty Reown project ID enables the Reown/AppKit path; otherwise App Core uses injected-only wallet mode. SaaS billing and tenant-admin flags are not active App Core runtime config.
 
-Default visual tokens, color-mode CSS variables, brand metadata, assets, and Chakra token config come from `@isonia/theme-default`. App Core owns screen and component behavior; the package owns reusable theme primitives.
+Default visual tokens, color-mode CSS variables, Roboto/SUSE Mono typography, brand metadata, assets, and Chakra token config come from `@isonia/theme-default`. App Core owns screen and component behavior; the package owns reusable theme primitives.
 
 Build-time workspace-source aliases remain opt-in for direct source testing:
 

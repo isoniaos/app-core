@@ -1,7 +1,6 @@
 :root {
   color: var(--iso-color-foreground);
   background: var(--iso-color-background);
-  font-family: var(--iso-font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -15,6 +14,15 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--iso-color-shell);
+  font-family: var(--iso-font-sans);
+  font-weight: var(--iso-font-weight-normal);
+  line-height: var(--iso-font-line-height);
+  letter-spacing: var(--iso-font-letter-spacing);
+}
+
+b,
+strong {
+  font-weight: var(--iso-font-weight-bold);
 }
 
 a {
@@ -45,7 +53,7 @@ td {
 th {
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -129,7 +137,7 @@ td {
 .brand-name {
   overflow: hidden;
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -137,7 +145,7 @@ td {
 .brand-subtitle {
   color: var(--iso-color-muted);
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .iso-logo {
@@ -170,7 +178,7 @@ td {
 }
 
 .iso-logo-text {
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .brand-logo {
@@ -185,7 +193,7 @@ td {
   border-radius: var(--iso-radius-md);
   background: var(--iso-color-primary);
   color: var(--iso-color-primary-foreground);
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .shell-body {
@@ -223,7 +231,7 @@ td {
 .nav-section-label {
   color: var(--iso-color-muted);
   font-size: 0.7rem;
-  font-weight: 850;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -265,7 +273,7 @@ td {
   padding: 0 0.62rem;
   color: var(--iso-color-muted);
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .nav-link-icon {
@@ -319,8 +327,8 @@ td {
 .eyebrow {
   color: var(--iso-color-primary);
   font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-weight: var(--iso-font-weight-bold);
+  letter-spacing: var(--iso-font-letter-spacing);
   text-transform: uppercase;
 }
 
@@ -374,7 +382,7 @@ td {
 .metric span {
   color: var(--iso-color-muted);
   font-size: 0.82rem;
-  font-weight: 650;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .metric strong {
@@ -408,11 +416,11 @@ td {
   background: var(--iso-color-surface);
   color: var(--iso-color-foreground);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   white-space: nowrap;
   font-size: 0.9em;
   text-transform: capitalize;
-  letter-spacing: 0;
+  letter-spacing: var(--iso-font-letter-spacing);
 }
 
 .button:hover {
@@ -455,7 +463,7 @@ td {
 .diagnostics-text-link {
   color: var(--iso-color-primary);
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
@@ -495,7 +503,7 @@ td {
 .form-muted {
   color: var(--iso-color-muted);
   font-size: 0.82rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .form-field-label-row {
@@ -538,7 +546,7 @@ td {
 .form-field-error-message {
   color: var(--iso-color-danger);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.35;
 }
 
@@ -594,7 +602,7 @@ td {
   display: block;
   color: var(--iso-color-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.4;
 }
 
@@ -644,8 +652,8 @@ td {
 }
 
 .iso-button {
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
+  font-weight: var(--iso-font-weight-bold) !important;
+  letter-spacing: var(--iso-font-letter-spacing) !important;
   text-transform: capitalize;
 }
 
@@ -790,7 +798,7 @@ button.iso-steps-row:disabled .iso-steps-copy,
 
 .iso-steps-number {
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1;
 }
 
@@ -812,7 +820,7 @@ button.iso-steps-row:disabled .iso-steps-copy,
 .iso-steps-title {
   color: var(--iso-color-foreground);
   font-size: 0.92rem;
-  font-weight: 650;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.3;
 }
 
@@ -838,7 +846,7 @@ button.iso-steps-row:disabled .iso-steps-copy,
 .iso-breadcrumbs {
   color: var(--iso-color-muted);
   font-size: 0.84rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   margin: 0;
   padding: 0;
 }
@@ -897,7 +905,7 @@ button.iso-steps-row:disabled .iso-steps-copy,
 .address-input,
 .multi-address-input {
   font-family: var(--iso-font-mono);
-  letter-spacing: var(--iso-address-letter-spacing, 0.004em);
+  letter-spacing: var(--iso-address-letter-spacing, var(--iso-font-letter-spacing));
 }
 
 .address-display {
@@ -962,7 +970,7 @@ button.address-display {
   color: var(--iso-state-color, var(--iso-color-muted));
   cursor: pointer;
   font-size: 0.72rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .address-copy-button:hover {
@@ -979,7 +987,7 @@ button.address-display {
 .address-field-label {
   color: var(--iso-color-muted);
   font-size: 0.82rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .address-input-shell,
@@ -1037,7 +1045,7 @@ button.address-display {
 .address-input-feedback {
   color: var(--iso-state-color, var(--iso-color-muted));
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .address-field-compact .address-input-shell {
@@ -1104,8 +1112,8 @@ button.address-display {
   background: color-mix(in srgb, var(--iso-state-color, var(--iso-color-muted)) 12%, transparent);
   font-family: var(--iso-font-sans);
   font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: var(--iso-font-weight-bold);
+  letter-spacing: var(--iso-font-letter-spacing);
   text-transform: uppercase;
 }
 
@@ -1121,7 +1129,7 @@ button.address-display {
   color: var(--iso-state-color, var(--iso-color-muted));
   cursor: pointer;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1;
 }
 
@@ -1148,7 +1156,7 @@ button.address-display {
   background: transparent;
   color: var(--iso-color-muted);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .segment:last-child {
@@ -1194,7 +1202,7 @@ button.address-display {
 .proposal-detail-title-block h1 {
   color: var(--iso-color-foreground);
   font-size: clamp(1.7rem, 3vw, 2.35rem);
-  font-weight: 760;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.08;
 }
 
@@ -1274,7 +1282,7 @@ button.address-display {
 .product-card-header h2,
 .context-card-header h2 {
   font-size: 0.98rem;
-  font-weight: 760;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .product-card-header p {
@@ -1320,7 +1328,7 @@ button.address-display {
 .context-detail-list dt {
   color: var(--iso-color-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -1332,7 +1340,7 @@ button.address-display {
   overflow-wrap: anywhere;
   color: var(--iso-color-foreground);
   font-size: 0.9rem;
-  font-weight: 400;
+  font-weight: var(--iso-font-weight-normal);
 }
 
 .technical-detail-grid dd,
@@ -1415,7 +1423,7 @@ button.address-display {
 .managed-execution-metric small {
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .managed-execution-executor-grid {
@@ -1439,7 +1447,7 @@ button.address-display {
 .execution-permission-metric small {
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .execution-permission-target-list {
@@ -1481,7 +1489,7 @@ button.address-display {
 .execution-permission-metadata-grid dt {
   color: var(--iso-color-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -1608,8 +1616,8 @@ button.address-display {
 .accountability-detail-grid dt {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-weight: var(--iso-font-weight-bold);
+  letter-spacing: var(--iso-font-letter-spacing);
   text-transform: uppercase;
 }
 
@@ -1671,7 +1679,7 @@ button.address-display {
 .trust-boundary-meta dt {
   color: var(--iso-color-muted);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -1679,7 +1687,7 @@ button.address-display {
   margin: 0.16rem 0 0;
   overflow-wrap: anywhere;
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .external-resource-grid,
@@ -1740,7 +1748,7 @@ button.address-display {
 .accountability-external-link {
   color: var(--iso-color-primary);
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
@@ -1816,7 +1824,7 @@ button.address-display {
 .proposal-metric-card span {
   color: var(--iso-color-muted);
   font-size: 0.72rem;
-  font-weight: 820;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -1912,7 +1920,7 @@ button.address-display {
 
 .technical-disclosure summary {
   cursor: pointer;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .technical-disclosure pre {
@@ -2069,7 +2077,7 @@ button.address-display {
   padding-left: 0.7rem;
   color: var(--iso-color-muted);
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.4;
 }
 
@@ -2138,7 +2146,7 @@ button.address-display {
   padding: 0.75rem 1rem;
   color: var(--iso-color-muted);
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .proposal-transaction-details[open] summary {
@@ -2263,7 +2271,7 @@ button.address-display {
 
 .iso-dialog-title {
   color: var(--iso-color-foreground);
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   margin-top: 0;
 }
 
@@ -2424,7 +2432,7 @@ button.address-display {
   background: var(--iso-color-surface-subtle);
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .transaction-modal-item-complete {
@@ -2444,7 +2452,7 @@ button.address-display {
   color: var(--iso-color-muted);
   cursor: pointer;
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -2638,7 +2646,7 @@ button.address-display {
   border-radius: 999px;
   padding: 0.12rem 0.5rem;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .wallet-diagnostic-info {
@@ -2667,7 +2675,7 @@ button.address-display {
   border-radius: 999px;
   padding: 0 0.68rem;
   font-size: 0.82rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   white-space: nowrap;
 }
 
@@ -2735,13 +2743,13 @@ button.address-display {
 .wallet-chip-address {
   font-family: var(--iso-font-mono);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .wallet-chip-chain {
   color: var(--iso-color-muted);
   font-size: 0.68rem;
-  font-weight: 760;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .wallet-chip-action {
@@ -2774,7 +2782,7 @@ button.address-display {
   background: color-mix(in srgb, var(--iso-color-surface-raised) 84%, transparent);
   color: var(--iso-color-foreground);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .system-status:hover,
@@ -2801,7 +2809,7 @@ button.address-display {
 .system-status-detail {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .system-status-healthy .system-status-dot {
@@ -2829,10 +2837,10 @@ button.address-display {
   border-radius: var(--iso-radius-sm);
   padding: 0.12rem 0.5rem;
   font-size: 0.70rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--iso-font-letter-spacing);
 }
 
 .badge-default {
@@ -2870,7 +2878,7 @@ button.address-display {
   border-radius: 999px;
   padding: 0.12rem 0.58rem;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -2928,7 +2936,7 @@ button.address-display {
   color: var(--iso-color-muted);
   cursor: pointer;
   font-size: 0.88rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   white-space: nowrap;
 }
 
@@ -2979,7 +2987,7 @@ button.address-display {
   color: var(--iso-color-muted);
   cursor: pointer;
   font-size: 0.84rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1;
   white-space: nowrap;
 }
@@ -3066,15 +3074,15 @@ button.address-display {
 .detail-list dt {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
-  letter-spacing: 0.01rem;
+  letter-spacing: var(--iso-font-letter-spacing);
 }
 
 .detail-list dd {
   margin: 0.22rem 0 0;
   overflow-wrap: anywhere;
-  font-weight: 400;
+  font-weight: var(--iso-font-weight-normal);
 }
 
 .mono-value {
@@ -3254,7 +3262,7 @@ button.address-display {
 .route-panel-heading span {
   color: var(--iso-color-muted);
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .route-status-hero {
@@ -3366,7 +3374,7 @@ button.address-display {
 .route-summary-item span,
 .route-technical-grid dt {
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -3392,7 +3400,7 @@ button.address-display {
   overflow-wrap: anywhere;
   font-family: var(--iso-font-mono);
   font-size: 0.88rem;
-  font-weight: 650;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .route-list {
@@ -3672,7 +3680,7 @@ button.address-display {
   padding: 0.8rem 0.9rem;
   color: var(--iso-color-muted);
   font-size: 0.84rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .setup-technical-disclosure[open] > summary {
@@ -3819,7 +3827,7 @@ button.address-display {
   gap: 0.35rem;
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .route-preview-fact dd {
@@ -3852,7 +3860,7 @@ button.address-display {
 }
 
 .setup-creation-review dd {
-  font-weight: 400;
+  font-weight: var(--iso-font-weight-normal);
 }
 
 .setup-summary-grid {
@@ -3945,7 +3953,7 @@ button.address-display {
 .setup-validation-count span {
   color: var(--iso-color-muted);
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -4084,7 +4092,7 @@ button.address-display {
   background: var(--iso-color-surface-subtle);
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .setup-action-meta {
@@ -4102,7 +4110,7 @@ button.address-display {
 
 .setup-action-warning {
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   overflow-wrap: anywhere;
 }
 
@@ -4275,7 +4283,7 @@ button.address-display {
   justify-content: space-between;
   gap: 0.75rem;
   color: var(--iso-color-foreground);
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .activation-eip5792-diagnostics-body {
@@ -4314,7 +4322,7 @@ button.address-display {
 .activation-eip5792-diagnostics-grid dt {
   color: var(--iso-color-muted);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -4422,14 +4430,14 @@ button.address-display {
 .setup-execution-summary dt {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
 .setup-execution-summary dd {
   margin: 0;
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .setup-execution-action {
@@ -4505,7 +4513,7 @@ button.address-display {
 .setup-transaction-hash-label {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -4559,7 +4567,7 @@ button.address-display {
 .setup-transaction-raw-error span {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   text-transform: uppercase;
 }
 
@@ -4657,7 +4665,7 @@ button.address-display {
 .governance-structure-metric-meta {
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
   line-height: 1.35;
 }
 
@@ -4761,7 +4769,7 @@ button.address-display {
 .governance-flow-node-main span {
   color: var(--iso-color-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-flow-node-icon {
@@ -4774,7 +4782,7 @@ button.address-display {
   background: color-mix(in srgb, var(--iso-node-color) 13%, var(--iso-color-surface));
   color: var(--iso-node-color);
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-flow-node-status {
@@ -4827,7 +4835,7 @@ button.address-display {
   gap: 0.85rem;
   color: var(--iso-color-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-graph-legend span {
@@ -4882,7 +4890,7 @@ button.address-display {
   color: var(--iso-color-muted);
   cursor: pointer;
   font-size: 0.82rem;
-  font-weight: 500;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-structure-switch input {
@@ -4914,13 +4922,13 @@ button.address-display {
 .governance-structure-detail-list dt {
   color: var(--iso-color-muted);
   font-size: 0.8rem;
-  font-weight: 750;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-structure-detail-list dd {
   margin: 0;
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
   overflow-wrap: anywhere;
   text-align: right;
 }
@@ -4940,7 +4948,7 @@ button.address-display {
   gap: 0.75rem;
   color: var(--iso-color-muted);
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--iso-font-weight-bold);
 }
 
 .governance-selected-details > div:first-child {

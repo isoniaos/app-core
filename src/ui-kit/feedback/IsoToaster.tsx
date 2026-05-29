@@ -24,7 +24,7 @@ export function IsoToaster(): JSX.Element {
             py="0.75rem"
           >
             <Toast.Indicator />
-            <Toast.Title fontSize="0.9rem" fontWeight="450">
+            <Toast.Title fontSize="0.9rem" fontWeight="var(--iso-font-weight-bold)">
               {toast.title}
             </Toast.Title>
             {toast.description ? (
