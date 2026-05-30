@@ -17,6 +17,7 @@ import {
   LeftToRightListBulletIcon,
   Moon02Icon,
   NewJobIcon,
+  PenTool03Icon,
   PlusSignCircleIcon,
   QuestionIcon,
   Settings02Icon,
@@ -25,6 +26,7 @@ import {
   Sun01Icon,
   Tick02Icon,
   TimeQuarter02Icon,
+  ViewIcon,
   Wallet02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -58,6 +60,8 @@ export type IsoIconName =
   | "tick"
   | "warning"
   | "wallet"
+  | "view"
+  | "write"
   | "job"
   | "x"
   | "timelock";
@@ -96,6 +100,8 @@ const ICONS = {
   tick: Tick02Icon,
   warning: AlertCircleIcon,
   wallet: Wallet02Icon,
+  view: ViewIcon,
+  write: PenTool03Icon,
   x: CancelCircleIcon,
   job: NewJobIcon,
   timelock: TimeQuarter02Icon,

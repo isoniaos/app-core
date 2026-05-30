@@ -4,6 +4,7 @@ import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import { useOrganizationFinalization } from "../../api/useOrganizationFinalization";
 import { useIsoniaQuery } from "../../api/useIsoniaQuery";
 import { useMetadata } from "../../metadata/MetadataProvider";
+import { useOrganizationDisplaySettings } from "../organization-settings/organization-display-settings";
 import { AsyncContent } from "../../ui/AsyncContent";
 import { DataStatusBadge, StatusBadge } from "../../ui/StatusBadge";
 import { PageHeader } from "../../ui/PageHeader";
@@ -54,13 +55,19 @@ function OrganizationOverviewContent({
   const metadata = useMetadata(data.organization.metadataUri);
   const finalization = useOrganizationFinalization(orgId);
   const display = organizationDisplay(data.organization, metadata.record);
+  const { displayNameOverride } = useOrganizationDisplaySettings(orgId);
+  const title = displayNameOverride ?? display.title;
 
   return (
     <>
       <PageHeader
         eyebrow={display.subtitle ?? `Organization #${data.organization.orgId}`}
-        title={display.title}
-        description={display.description ?? data.organization.slug}
+        title={title}
+        description={
+          displayNameOverride
+            ? `Local display label. Indexed label: ${display.title}.`
+            : display.description ?? data.organization.slug
+        }
       />
 
       <div className="metric-grid">
@@ -154,6 +161,9 @@ function OrganizationOverviewContent({
         </Link>
         <Link className="button" to={`/orgs/${orgId}/archive`}>
           Archive
+        </Link>
+        <Link className="button" to={`/orgs/${orgId}/settings`}>
+          Settings
         </Link>
       </div>
 

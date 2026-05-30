@@ -8,11 +8,22 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Added
 
+- Added browser-local organization settings at `/orgs/:orgId/settings` with a
+  local display-name override and known-contract registry keyed by organization
+  and active chain.
+- Added ABI parsing, known-contract validation, read/write function
+  classification, typed parameter coercion, read-result compatibility, and
+  action data/data hash test coverage for the ABI proposal builder.
 - Added focused runtime-config regression coverage for `VITE_ISONIA_*` env parsing, deployment selection, `iso*` contract fields, wallet derivation, fallback config, window config, config URL loading, and old `gov*` field rejection.
 - Added focused regression coverage for proposal execution permission identity so managed execution compares final target, value, and protocol-declared selector instead of the managed executor address.
 
 ### Changed
 
+- Replaced the create-proposal target-mode/data-hash entry flow with a local
+  known-contract ABI action builder that lists active-chain contracts, includes
+  the runtime local demo target suggestion when configured, runs read functions,
+  chains compatible read outputs into write parameters, and submits
+  target/value/dataHash through the existing transaction modal.
 - Switched local alpha `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` dependencies to private workspace links.
 - Replaced local duplicated theme palette and Chakra token setup with the normalized `@isonia/theme-default` theme module and Chakra adapter.
 - Switched App Core typography consumption to the `@isonia/theme-default` Roboto/SUSE Mono contract with 400 normal weight, 600 bold weight, 1.2 line height, and `0.01rem` letter spacing.
@@ -29,6 +40,8 @@ All notable changes to `@isonia/app-core` are documented here.
 
 ### Fixed
 
+- Fixed browser-local organization settings and known-contract snapshots so React
+  does not enter an update loop when the AppShell reads local display settings.
 - Fixed Vite dev startup against linked workspace `@isonia/sdk` and `@isonia/types` packages by explicitly pre-bundling them for browser ESM consumption.
 
 ## [0.8.0-alpha.4]

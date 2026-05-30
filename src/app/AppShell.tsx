@@ -4,6 +4,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useOrganizationFinalization } from "../api/useOrganizationFinalization";
 import { useRuntimeConfig } from "../config/runtime-config";
 import { DiagnosticsStatusIndicator } from "../features/diagnostics/DiagnosticsStatusIndicator";
+import { useOrganizationDisplaySettings } from "../features/organization-settings/organization-display-settings";
 import {
   ColorModeToggle,
   IsoIcon,
@@ -16,6 +17,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
   const runtimeConfig = useRuntimeConfig();
   const location = useLocation();
   const orgId = getOrgIdFromPath(location.pathname);
+  const { displayNameOverride } = useOrganizationDisplaySettings(orgId);
 
   return (
     <div className="app-shell">
@@ -49,7 +51,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
           {orgId ? (
             <div className="sidebar-org-card">
               <span className="sidebar-org-eyebrow">Current organization</span>
-              <strong>Org #{orgId}</strong>
+              <strong>{displayNameOverride ?? `Org #${orgId}`}</strong>
               <span className="sidebar-org-state">
                 <span className="sidebar-org-state-dot" aria-hidden="true" />
                 Selected workspace
@@ -125,6 +127,11 @@ function OrganizationNavSection({
         icon="startup"
         label="Managed Execution"
         to={`/orgs/${orgId}/managed-execution`}
+      />
+      <ShellNavLink
+        icon="setup"
+        label="Settings"
+        to={`/orgs/${orgId}/settings`}
       />
       {!finalization.finalized ? (
         <ShellNavLink

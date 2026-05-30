@@ -87,12 +87,38 @@ Preview a production build:
 corepack pnpm preview
 ```
 
+## Local Organization Settings
+
+Organization settings are available at `/orgs/:orgId/settings`.
+
+- The display-name tab stores a browser-local organization label override. It
+  changes App Core presentation only and does not update protocol state or
+  Control Plane records.
+- The known-contracts tab stores browser-local contract records by organization
+  and active chain. Each record includes a name, address, chain ID, and pasted
+  JSON ABI.
+- The create-proposal flow uses known contracts for the active chain, plus an
+  optional `deployments[].localDemoTargetAddress` suggestion when configured, to
+  build proposal action data from ABI functions.
+- Read functions can be executed through the configured public client and their
+  outputs can feed compatible write-function parameters in the same page state.
+- Write functions render typed parameter inputs, encode action data, compute the
+  data hash, and submit `target`, `value`, and `dataHash` to `createProposal`.
+  ABI labels and parameter names remain local App Core configuration, not
+  protocol authority.
+
+Asset transfer builders, verified ABI imports, provider adapters, and
+server-side contract registries are not part of this local v1 flow.
+
 ## Troubleshooting
 
 - If startup uses fallback config, provide `VITE_ISONIA_*` variables, `VITE_ISONIA_CONFIG_URL`, or `window.__ISONIA_CONFIG__`.
 - If writes are disabled, confirm `features.writeActions`, the specific write feature, and the required `iso*` protocol addresses are set for the active deployment.
 - If wallet connection stays injected-only, configure `VITE_ISONIA_REOWN_PROJECT_ID` or `wallet.reownProjectId`.
 - If metadata labels are missing, check `metadata.enabled`, `metadata.ipfsGatewayUrl`, and `metadata.timeoutMs`. Built-in seed metadata is only a local fallback.
+- If the create-proposal page has no contract options, add a known contract ABI
+  in organization settings for the active chain or configure a local demo target
+  in runtime config.
 - If workspace installs fail from inside `app-core`, run install/build/test commands from the private workspace root while this alpha manifest uses `workspace:*` dependencies.
 
 ## Contribution

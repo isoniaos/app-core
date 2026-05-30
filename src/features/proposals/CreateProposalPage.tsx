@@ -1,23 +1,41 @@
 import type { FormEvent } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type { Address, Bytes32Hash, ProposalDto } from "@isonia/types";
 import { ProposalType } from "@isonia/types";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { isAddress } from "viem";
+import { isAddress, type Abi } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
 import {
-  buildDemoSetNumberAction,
   CREATE_PROPOSAL_TYPES,
   ISO_PROPOSALS_ABI,
-  isBytes32Hash,
+  LOCAL_DEMO_TARGET_ABI,
   parseProposalCreatedLog,
   proposalTypeToChainCode,
 } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
+import {
+  buildActionDataPreview,
+  coerceAbiLiteral,
+  formatAbiParameterLabel,
+  formatReadResultValue,
+  getAbiInputs,
+  getAbiOutputs,
+  getCompatibleReadResults,
+  parseContractAbiJson,
+  parseProposalActionValue,
+  type ParsedContractAbi,
+  type ParsedContractFunction,
+  type ReadResultValue,
+} from "../known-contracts/abi/contract-abi";
+import {
+  useKnownContracts,
+  type KnownContractRecord,
+} from "../known-contracts/known-contracts-storage";
 import { PageHeader } from "../../ui/PageHeader";
 import { StatusBadge } from "../../ui/StatusBadge";
+import { IsoIcon } from "../../ui-kit";
 import { useTransactionModal, type TransactionFlowStage } from "../../transactions";
 import { formatAddress, formatLabel } from "../../utils/format";
 import { requireParam } from "../../utils/route-params";
@@ -26,7 +44,35 @@ import {
   type WalletConnection,
 } from "../../wallet/useWalletConnection";
 
-type TargetMode = "demo" | "custom";
+interface FormState {
+  readonly proposalType: ProposalType;
+  readonly title: string;
+  readonly descriptionUri: string;
+  readonly value: string;
+}
+
+interface ContractOption {
+  readonly abiJson: string;
+  readonly address: Address;
+  readonly chainId: number;
+  readonly id: string;
+  readonly name: string;
+  readonly parsedAbi: ParsedContractAbi;
+  readonly source: "local" | "runtime-demo";
+}
+
+interface ParameterFormState {
+  readonly literalValue: string;
+  readonly mode: "literal" | "readResult";
+  readonly readResultId?: string;
+}
+
+interface CapturedReadResult extends ReadResultValue {
+  readonly contractId: string;
+  readonly contractName: string;
+  readonly formattedValue: string;
+  readonly observedAt: string;
+}
 
 type TransactionStage =
   | "idle"
@@ -37,28 +83,6 @@ type TransactionStage =
   | "indexed"
   | "failed";
 
-interface FormState {
-  readonly proposalType: ProposalType;
-  readonly title: string;
-  readonly descriptionUri: string;
-  readonly targetMode: TargetMode;
-  readonly targetAddress: string;
-  readonly value: string;
-  readonly demoNumber: string;
-  readonly dataHash: string;
-}
-
-type ProposalFormField =
-  | "proposalType"
-  | "title"
-  | "targetAddress"
-  | "value"
-  | "demoNumber"
-  | "dataHash";
-
-type ProposalFormErrors = Partial<Record<ProposalFormField, string>>;
-type ProposalFormTouched = Partial<Record<ProposalFormField, boolean>>;
-
 interface TransactionState {
   readonly stage: TransactionStage;
   readonly txHash?: `0x${string}`;
@@ -67,12 +91,25 @@ interface TransactionState {
 }
 
 interface CreateProposalPayload {
+  readonly actionData: string;
+  readonly contractName: string;
+  readonly dataHash: Bytes32Hash;
+  readonly functionSignature: string;
+  readonly metadataUri: string;
   readonly orgId: bigint;
   readonly proposalTypeCode: number;
   readonly targetAddress: Address;
   readonly value: bigint;
-  readonly dataHash: Bytes32Hash;
-  readonly metadataUri: string;
+}
+
+interface BuildArgsResult {
+  readonly args: readonly unknown[];
+  readonly errors: readonly string[];
+}
+
+interface ReadExecutionState {
+  readonly error?: string;
+  readonly loading: boolean;
 }
 
 const INDEXER_POLL_INTERVAL_MS = 1_500;
@@ -90,39 +127,149 @@ export function CreateProposalPage(): JSX.Element {
     updateItem: updateTransactionModalItem,
   } = useTransactionModal();
   const orgId = requireParam(useParams().orgId, "orgId");
+  const chainId = runtimeConfig.activeDeployment.chainId;
   const localDemoTargetAddress = runtimeConfig.activeDeployment.localDemoTargetAddress;
+  const knownContracts = useKnownContracts(orgId, chainId);
   const activeTransactionModalItemId = useRef<string | undefined>(undefined);
   const [form, setForm] = useState<FormState>(() => ({
     proposalType: ProposalType.Standard,
     title: "",
     descriptionUri: "",
-    targetMode: localDemoTargetAddress ? "demo" : "custom",
-    targetAddress: "",
     value: "0",
-    demoNumber: "",
-    dataHash: "",
   }));
+  const [selectedContractId, setSelectedContractId] = useState("");
+  const [selectedFunctionSignature, setSelectedFunctionSignature] = useState("");
+  const [parameters, setParameters] = useState<Record<string, ParameterFormState>>({});
+  const [readResults, setReadResults] = useState<readonly CapturedReadResult[]>([]);
+  const [readExecution, setReadExecution] = useState<ReadExecutionState>({
+    loading: false,
+  });
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [touched, setTouched] = useState<ProposalFormTouched>({});
   const [transaction, setTransaction] = useState<TransactionState>({
     stage: "idle",
   });
 
+  const contractOptions = useMemo(
+    () =>
+      buildContractOptions({
+        chainId,
+        knownContracts: knownContracts.contracts,
+        localDemoTargetAddress,
+      }),
+    [chainId, knownContracts.contracts, localDemoTargetAddress],
+  );
+  const selectedContract = contractOptions.find(
+    (contract) => contract.id === selectedContractId,
+  );
+  const selectedFunction = selectedContract?.parsedAbi.functions.find(
+    (fn) => fn.signature === selectedFunctionSignature,
+  );
+  const selectedInputs = selectedFunction
+    ? getAbiInputs(selectedFunction.abiItem)
+    : [];
+  const argsResult = useMemo(
+    () =>
+      selectedFunction
+        ? buildFunctionArguments({
+            fn: selectedFunction,
+            parameters,
+            readResults,
+          })
+        : { args: [], errors: ["Choose a contract function."] },
+    [parameters, readResults, selectedFunction],
+  );
+  const valueResult = useMemo(
+    () =>
+      selectedFunction
+        ? parseProposalActionValue(selectedFunction, form.value)
+        : 0n,
+    [form.value, selectedFunction],
+  );
+  const actionPreview = useMemo(() => {
+    if (!selectedFunction || selectedFunction.kind !== "writable") {
+      return undefined;
+    }
+    if (argsResult.errors.length > 0) {
+      return argsResult.errors[0];
+    }
+    const preview = buildActionDataPreview({
+      args: argsResult.args,
+      fn: selectedFunction,
+    });
+    return preview instanceof Error ? preview.message : preview;
+  }, [argsResult, selectedFunction]);
+  const proposalErrors = useMemo(
+    () =>
+      validateProposalForm({
+        actionPreview,
+        argsResult,
+        contractOptions,
+        form,
+        selectedContract,
+        selectedFunction,
+        valueResult,
+      }),
+    [
+      actionPreview,
+      argsResult,
+      contractOptions,
+      form,
+      selectedContract,
+      selectedFunction,
+      valueResult,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      selectedContractId &&
+      contractOptions.some((contract) => contract.id === selectedContractId)
+    ) {
+      return;
+    }
+
+    setSelectedContractId(contractOptions[0]?.id ?? "");
+  }, [contractOptions, selectedContractId]);
+
+  useEffect(() => {
+    const functions = selectedContract?.parsedAbi.functions ?? [];
+    if (
+      selectedFunctionSignature &&
+      functions.some((fn) => fn.signature === selectedFunctionSignature)
+    ) {
+      return;
+    }
+
+    setSelectedFunctionSignature(functions[0]?.signature ?? "");
+  }, [selectedContract, selectedFunctionSignature]);
+
+  useEffect(() => {
+    if (!selectedFunction) {
+      setParameters({});
+      return;
+    }
+
+    setReadExecution({ loading: false });
+    setParameters((current) => {
+      const next: Record<string, ParameterFormState> = {};
+
+      getAbiInputs(selectedFunction.abiItem).forEach((input, index) => {
+        const key = parameterKey(selectedFunction.signature, index);
+        next[key] =
+          current[key] ??
+          {
+            literalValue: defaultLiteralValue(input, orgId),
+            mode: "literal",
+          };
+      });
+
+      return next;
+    });
+  }, [orgId, selectedFunction]);
+
   const writeFlowEnabled =
     runtimeConfig.features.writeActions &&
     runtimeConfig.features.createProposal;
-  const demoActionPreview = useMemo(
-    () => previewDemoAction(orgId, form.demoNumber),
-    [orgId, form.demoNumber],
-  );
-  const formErrors = useMemo(
-    () => validateForm(form, orgId, localDemoTargetAddress),
-    [localDemoTargetAddress, form, orgId],
-  );
-  const visibleErrors = useMemo(
-    () => getVisibleErrors(formErrors, touched, submitAttempted),
-    [formErrors, submitAttempted, touched],
-  );
   const blockingNotice = getBlockingNotice({
     account,
     publicClientReady: Boolean(publicClient),
@@ -134,10 +281,7 @@ export function CreateProposalPage(): JSX.Element {
     transaction.stage === "submitted" ||
     transaction.stage === "confirming" ||
     transaction.stage === "confirmed_waiting_indexer";
-
-  const markTouched = (field: ProposalFormField): void => {
-    setTouched((current) => ({ ...current, [field]: true }));
-  };
+  const visibleProposalErrors = submitAttempted ? proposalErrors : [];
 
   const executeCreateProposal = useCallback(
     async (payload: CreateProposalPayload, itemId: string): Promise<void> => {
@@ -241,10 +385,7 @@ export function CreateProposalPage(): JSX.Element {
           throw new Error("Transaction failed on-chain.");
         }
 
-        const created = parseProposalCreatedLog(
-          receipt,
-          isoProposalsAddress,
-        );
+        const created = parseProposalCreatedLog(receipt, isoProposalsAddress);
 
         if (!created || created.orgId !== orgId) {
           throw new Error(
@@ -288,15 +429,80 @@ export function CreateProposalPage(): JSX.Element {
     ],
   );
 
+  async function runReadFunction(): Promise<void> {
+    if (!selectedContract || !selectedFunction || selectedFunction.kind !== "readable") {
+      return;
+    }
+
+    const args = buildFunctionArguments({
+      fn: selectedFunction,
+      parameters,
+      readResults,
+    });
+    if (args.errors.length > 0) {
+      setReadExecution({ error: args.errors[0], loading: false });
+      return;
+    }
+
+    if (!publicClient) {
+      setReadExecution({
+        error: "The configured chain client is not ready.",
+        loading: false,
+      });
+      return;
+    }
+
+    setReadExecution({ loading: true });
+    try {
+      const result = await publicClient.readContract({
+        address: selectedContract.address,
+        abi: [selectedFunction.abiItem] as Abi,
+        functionName: selectedFunction.name,
+        args: args.args,
+      });
+      const outputs = getAbiOutputs(selectedFunction.abiItem);
+      const values = splitReadResult(result, outputs.length);
+      const now = new Date().toISOString();
+      const captured = outputs.map((output, index) => ({
+        contractId: selectedContract.id,
+        contractName: selectedContract.name,
+        formattedValue: formatReadResultValue(values[index]),
+        functionLabel: selectedFunction.displayLabel,
+        functionSignature: selectedFunction.signature,
+        id: `${now}:${selectedContract.id}:${selectedFunction.signature}:${index}`,
+        observedAt: now,
+        outputIndex: index,
+        outputName: output.name,
+        type: output.type,
+        value: values[index],
+      }));
+
+      setReadResults((current) => [...captured, ...current].slice(0, 24));
+      setReadExecution({ loading: false });
+    } catch (error: unknown) {
+      setReadExecution({
+        error: normalizeTransactionError(error),
+        loading: false,
+      });
+    }
+  }
+
   async function submitProposal(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitAttempted(true);
 
-    if (Object.keys(formErrors).length > 0) {
+    if (proposalErrors.length > 0) {
       return;
     }
 
-    const payload = buildPayload(form, orgId, localDemoTargetAddress);
+    const payload = buildPayload({
+      actionPreview,
+      form,
+      orgId,
+      selectedContract,
+      selectedFunction,
+      valueResult,
+    });
     if (payload instanceof Error) {
       setTransaction({ stage: "failed", error: payload.message });
       return;
@@ -310,7 +516,7 @@ export function CreateProposalPage(): JSX.Element {
         "Create the proposal on-chain, then wait for Control Plane to index the ProposalCreated event.",
       item: {
         blockExplorerUrl: runtimeConfig.activeDeployment.blockExplorerUrl,
-        description: `${formatLabel(form.proposalType)} proposal for org #${orgId}`,
+        description: `${payload.contractName} ${payload.functionSignature}`,
         execute: () => executeCreateProposal(payload, itemId),
         executeLabel: "Create",
         id: itemId,
@@ -326,12 +532,15 @@ export function CreateProposalPage(): JSX.Element {
       <PageHeader
         eyebrow={`Org #${orgId}`}
         title="Create Proposal"
-        description="Submit a proposal to the configured IsoProposals contract and wait for the indexed read model."
+        description="Build a proposal action from a local known-contract ABI, submit target/value/dataHash, and wait for the indexed read model."
       />
 
       <div className="action-row">
         <Link className="button" to={`/orgs/${orgId}/proposals`}>
           Back to proposals
+        </Link>
+        <Link className="button" to={`/orgs/${orgId}/settings`}>
+          Organization settings
         </Link>
         <StatusBadge tone={writeFlowEnabled ? "success" : "muted"}>
           {writeFlowEnabled ? "Writes enabled" : "Writes disabled"}
@@ -356,11 +565,10 @@ export function CreateProposalPage(): JSX.Element {
             </div>
           </div>
           <div className="form-grid">
-            <label className={formFieldClassName(visibleErrors.proposalType)}>
+            <label className="form-field">
               <RequiredLabel>Proposal type</RequiredLabel>
               <select
                 value={form.proposalType}
-                onBlur={() => markTouched("proposalType")}
                 onChange={(event) =>
                   setForm({
                     ...form,
@@ -374,22 +582,19 @@ export function CreateProposalPage(): JSX.Element {
                   </option>
                 ))}
               </select>
-              <FieldError message={visibleErrors.proposalType} />
             </label>
 
-            <label className={formFieldClassName(visibleErrors.title)}>
+            <label className="form-field">
               <RequiredLabel>Title</RequiredLabel>
               <input
                 autoComplete="off"
                 maxLength={120}
                 type="text"
                 value={form.title}
-                onBlur={() => markTouched("title")}
                 onChange={(event) =>
                   setForm({ ...form, title: event.target.value })
                 }
               />
-              <FieldError message={visibleErrors.title} />
             </label>
 
             <label className="form-field form-field-wide">
@@ -412,110 +617,136 @@ export function CreateProposalPage(): JSX.Element {
             <div>
               <h2>Execution Action</h2>
               <p className="panel-subtitle">
-                Store the target, value, and data hash for this proposal.
+                ABI records are local App Core configuration. The protocol stores
+                target, value, and dataHash.
               </p>
             </div>
+            {selectedFunction ? <FunctionKindBadge fn={selectedFunction} /> : null}
           </div>
-          <div className="form-grid">
-            <div className="form-field form-field-wide">
-              <span>Target mode</span>
-              <div className="segmented-control" role="group">
-                <button
-                  className={segmentClassName(form.targetMode === "demo")}
-                  disabled={!localDemoTargetAddress}
-                  type="button"
-                  onClick={() => setForm({ ...form, targetMode: "demo" })}
-                >
-                  Local demo target
-                </button>
-                <button
-                  className={segmentClassName(form.targetMode === "custom")}
-                  type="button"
-                  onClick={() => setForm({ ...form, targetMode: "custom" })}
-                >
-                  Custom data hash
-                </button>
-              </div>
+
+          {contractOptions.length === 0 ? (
+            <div className="inline-state inline-state-muted">
+              <strong>No known contracts available</strong>
+              <span>
+                Add a known contract ABI in organization settings for chain
+                {` ${chainId}`} before building proposal actions.
+              </span>
+              <Link className="diagnostics-text-link" to={`/orgs/${orgId}/settings`}>
+                Open organization settings
+              </Link>
             </div>
-
-            <label className={formFieldClassName(visibleErrors.targetAddress, true)}>
-              <RequiredLabel>Target address</RequiredLabel>
-              <input
-                autoComplete="off"
-                readOnly={form.targetMode === "demo"}
-                type="text"
-                value={
-                  form.targetMode === "demo"
-                    ? localDemoTargetAddress ?? ""
-                    : form.targetAddress
-                }
-                onChange={(event) =>
-                  setForm({ ...form, targetAddress: event.target.value })
-                }
-                onBlur={() => markTouched("targetAddress")}
-              />
-              <FieldError message={visibleErrors.targetAddress} />
-            </label>
-
-            <label className={formFieldClassName(visibleErrors.value)}>
-              <RequiredLabel>Value (wei)</RequiredLabel>
-              <input
-                inputMode="numeric"
-                min="0"
-                type="number"
-                value={form.value}
-                onBlur={() => markTouched("value")}
-                onChange={(event) =>
-                  setForm({ ...form, value: event.target.value })
-                }
-              />
-              <FieldError message={visibleErrors.value} />
-            </label>
-
-            {form.targetMode === "demo" ? (
-              <>
-                <label className={formFieldClassName(visibleErrors.demoNumber)}>
-                  <RequiredLabel>setNumber value</RequiredLabel>
-                  <input
-                    inputMode="numeric"
-                    min="0"
-                    type="number"
-                    value={form.demoNumber}
-                    onBlur={() => markTouched("demoNumber")}
-                    onChange={(event) =>
-                      setForm({ ...form, demoNumber: event.target.value })
-                    }
-                  />
-                  <FieldError message={visibleErrors.demoNumber} />
-                </label>
+          ) : (
+            <>
+              <div className="form-grid">
                 <label className="form-field form-field-wide">
-                  <span>Data hash</span>
-                  <input
-                    className="mono-input"
-                    readOnly
-                    type="text"
-                    value={demoActionPreview?.dataHash ?? ""}
-                  />
+                  <RequiredLabel>Known contract</RequiredLabel>
+                  <select
+                    value={selectedContractId}
+                    onChange={(event) => {
+                      setSelectedContractId(event.target.value);
+                      setSubmitAttempted(false);
+                    }}
+                  >
+                    {contractOptions.map((contract) => (
+                      <option key={contract.id} value={contract.id}>
+                        {contract.name} - {formatAddress(contract.address)}
+                        {contract.source === "runtime-demo"
+                          ? " (runtime config)"
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedContract ? (
+                    <span className="form-help-text">
+                      Chain {selectedContract.chainId}; target{" "}
+                      {selectedContract.address}
+                    </span>
+                  ) : null}
                 </label>
-              </>
-            ) : (
-              <label className={formFieldClassName(visibleErrors.dataHash, true)}>
-                <RequiredLabel>Data hash</RequiredLabel>
-                <input
-                  autoComplete="off"
-                  className="mono-input"
-                  placeholder="0x..."
-                  type="text"
-                  value={form.dataHash}
-                  onBlur={() => markTouched("dataHash")}
-                  onChange={(event) =>
-                    setForm({ ...form, dataHash: event.target.value })
+
+                <label className="form-field form-field-wide">
+                  <RequiredLabel>Function</RequiredLabel>
+                  <select
+                    value={selectedFunctionSignature}
+                    onChange={(event) => {
+                      setSelectedFunctionSignature(event.target.value);
+                      setSubmitAttempted(false);
+                    }}
+                  >
+                    {selectedContract?.parsedAbi.functions.map((fn) => (
+                      <option key={fn.signature} value={fn.signature}>
+                        {fn.kind === "readable" ? "Read" : "Write"} -{" "}
+                        {fn.fullLabel}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedFunction ? (
+                    <FunctionCatalog
+                      functions={selectedContract?.parsedAbi.functions ?? []}
+                      selectedSignature={selectedFunction.signature}
+                    />
+                  ) : null}
+                </label>
+              </div>
+
+              {selectedFunction ? (
+                <ActionBuilderFields
+                  chainSymbol={runtimeConfig.activeDeployment.nativeCurrencySymbol}
+                  fn={selectedFunction}
+                  formValue={form.value}
+                  inputs={selectedInputs}
+                  onRunRead={() => {
+                    void runReadFunction();
+                  }}
+                  onSetFormValue={(value) => setForm({ ...form, value })}
+                  onSetParameter={(index, value) =>
+                    setParameters((current) => ({
+                      ...current,
+                      [parameterKey(selectedFunction.signature, index)]: value,
+                    }))
+                  }
+                  parameters={parameters}
+                  readExecution={readExecution}
+                  readResults={readResults}
+                  selectedContract={selectedContract}
+                />
+              ) : null}
+
+              <ReadResultsPanel
+                readResults={readResults}
+                writableFunctions={selectedContract?.parsedAbi.functions.filter(
+                  (fn) => fn.kind === "writable",
+                ) ?? []}
+              />
+
+              {selectedFunction?.kind === "writable" &&
+              selectedContract &&
+              actionPreview &&
+              typeof actionPreview !== "string" ? (
+                <ActionPreviewPanel
+                  actionData={actionPreview.actionData}
+                  actionSelector={actionPreview.actionSelector}
+                  dataHash={actionPreview.dataHash}
+                  fn={selectedFunction}
+                  selectedContract={selectedContract}
+                  value={
+                    valueResult instanceof Error
+                      ? "Invalid value"
+                      : selectedFunction.payable
+                        ? valueResult.toString()
+                        : "0"
                   }
                 />
-                <FieldError message={visibleErrors.dataHash} />
-              </label>
-            )}
-          </div>
+              ) : null}
+
+              {visibleProposalErrors.length > 0 ? (
+                <div className="inline-state inline-state-danger">
+                  <strong>Cannot create proposal</strong>
+                  <span>{visibleProposalErrors[0]}</span>
+                </div>
+              ) : null}
+            </>
+          )}
         </section>
 
         <CreateProposalTransactionStatus
@@ -526,11 +757,23 @@ export function CreateProposalPage(): JSX.Element {
         <div className="action-row proposal-form-actions">
           <button
             className="button button-primary"
-            disabled={isSubmitting || Boolean(blockingNotice)}
+            disabled={
+              isSubmitting ||
+              Boolean(blockingNotice) ||
+              !selectedFunction ||
+              selectedFunction.kind !== "writable" ||
+              contractOptions.length === 0
+            }
             type="submit"
           >
             {isSubmitting ? "Submitting" : "Create proposal"}
           </button>
+          {selectedFunction?.kind === "readable" ? (
+            <span className="form-muted">
+              Read functions can be executed here, but are not proposal actions
+              in v1.
+            </span>
+          ) : null}
           {account.address ? (
             <span className="form-muted">
               Wallet {formatAddress(account.address)}
@@ -538,6 +781,397 @@ export function CreateProposalPage(): JSX.Element {
           ) : null}
         </div>
       </form>
+    </section>
+  );
+}
+
+function ActionBuilderFields({
+  chainSymbol,
+  fn,
+  formValue,
+  inputs,
+  onRunRead,
+  onSetFormValue,
+  onSetParameter,
+  parameters,
+  readExecution,
+  readResults,
+  selectedContract,
+}: {
+  readonly chainSymbol: string;
+  readonly fn: ParsedContractFunction;
+  readonly formValue: string;
+  readonly inputs: ReturnType<typeof getAbiInputs>;
+  readonly onRunRead: () => void;
+  readonly onSetFormValue: (value: string) => void;
+  readonly onSetParameter: (index: number, value: ParameterFormState) => void;
+  readonly parameters: Record<string, ParameterFormState>;
+  readonly readExecution: ReadExecutionState;
+  readonly readResults: readonly CapturedReadResult[];
+  readonly selectedContract?: ContractOption;
+}): JSX.Element {
+  return (
+    <div className="abi-builder-stack">
+      {inputs.length === 0 ? (
+        <div className="inline-state inline-state-muted">
+          <strong>No function inputs</strong>
+          <span>This ABI function does not require parameters.</span>
+        </div>
+      ) : (
+        <section className="abi-parameter-panel">
+          <div className="panel-header abi-subheader">
+            <div>
+              <h3>Parameters</h3>
+              <p className="panel-subtitle">
+                Literal values are validated before encoding. Compatible read
+                outputs can be used as write parameters.
+              </p>
+            </div>
+          </div>
+          <div className="abi-parameter-list">
+            {inputs.map((input, index) => (
+              <ParameterRow
+                fn={fn}
+                index={index}
+                input={input}
+                key={`${fn.signature}:${index}`}
+                onChange={(next) => onSetParameter(index, next)}
+                readResults={readResults}
+                value={
+                  parameters[parameterKey(fn.signature, index)] ?? {
+                    literalValue: defaultLiteralValue(input, ""),
+                    mode: "literal",
+                  }
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {fn.payable ? (
+        <label className="form-field abi-value-field">
+          <RequiredLabel>Value (wei)</RequiredLabel>
+          <input
+            inputMode="numeric"
+            min="0"
+            type="number"
+            value={formValue}
+            onChange={(event) => onSetFormValue(event.target.value)}
+          />
+          <span className="form-help-text">
+            Payable function. Native currency symbol: {chainSymbol}.
+          </span>
+        </label>
+      ) : fn.kind === "writable" ? (
+        <div className="inline-state inline-state-muted">
+          <strong>Value forced to zero</strong>
+          <span>Selected write function is nonpayable, so proposal value is 0 wei.</span>
+        </div>
+      ) : null}
+
+      {fn.kind === "readable" ? (
+        <section className="abi-read-panel">
+          <div className="inline-state inline-state-muted">
+            <strong>Read-only function</strong>
+            <span>
+              Run this read against {selectedContract?.name ?? "the selected contract"}.
+              Captured outputs stay in page state and can feed compatible write
+              parameters.
+            </span>
+          </div>
+          <div className="action-row">
+            <button
+              className="button button-primary"
+              disabled={readExecution.loading}
+              type="button"
+              onClick={onRunRead}
+            >
+              {readExecution.loading ? "Running read" : "Run read"}
+            </button>
+            {readExecution.error ? (
+              <span className="form-field-error-message">{readExecution.error}</span>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function ParameterRow({
+  fn,
+  index,
+  input,
+  onChange,
+  readResults,
+  value,
+}: {
+  readonly fn: ParsedContractFunction;
+  readonly index: number;
+  readonly input: ReturnType<typeof getAbiInputs>[number];
+  readonly onChange: (next: ParameterFormState) => void;
+  readonly readResults: readonly CapturedReadResult[];
+  readonly value: ParameterFormState;
+}): JSX.Element {
+  const compatibleResults = getCompatibleReadResults(input.type, readResults);
+  const unsupported = !fn.supportedInputs && !isParameterSupported(input.type);
+
+  return (
+    <div className="abi-parameter-row">
+      <div className="abi-parameter-label">
+        <strong>{formatAbiParameterLabel(input, index)}</strong>
+        {unsupported ? (
+          <span>{input.type} is unsupported in v1.</span>
+        ) : value.mode === "readResult" && value.readResultId ? (
+          <span>{formatReadResultSource(value.readResultId, compatibleResults)}</span>
+        ) : (
+          <span>Literal parameter value.</span>
+        )}
+      </div>
+      <div className="abi-parameter-controls">
+        <label className="form-field">
+          <span>Source</span>
+          <select
+            disabled={unsupported}
+            value={value.mode}
+            onChange={(event) => {
+              const mode = event.target.value as ParameterFormState["mode"];
+              onChange({
+                ...value,
+                mode,
+                readResultId:
+                  mode === "readResult"
+                    ? compatibleResults[0]?.id
+                    : value.readResultId,
+              });
+            }}
+          >
+            <option value="literal">Literal</option>
+            <option disabled={compatibleResults.length === 0} value="readResult">
+              Read result
+            </option>
+          </select>
+        </label>
+        {value.mode === "readResult" ? (
+          <label className="form-field">
+            <span>Read output</span>
+            <select
+              disabled={compatibleResults.length === 0}
+              value={value.readResultId ?? ""}
+              onChange={(event) =>
+                onChange({ ...value, readResultId: event.target.value })
+              }
+            >
+              {compatibleResults.length === 0 ? (
+                <option value="">No compatible read results</option>
+              ) : null}
+              {compatibleResults.map((result) => (
+                <option key={result.id} value={result.id}>
+                  {result.functionLabel}.{result.outputName || result.outputIndex}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="form-field">
+            <span>Value</span>
+            {input.type === "bool" ? (
+              <select
+                disabled={unsupported}
+                value={value.literalValue || "false"}
+                onChange={(event) =>
+                  onChange({ ...value, literalValue: event.target.value })
+                }
+              >
+                <option value="false">false</option>
+                <option value="true">true</option>
+              </select>
+            ) : (
+              <input
+                autoComplete="off"
+                className={isMonoAbiType(input.type) ? "mono-input" : undefined}
+                disabled={unsupported}
+                type={isIntegerAbiType(input.type) ? "number" : "text"}
+                value={value.literalValue}
+                onChange={(event) =>
+                  onChange({ ...value, literalValue: event.target.value })
+                }
+              />
+            )}
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FunctionCatalog({
+  functions,
+  selectedSignature,
+}: {
+  readonly functions: readonly ParsedContractFunction[];
+  readonly selectedSignature: string;
+}): JSX.Element {
+  return (
+    <div className="abi-function-catalog">
+      {functions.map((fn) => (
+        <span
+          className={[
+            "abi-function-chip",
+            `abi-function-chip-${fn.kind}`,
+            fn.signature === selectedSignature ? "abi-function-chip-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          key={fn.signature}
+        >
+          <IsoIcon name={fn.kind === "readable" ? "view" : "write"} size={15} />
+          {fn.displayLabel}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function FunctionKindBadge({
+  fn,
+}: {
+  readonly fn: ParsedContractFunction;
+}): JSX.Element {
+  const readable = fn.kind === "readable";
+  return (
+    <span
+      className={`abi-function-kind-badge abi-function-kind-badge-${fn.kind}`}
+    >
+      <IsoIcon name={readable ? "view" : "write"} size={16} />
+      {readable ? "Readable" : fn.payable ? "Writable payable" : "Writable"}
+    </span>
+  );
+}
+
+function ReadResultsPanel({
+  readResults,
+  writableFunctions,
+}: {
+  readonly readResults: readonly CapturedReadResult[];
+  readonly writableFunctions: readonly ParsedContractFunction[];
+}): JSX.Element | null {
+  if (readResults.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="abi-read-results">
+      <div className="panel-header abi-subheader">
+        <div>
+          <h3>Read Results</h3>
+          <p className="panel-subtitle">
+            Results are held only in this page state and are not written to
+            browser storage.
+          </p>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Output</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th>Parameter use</th>
+            </tr>
+          </thead>
+          <tbody>
+            {readResults.map((result) => (
+              <tr key={result.id}>
+                <td>
+                  <strong>{result.functionLabel}</strong>
+                  <span className="table-subtext">
+                    {result.outputName || `output ${result.outputIndex}`}
+                  </span>
+                </td>
+                <td>{result.type}</td>
+                <td className="mono-value">{result.formattedValue}</td>
+                <td>
+                  <StatusBadge
+                    tone={isUsableReadResult(result, writableFunctions) ? "success" : "muted"}
+                  >
+                    {isUsableReadResult(result, writableFunctions)
+                      ? "Usable as parameter"
+                      : "No compatible write input"}
+                  </StatusBadge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ActionPreviewPanel({
+  actionData,
+  actionSelector,
+  dataHash,
+  fn,
+  selectedContract,
+  value,
+}: {
+  readonly actionData: string;
+  readonly actionSelector: string;
+  readonly dataHash: Bytes32Hash;
+  readonly fn: ParsedContractFunction;
+  readonly selectedContract: ContractOption;
+  readonly value: string;
+}): JSX.Element {
+  return (
+    <section className="abi-action-preview">
+      <div className="panel-header abi-subheader">
+        <div>
+          <h3>Technical Preview</h3>
+          <p className="panel-subtitle">
+            The protocol stores target, value, and dataHash. ABI labels and
+            parameter names are local App Core configuration and are not protocol
+            authority.
+          </p>
+        </div>
+      </div>
+      <dl className="technical-detail-grid">
+        <div>
+          <dt>Target address</dt>
+          <dd>{selectedContract.address}</dd>
+        </div>
+        <div>
+          <dt>Function signature</dt>
+          <dd>{fn.signature}</dd>
+        </div>
+        <div>
+          <dt>Value</dt>
+          <dd>{value} wei</dd>
+        </div>
+        <div>
+          <dt>Action selector</dt>
+          <dd>{actionSelector}</dd>
+        </div>
+        <div>
+          <dt>Data hash</dt>
+          <dd>{dataHash}</dd>
+        </div>
+        <div>
+          <dt>Contract source</dt>
+          <dd>
+            {selectedContract.source === "runtime-demo"
+              ? "Runtime local demo target"
+              : "Browser-local known contract"}
+          </dd>
+        </div>
+      </dl>
+      <details className="technical-disclosure abi-action-data">
+        <summary>Action data</summary>
+        <textarea className="mono-input" readOnly value={actionData} />
+      </details>
     </section>
   );
 }
@@ -554,7 +1188,9 @@ function CreateProposalTransactionStatus({
       <div>
         <strong>Transaction status</strong>
         <span>{transactionSummary(transaction)}</span>
-        {transaction.txHash || transaction.stage === "confirmed_waiting_indexer" || transaction.stage === "failed" ? (
+        {transaction.txHash ||
+        transaction.stage === "confirmed_waiting_indexer" ||
+        transaction.stage === "failed" ? (
           <div className="proposal-action-status-meta">
             {transaction.txHash ? (
               <span className="technical-code">{transaction.txHash}</span>
@@ -600,88 +1236,323 @@ function RequiredLabel({
   );
 }
 
-function FieldError({
-  message,
+function buildContractOptions({
+  chainId,
+  knownContracts,
+  localDemoTargetAddress,
 }: {
-  readonly message?: string;
-}): JSX.Element | null {
-  return message ? <span className="form-field-error-message">{message}</span> : null;
-}
+  readonly chainId: number;
+  readonly knownContracts: readonly KnownContractRecord[];
+  readonly localDemoTargetAddress?: Address;
+}): readonly ContractOption[] {
+  const persisted = knownContracts.flatMap((record): ContractOption[] => {
+    const parsedAbi = parseContractAbiJson(record.abiJson);
+    if (parsedAbi instanceof Error) {
+      return [];
+    }
 
-function formFieldClassName(error: string | undefined, wide = false): string {
+    return [
+      {
+        abiJson: record.abiJson,
+        address: record.address,
+        chainId: record.chainId,
+        id: record.id,
+        name: record.name,
+        parsedAbi,
+        source: "local",
+      },
+    ];
+  });
+
+  if (!localDemoTargetAddress) {
+    return persisted;
+  }
+
+  const demoAbiJson = JSON.stringify(LOCAL_DEMO_TARGET_ABI, null, 2);
+  const demoAbi = parseContractAbiJson(demoAbiJson);
+  if (demoAbi instanceof Error) {
+    return persisted;
+  }
+
   return [
-    "form-field",
-    wide ? "form-field-wide" : "",
-    error ? "form-field-error" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    ...persisted,
+    {
+      abiJson: demoAbiJson,
+      address: localDemoTargetAddress,
+      chainId,
+      id: "runtime-local-demo-target",
+      name: "Local demo target (runtime config)",
+      parsedAbi: demoAbi,
+      source: "runtime-demo",
+    },
+  ];
 }
 
-function validateForm(
-  form: FormState,
-  orgId: string,
-  localDemoTargetAddress: Address | undefined,
-): ProposalFormErrors {
-  const errors: ProposalFormErrors = {};
+function buildFunctionArguments({
+  fn,
+  parameters,
+  readResults,
+}: {
+  readonly fn: ParsedContractFunction;
+  readonly parameters: Record<string, ParameterFormState>;
+  readonly readResults: readonly CapturedReadResult[];
+}): BuildArgsResult {
+  const args: unknown[] = [];
+  const errors: string[] = [];
 
-  if (!formValue(form.proposalType)) {
-    errors.proposalType = "Proposal type is required.";
-  }
+  getAbiInputs(fn.abiItem).forEach((input, index) => {
+    const key = parameterKey(fn.signature, index);
+    const parameter = parameters[key];
 
-  if (!formValue(form.title)) {
-    errors.title = "Title is required.";
-  }
-
-  if (parseUint(formValue(orgId), "Organization ID") instanceof Error) {
-    errors.title = "Organization ID is not valid.";
-  }
-
-  const value = parseUint(form.value, "Value");
-  if (value instanceof Error) {
-    errors.value = value.message;
-  }
-
-  if (form.targetMode === "demo") {
-    if (!localDemoTargetAddress) {
-      errors.targetAddress = "Configured target address is missing.";
+    if (!isParameterSupported(input.type)) {
+      errors.push(`${formatAbiParameterLabel(input, index)} is unsupported in v1.`);
+      return;
     }
-    const number = parseUint(form.demoNumber, "setNumber value");
-    if (number instanceof Error) {
-      errors.demoNumber = number.message;
+
+    if (!parameter) {
+      errors.push(`${formatAbiParameterLabel(input, index)} is missing.`);
+      return;
     }
-    return errors;
+
+    if (parameter.mode === "readResult") {
+      const result = readResults.find((item) => item.id === parameter.readResultId);
+      if (!result) {
+        errors.push(`${formatAbiParameterLabel(input, index)} needs a read result.`);
+        return;
+      }
+      if (
+        !getCompatibleReadResults(input.type, [result]).some(
+          (item) => item.id === result.id,
+        )
+      ) {
+        errors.push(`${formatAbiParameterLabel(input, index)} read result type is incompatible.`);
+        return;
+      }
+      args.push(result.value);
+      return;
+    }
+
+    const coerced = coerceAbiLiteral(input.type, parameter.literalValue);
+    if (coerced instanceof Error) {
+      errors.push(`${formatAbiParameterLabel(input, index)}: ${coerced.message}`);
+      return;
+    }
+    args.push(coerced);
+  });
+
+  return { args, errors };
+}
+
+function validateProposalForm({
+  actionPreview,
+  argsResult,
+  contractOptions,
+  form,
+  selectedContract,
+  selectedFunction,
+  valueResult,
+}: {
+  readonly actionPreview: ReturnType<typeof buildActionDataPreview> | string | undefined;
+  readonly argsResult: BuildArgsResult;
+  readonly contractOptions: readonly ContractOption[];
+  readonly form: FormState;
+  readonly selectedContract: ContractOption | undefined;
+  readonly selectedFunction: ParsedContractFunction | undefined;
+  readonly valueResult: bigint | Error;
+}): readonly string[] {
+  const errors: string[] = [];
+
+  if (!form.title.trim()) {
+    errors.push("Title is required.");
   }
 
-  const targetAddress = formValue(form.targetAddress);
-  if (!targetAddress) {
-    errors.targetAddress = "Target address is required.";
-  } else if (!isAddress(targetAddress)) {
-    errors.targetAddress = "Target address must be a valid EVM address.";
+  if (contractOptions.length === 0) {
+    errors.push("A known contract ABI is required to build a proposal action.");
   }
 
-  const dataHash = formValue(form.dataHash);
-  if (!dataHash) {
-    errors.dataHash = "Data hash is required.";
-  } else if (!isBytes32Hash(dataHash)) {
-    errors.dataHash = "Data hash must be a 32-byte 0x-prefixed hash.";
+  if (!selectedContract) {
+    errors.push("Choose a known contract.");
+  }
+
+  if (!selectedFunction) {
+    errors.push("Choose a contract function.");
+  } else if (selectedFunction.kind === "readable") {
+    errors.push("Readable functions can be run here, but are not proposal actions in v1.");
+  } else if (!selectedFunction.supportedInputs) {
+    errors.push(
+      `Unsupported input type: ${selectedFunction.unsupportedInputTypes.join(", ")}.`,
+    );
+  }
+
+  errors.push(...argsResult.errors);
+
+  if (valueResult instanceof Error) {
+    errors.push(valueResult.message);
+  }
+
+  if (typeof actionPreview === "string") {
+    errors.push(actionPreview);
+  } else if (actionPreview instanceof Error) {
+    errors.push(actionPreview.message);
   }
 
   return errors;
 }
 
-function getVisibleErrors(
-  errors: ProposalFormErrors,
-  touched: ProposalFormTouched,
-  submitAttempted: boolean,
-): ProposalFormErrors {
-  if (submitAttempted) {
-    return errors;
+function buildPayload({
+  actionPreview,
+  form,
+  orgId,
+  selectedContract,
+  selectedFunction,
+  valueResult,
+}: {
+  readonly actionPreview: ReturnType<typeof buildActionDataPreview> | string | undefined;
+  readonly form: FormState;
+  readonly orgId: string;
+  readonly selectedContract: ContractOption | undefined;
+  readonly selectedFunction: ParsedContractFunction | undefined;
+  readonly valueResult: bigint | Error;
+}): CreateProposalPayload | Error {
+  const parsedOrgId = parseUint(orgId, "Organization ID");
+  if (parsedOrgId instanceof Error) {
+    return parsedOrgId;
   }
 
-  return Object.fromEntries(
-    Object.entries(errors).filter(([field]) => touched[field as ProposalFormField]),
-  ) as ProposalFormErrors;
+  if (!selectedContract || !selectedFunction) {
+    return new Error("Choose a contract and function.");
+  }
+
+  if (
+    !actionPreview ||
+    typeof actionPreview === "string" ||
+    actionPreview instanceof Error
+  ) {
+    return new Error("Action data cannot be encoded yet.");
+  }
+
+  if (valueResult instanceof Error) {
+    return valueResult;
+  }
+
+  const proposalTypeCode = safeProposalTypeCode(form.proposalType);
+  if (proposalTypeCode instanceof Error) {
+    return proposalTypeCode;
+  }
+
+  const title = form.title.trim();
+  if (!title) {
+    return new Error("Title is required.");
+  }
+
+  return {
+    actionData: actionPreview.actionData,
+    contractName: selectedContract.name,
+    dataHash: actionPreview.dataHash,
+    functionSignature: selectedFunction.signature,
+    metadataUri: form.descriptionUri.trim() || title,
+    orgId: parsedOrgId,
+    proposalTypeCode,
+    targetAddress: selectedContract.address,
+    value: selectedFunction.payable ? valueResult : 0n,
+  };
+}
+
+function parameterKey(signature: string, index: number): string {
+  return `${signature}:${index}`;
+}
+
+function defaultLiteralValue(
+  input: ReturnType<typeof getAbiInputs>[number],
+  orgId: string,
+): string {
+  const lowerName = input.name?.toLowerCase();
+  if (lowerName === "orgid" && /^u?int/.test(input.type)) {
+    return orgId;
+  }
+
+  if (input.type === "bool") {
+    return "false";
+  }
+
+  if (/^u?int/.test(input.type)) {
+    return "0";
+  }
+
+  return "";
+}
+
+function isParameterSupported(type: string): boolean {
+  return !(coerceAbiLiteral(type, defaultValueForValidation(type)) instanceof Error);
+}
+
+function defaultValueForValidation(type: string): string {
+  if (type === "address") {
+    return "0x0000000000000000000000000000000000000001";
+  }
+  if (type === "bool") {
+    return "false";
+  }
+  if (type === "bytes32") {
+    return `0x${"0".repeat(64)}`;
+  }
+  if (type.startsWith("bytes")) {
+    const match = /^bytes([1-9]|[12][0-9]|3[0-2])$/.exec(type);
+    if (match) {
+      return `0x${"0".repeat(Number(match[1]) * 2)}`;
+    }
+    return "0x";
+  }
+  if (/^u?int/.test(type)) {
+    return "0";
+  }
+  return "";
+}
+
+function isIntegerAbiType(type: string): boolean {
+  return /^u?int(?:\d+)?$/.test(type);
+}
+
+function isMonoAbiType(type: string): boolean {
+  return type === "address" || type.startsWith("bytes") || isIntegerAbiType(type);
+}
+
+function splitReadResult(
+  value: unknown,
+  outputCount: number,
+): readonly unknown[] {
+  if (outputCount === 0) {
+    return [];
+  }
+
+  if (outputCount === 1) {
+    return [value];
+  }
+
+  return Array.isArray(value) ? value : [];
+}
+
+function formatReadResultSource(
+  id: string,
+  results: readonly ReadResultValue[],
+): string {
+  const result = results.find((item) => item.id === id);
+  if (!result) {
+    return "Choose a compatible read result.";
+  }
+
+  return `Uses output from ${result.functionLabel}.${result.outputName || result.outputIndex}`;
+}
+
+function isUsableReadResult(
+  result: CapturedReadResult,
+  functions: readonly ParsedContractFunction[],
+): boolean {
+  return functions.some((fn) =>
+    getAbiInputs(fn.abiItem).some(
+      (input) => getCompatibleReadResults(input.type, [result]).length > 0,
+    ),
+  );
 }
 
 function buildCreateProposalTransactionModalItemId(orgId: string): string {
@@ -695,86 +1566,6 @@ function mapCreateProposalStageToTransactionFlowStage(
     return "completed";
   }
   return stage;
-}
-
-function buildPayload(
-  form: FormState,
-  orgId: string,
-  localDemoTargetAddress: Address | undefined,
-): CreateProposalPayload | Error {
-  const parsedOrgId = parseUint(formValue(orgId), "Organization ID");
-  if (parsedOrgId instanceof Error) {
-    return parsedOrgId;
-  }
-
-  const value = parseUint(form.value, "Value");
-  if (value instanceof Error) {
-    return value;
-  }
-
-  const title = formValue(form.title);
-  if (!title) {
-    return new Error("Title is required.");
-  }
-
-  const metadataUri = formValue(form.descriptionUri) || title;
-  const proposalTypeCode = safeProposalTypeCode(form.proposalType);
-  if (proposalTypeCode instanceof Error) {
-    return proposalTypeCode;
-  }
-
-  if (form.targetMode === "demo") {
-    if (!localDemoTargetAddress) {
-      return new Error("Configured target address is missing from runtime config.");
-    }
-    const demoNumber = parseUint(form.demoNumber, "setNumber value");
-    if (demoNumber instanceof Error) {
-      return demoNumber;
-    }
-    return {
-      orgId: parsedOrgId,
-      proposalTypeCode,
-      targetAddress: localDemoTargetAddress,
-      value,
-      dataHash: buildDemoSetNumberAction(parsedOrgId, demoNumber).dataHash,
-      metadataUri,
-    };
-  }
-
-  const targetAddress = formValue(form.targetAddress);
-  if (!isAddress(targetAddress)) {
-    return new Error("Target address must be a valid EVM address.");
-  }
-
-  const dataHash = formValue(form.dataHash);
-  if (!isBytes32Hash(dataHash)) {
-    return new Error("Data hash must be a 32-byte 0x-prefixed hash.");
-  }
-
-  return {
-    orgId: parsedOrgId,
-    proposalTypeCode,
-    targetAddress,
-    value,
-    dataHash,
-    metadataUri,
-  };
-}
-
-function previewDemoAction(
-  orgId: string,
-  demoNumber: string,
-): { readonly dataHash: Bytes32Hash } | undefined {
-  const parsedOrgId = parseUint(formValue(orgId), "Organization ID");
-  const parsedDemoNumber = parseUint(demoNumber, "setNumber value");
-
-  if (parsedOrgId instanceof Error || parsedDemoNumber instanceof Error) {
-    return undefined;
-  }
-
-  return {
-    dataHash: buildDemoSetNumberAction(parsedOrgId, parsedDemoNumber).dataHash,
-  };
 }
 
 function safeProposalTypeCode(proposalType: ProposalType): number | Error {
@@ -825,14 +1616,6 @@ function parseUint(value: string, label: string): bigint | Error {
   } catch {
     return new Error(`${label} is too large.`);
   }
-}
-
-function formValue(value: string): string {
-  return value.trim();
-}
-
-function segmentClassName(active: boolean): string {
-  return active ? "segment segment-active" : "segment";
 }
 
 function getBlockingNotice({
