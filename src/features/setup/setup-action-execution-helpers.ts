@@ -10,6 +10,11 @@ import type {
 } from "@isonia/types";
 import { ProposalType, SetupActionKind } from "@isonia/types";
 import { isAddress } from "viem";
+import {
+  formatDecodedContractError,
+  getErrorMessage,
+} from "../../chain/contract-error-decoder";
+import { ISO_CORE_ABI } from "../../chain/setup-contracts";
 import type { SetupActionLifecycleStage } from "./setup-action-execution-types";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -266,9 +271,14 @@ export function delay(ms: number): Promise<void> {
 
 export function normalizeTransactionError(error: unknown): string {
   const message = getErrorMessage(error);
+  const decoded = formatDecodedContractError(error, [ISO_CORE_ABI]);
 
   if (/user rejected|rejected request|denied transaction/i.test(message)) {
     return "Wallet transaction was rejected.";
+  }
+
+  if (decoded) {
+    return `Transaction reverted: ${decoded}`;
   }
 
   if (/reverted|execution reverted|contract function execution/i.test(message)) {
@@ -340,22 +350,4 @@ function proposalTypeMaskBit(proposalType: ProposalType): bigint {
     case ProposalType.Emergency:
       return 1n << 4n;
   }
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (error && typeof error === "object") {
-    const record = error as Record<string, unknown>;
-    if (typeof record.shortMessage === "string") {
-      return record.shortMessage;
-    }
-    if (typeof record.message === "string") {
-      return record.message;
-    }
-  }
-
-  return "Unknown transaction error.";
 }

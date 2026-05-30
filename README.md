@@ -103,9 +103,13 @@ Organization settings are available at `/orgs/:orgId/settings`.
 - Read functions can be executed through the configured public client and their
   outputs can feed compatible write-function parameters in the same page state.
 - Write functions render typed parameter inputs, encode action data, compute the
-  data hash, and submit `target`, `value`, and `dataHash` to `createProposal`.
-  ABI labels and parameter names remain local App Core configuration, not
-  protocol authority.
+  selector and data hash, preflight the contract call, estimate gas, and submit
+  `target`, `value`, `actionSelector`, and `dataHash` to `createProposal`. ABI
+  labels and parameter names remain local App Core configuration, not protocol
+  authority.
+- Contract write failures are normalized through the active ABI definitions so
+  protocol custom errors such as `PolicyRuleNotEnabled` or `Unauthorized` are
+  shown before the raw wallet/RPC message.
 
 Asset transfer builders, verified ABI imports, provider adapters, and
 server-side contract registries are not part of this local v1 flow.

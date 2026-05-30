@@ -4,9 +4,13 @@ import type { IsoniaControlPlaneClient } from "@isonia/sdk";
 import type { Address, Bytes32Hash, ProposalDto } from "@isonia/types";
 import { ProposalType } from "@isonia/types";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { isAddress, type Abi } from "viem";
+import { isAddress, type Abi, type Hex } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import {
+  formatDecodedContractError,
+  getErrorMessage,
+} from "../../chain/contract-error-decoder";
 import {
   CREATE_PROPOSAL_TYPES,
   ISO_PROPOSALS_ABI,
@@ -92,6 +96,7 @@ interface TransactionState {
 
 interface CreateProposalPayload {
   readonly actionData: string;
+  readonly actionSelector: Hex;
   readonly contractName: string;
   readonly dataHash: Bytes32Hash;
   readonly functionSignature: string;
@@ -359,20 +364,29 @@ export function CreateProposalPage(): JSX.Element {
       let proposalId: string | undefined;
       try {
         setCreateTransaction({ stage: "wallet_pending" });
+        const createProposalArgs = buildCreateProposalContractArgs(payload);
+        await publicClient.simulateContract({
+          address: isoProposalsAddress,
+          abi: ISO_PROPOSALS_ABI,
+          functionName: "createProposal",
+          args: createProposalArgs,
+          account: signerAddress,
+        });
+        const estimatedGas = await publicClient.estimateContractGas({
+          address: isoProposalsAddress,
+          abi: ISO_PROPOSALS_ABI,
+          functionName: "createProposal",
+          args: createProposalArgs,
+          account: signerAddress,
+        });
         txHash = await writeContractAsync({
           address: isoProposalsAddress,
           abi: ISO_PROPOSALS_ABI,
           functionName: "createProposal",
-          args: [
-            payload.orgId,
-            payload.proposalTypeCode,
-            payload.targetAddress,
-            payload.value,
-            payload.dataHash,
-            payload.metadataUri,
-          ],
+          args: createProposalArgs,
           chainId: runtimeConfig.activeDeployment.chainId,
           account: signerAddress,
+          gas: addGasMargin(estimatedGas),
         });
 
         setCreateTransaction({ stage: "submitted", txHash });
@@ -409,7 +423,7 @@ export function CreateProposalPage(): JSX.Element {
         await delay(350);
         navigate(`/orgs/${orgId}/proposals/${created.proposalId}`);
       } catch (error: unknown) {
-        fail(normalizeTransactionError(error), txHash, proposalId);
+        fail(normalizeTransactionError(error, [ISO_PROPOSALS_ABI]), txHash, proposalId);
       }
     },
     [
@@ -481,7 +495,7 @@ export function CreateProposalPage(): JSX.Element {
       setReadExecution({ loading: false });
     } catch (error: unknown) {
       setReadExecution({
-        error: normalizeTransactionError(error),
+        error: normalizeTransactionError(error, [selectedContract.parsedAbi.abi]),
         loading: false,
       });
     }
@@ -532,7 +546,7 @@ export function CreateProposalPage(): JSX.Element {
       <PageHeader
         eyebrow={`Org #${orgId}`}
         title="Create Proposal"
-        description="Build a proposal action from a local known-contract ABI, submit target/value/dataHash, and wait for the indexed read model."
+        description="Build a proposal action from a local known-contract ABI, submit target/value/actionSelector/dataHash, and wait for the indexed read model."
       />
 
       <div className="action-row">
@@ -618,7 +632,7 @@ export function CreateProposalPage(): JSX.Element {
               <h2>Execution Action</h2>
               <p className="panel-subtitle">
                 ABI records are local App Core configuration. The protocol stores
-                target, value, and dataHash.
+                target, value, actionSelector, and dataHash.
               </p>
             </div>
             {selectedFunction ? <FunctionKindBadge fn={selectedFunction} /> : null}
@@ -1132,9 +1146,9 @@ function ActionPreviewPanel({
         <div>
           <h3>Technical Preview</h3>
           <p className="panel-subtitle">
-            The protocol stores target, value, and dataHash. ABI labels and
-            parameter names are local App Core configuration and are not protocol
-            authority.
+            The protocol stores target, value, actionSelector, and dataHash. ABI
+            labels and parameter names are local App Core configuration and are
+            not protocol authority.
           </p>
         </div>
       </div>
@@ -1447,6 +1461,7 @@ function buildPayload({
 
   return {
     actionData: actionPreview.actionData,
+    actionSelector: actionPreview.actionSelector,
     contractName: selectedContract.name,
     dataHash: actionPreview.dataHash,
     functionSignature: selectedFunction.signature,
@@ -1456,6 +1471,30 @@ function buildPayload({
     targetAddress: selectedContract.address,
     value: selectedFunction.payable ? valueResult : 0n,
   };
+}
+
+function buildCreateProposalContractArgs(payload: CreateProposalPayload): readonly [
+  bigint,
+  number,
+  Address,
+  bigint,
+  Hex,
+  Bytes32Hash,
+  string,
+] {
+  return [
+    payload.orgId,
+    payload.proposalTypeCode,
+    payload.targetAddress,
+    payload.value,
+    payload.actionSelector,
+    payload.dataHash,
+    payload.metadataUri,
+  ];
+}
+
+function addGasMargin(gas: bigint): bigint {
+  return gas + gas / 5n + 10_000n;
 }
 
 function parameterKey(signature: string, index: number): string {
@@ -1690,30 +1729,22 @@ function transactionTone(
   return "warning";
 }
 
-function normalizeTransactionError(error: unknown): string {
+function normalizeTransactionError(
+  error: unknown,
+  abis: readonly Abi[] = [],
+): string {
   const message = getErrorMessage(error);
+  const decoded = formatDecodedContractError(error, abis);
   if (/user rejected|rejected request|denied transaction/i.test(message)) {
     return "Wallet transaction was rejected.";
   }
+  if (decoded) {
+    return `Transaction reverted: ${decoded}`;
+  }
+  if (/gas limit .*exceeds transaction gas cap|exceeds transaction gas cap/i.test(message)) {
+    return `RPC rejected the transaction before execution because the selected gas limit exceeds the node gas cap. App Core simulates and estimates gas before wallet submission; if this persists, check the configured RPC gas cap and wallet gas override. Raw RPC message: ${message}`;
+  }
   return message;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (error && typeof error === "object") {
-    const record = error as Record<string, unknown>;
-    if (typeof record.shortMessage === "string") {
-      return record.shortMessage;
-    }
-    if (typeof record.message === "string") {
-      return record.message;
-    }
-  }
-
-  return "Unknown transaction error.";
 }
 
 function toError(error: unknown): Error {

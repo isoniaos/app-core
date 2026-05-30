@@ -9,6 +9,10 @@ import { ProposalStatus } from "@isonia/types";
 import type { Hex, TransactionReceipt } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { useIsoniaClient } from "../../api/IsoniaClientProvider";
+import {
+  formatDecodedContractError,
+  getErrorMessage,
+} from "../../chain/contract-error-decoder";
 import { ISO_PROPOSALS_ABI } from "../../chain/proposal-contracts";
 import { useRuntimeConfig } from "../../config/runtime-config";
 import { useTransactionModal, type TransactionFlowStage } from "../../transactions";
@@ -652,9 +656,14 @@ function delay(ms: number): Promise<void> {
 
 function normalizeTransactionError(error: unknown): string {
   const message = getErrorMessage(error);
+  const decoded = formatDecodedContractError(error, [ISO_PROPOSALS_ABI]);
 
   if (/user rejected|rejected request|denied transaction/i.test(message)) {
     return "Wallet transaction was rejected.";
+  }
+
+  if (decoded) {
+    return `Transaction reverted: ${decoded}`;
   }
 
   if (/reverted|execution reverted|contract function execution/i.test(message)) {
@@ -666,24 +675,6 @@ function normalizeTransactionError(error: unknown): string {
   }
 
   return message;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (error && typeof error === "object") {
-    const record = error as Record<string, unknown>;
-    if (typeof record.shortMessage === "string") {
-      return record.shortMessage;
-    }
-    if (typeof record.message === "string") {
-      return record.message;
-    }
-  }
-
-  return "Unknown transaction error.";
 }
 
 function toError(error: unknown): Error {

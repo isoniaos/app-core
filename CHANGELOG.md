@@ -23,7 +23,7 @@ All notable changes to `@isonia/app-core` are documented here.
   known-contract ABI action builder that lists active-chain contracts, includes
   the runtime local demo target suggestion when configured, runs read functions,
   chains compatible read outputs into write parameters, and submits
-  target/value/dataHash through the existing transaction modal.
+  target/value/actionSelector/dataHash through the existing transaction modal.
 - Switched local alpha `@isonia/sdk`, `@isonia/types`, and `@isonia/theme-default` dependencies to private workspace links.
 - Replaced local duplicated theme palette and Chakra token setup with the normalized `@isonia/theme-default` theme module and Chakra adapter.
 - Switched App Core typography consumption to the `@isonia/theme-default` Roboto/SUSE Mono contract with 400 normal weight, 600 bold weight, 1.2 line height, and `0.01rem` letter spacing.
@@ -42,6 +42,9 @@ All notable changes to `@isonia/app-core` are documented here.
 
 - Fixed browser-local organization settings and known-contract snapshots so React
   does not enter an update loop when the AppShell reads local display settings.
+- Fixed create-proposal writes against the current selector-aware IsoProposals
+  ABI, added preflight simulation/gas estimation before wallet submission, and
+  decoded protocol custom errors through local ABI definitions.
 - Fixed Vite dev startup against linked workspace `@isonia/sdk` and `@isonia/types` packages by explicitly pre-bundling them for browser ESM consumption.
 
 ## [0.8.0-alpha.4]

@@ -8,8 +8,10 @@ import {
   type Hex,
   type TransactionReceipt,
 } from "viem";
+import { ISONIA_PROTOCOL_ERROR_ABI } from "./protocol-errors";
 
 export const ISO_PROPOSALS_ABI = [
+  ...ISONIA_PROTOCOL_ERROR_ABI,
   {
     type: "function",
     name: "createProposal",
@@ -19,6 +21,7 @@ export const ISO_PROPOSALS_ABI = [
       { name: "proposalType", type: "uint8" },
       { name: "target", type: "address" },
       { name: "value", type: "uint256" },
+      { name: "actionSelector", type: "bytes4" },
       { name: "dataHash", type: "bytes32" },
       { name: "metadataURI", type: "string" },
     ],
@@ -88,6 +91,7 @@ export const ISO_PROPOSALS_ABI = [
       { name: "creator", type: "address", indexed: false },
       { name: "target", type: "address", indexed: false },
       { name: "value", type: "uint256", indexed: false },
+      { name: "actionSelector", type: "bytes4", indexed: false },
       { name: "dataHash", type: "bytes32", indexed: false },
       { name: "metadataURI", type: "string", indexed: false },
     ],
@@ -137,10 +141,12 @@ export const CREATE_PROPOSAL_TYPES = [
 
 export interface DemoProposalAction {
   readonly actionData: Hex;
+  readonly actionSelector: Hex;
   readonly dataHash: Bytes32Hash;
 }
 
 export interface ProposalCreatedLog {
+  readonly actionSelector: Hex;
   readonly orgId: string;
   readonly proposalId: string;
   readonly policyVersion: string;
@@ -149,6 +155,7 @@ export interface ProposalCreatedLog {
 }
 
 interface ProposalCreatedArgs {
+  readonly actionSelector: Hex;
   readonly orgId: bigint;
   readonly proposalId: bigint;
   readonly policyVersion: bigint;
@@ -180,6 +187,7 @@ export function buildDemoSetNumberAction(
 
   return {
     actionData,
+    actionSelector: actionData.slice(0, 10) as Hex,
     dataHash: keccak256(actionData),
   };
 }
@@ -208,6 +216,7 @@ export function parseProposalCreatedLog(
 
       const args = decoded.args as unknown as ProposalCreatedArgs;
       return {
+        actionSelector: args.actionSelector,
         orgId: args.orgId.toString(),
         proposalId: args.proposalId.toString(),
         policyVersion: args.policyVersion.toString(),
